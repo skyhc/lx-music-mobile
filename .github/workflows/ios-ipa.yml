@@ -37,6 +37,52 @@ jobs:
           sudo xcode-select -s /Applications/Xcode_26.6.app/Contents/Developer
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Fix Swift compatibility libraries
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TOOLCHAIN="$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphoneos"
+          SDK="$(xcrun --sdk iphoneos --show-sdk-path)/usr/lib/swift"
+
+          echo "Toolchain Swift path:"
+          echo "$TOOLCHAIN"
+
+          echo "SDK Swift path:"
+          echo "$SDK"
+
+          LIBS=(
+            libswiftCompatibility50.a
+            libswiftCompatibility51.a
+            libswiftCompatibility56.a
+            libswiftCompatibilityConcurrency.a
+            libswiftCompatibilityDynamicReplacements.a
+            libswiftCompatibilityPacks.a
+          )
+
+          for LIB in "${LIBS[@]}"; do
+            SRC="$TOOLCHAIN/$LIB"
+            DST="$SDK/$LIB"
+            TBD="${DST%.a}.tbd"
+
+            if [ -f "$SRC" ]; then
+              echo "Found: $SRC"
+
+              if [ ! -e "$DST" ] && [ ! -e "$TBD" ]; then
+                echo "Linking $LIB into SDK"
+                sudo ln -s "$SRC" "$DST"
+              else
+                echo "$LIB already available in SDK"
+              fi
+            else
+              echo "Warning: $LIB not found in toolchain"
+            fi
+          done
+
+          echo "Swift compatibility libraries available to SDK:"
+          ls -la "$SDK" | grep Compatibility || true
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
