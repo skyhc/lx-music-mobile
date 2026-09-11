@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - ios-adaptation
+      - ipad-landscape
     tags:
       - 'v*'
   workflow_dispatch:
@@ -125,6 +126,8 @@ jobs:
             -destination 'generic/platform=iOS' \
             -derivedDataPath "$DERIVED_DATA_PATH" \
             PRODUCT_BUNDLE_IDENTIFIER="$IOS_BUNDLE_IDENTIFIER" \
+            TARGETED_DEVICE_FAMILY="1,2" \
+            IPHONEOS_DEPLOYMENT_TARGET=15.0 \
             MARKETING_VERSION="$PACKAGE_VERSION" \
             CURRENT_PROJECT_VERSION="$PACKAGE_VERSION_CODE" \
             CODE_SIGNING_ALLOWED=NO \
@@ -145,6 +148,16 @@ jobs:
           name: xcodebuild-log
           path: build/xcodebuild.log
           if-no-files-found: ignore
+
+      - name: Verify iPad build metadata
+        shell: bash
+        run: |
+          APP_PATH="$(find "$DERIVED_DATA_PATH/Build/Products/Release-iphoneos" -maxdepth 1 -name '*.app' -print -quit)"
+          test -n "$APP_PATH"
+          echo "===== Built app metadata ====="
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :UIDeviceFamily' "$APP_PATH/Info.plist"
 
       - name: Package unsigned IPA
         shell: bash
@@ -210,6 +223,8 @@ jobs:
             -archivePath "$ARCHIVE_PATH" \
             DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_IDENTIFIER" \
+            TARGETED_DEVICE_FAMILY="1,2" \
+            IPHONEOS_DEPLOYMENT_TARGET=15.0 \
             MARKETING_VERSION="$PACKAGE_VERSION" \
             CURRENT_PROJECT_VERSION="$PACKAGE_VERSION_CODE" \
             clean archive
