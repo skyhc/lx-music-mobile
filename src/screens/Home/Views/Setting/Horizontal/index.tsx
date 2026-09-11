@@ -39,7 +39,7 @@ export default () => {
   const mainRef = useRef<MainType>(null)
   const { width: windowWidth } = useWindowSize()
   const expanded = windowWidth >= 900
-  const navWidth = expanded
+  const navWidth: number | `${number}%` = expanded
     ? Math.min(Math.max(windowWidth * 0.2, 200), 260)
     : '22%'
 
