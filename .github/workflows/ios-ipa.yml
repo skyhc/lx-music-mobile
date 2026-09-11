@@ -1,4 +1,4 @@
-name: Build iOS IPA
+name: Build iOS IPA + Xcode Archive
 
 on:
   push:
@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build-ios-ipa:
-    name: iOS IPA
+    name: iOS IPA + Xcode Archive
     runs-on: macos-26
     env:
       NO_FLIPPER: 1
@@ -22,6 +22,7 @@ jobs:
       IOS_WORKSPACE: ios/LxMusicMobile.xcworkspace
       IOS_BUNDLE_IDENTIFIER: com.skyhc.lxmusic
       DERIVED_DATA_PATH: build/DerivedData
+      UNSIGNED_ARCHIVE_PATH: build/LxMusicMobile-unsigned.xcarchive
       ARCHIVE_PATH: build/LxMusicMobile.xcarchive
       IOS_P12_BASE64: ${{ secrets.IOS_P12_BASE64 }}
       IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
@@ -113,10 +114,11 @@ jobs:
           echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> "$GITHUB_ENV"
           echo "PACKAGE_VERSION_CODE=$PACKAGE_VERSION_CODE" >> "$GITHUB_ENV"
 
-      - name: Build unsigned iOS app
+      - name: Build unsigned Xcode archive
         shell: bash
         run: |
           mkdir -p build
+          rm -rf "$UNSIGNED_ARCHIVE_PATH"
           set -o pipefail
           xcodebuild \
             -workspace "$IOS_WORKSPACE" \
@@ -124,6 +126,7 @@ jobs:
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
+            -archivePath "$UNSIGNED_ARCHIVE_PATH" \
             -derivedDataPath "$DERIVED_DATA_PATH" \
             PRODUCT_BUNDLE_IDENTIFIER="$IOS_BUNDLE_IDENTIFIER" \
             TARGETED_DEVICE_FAMILY="1,2" \
@@ -132,7 +135,7 @@ jobs:
             CURRENT_PROJECT_VERSION="$PACKAGE_VERSION_CODE" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            clean build 2>&1 | tee build/xcodebuild.log
+            clean archive 2>&1 | tee build/xcodebuild.log
 
       - name: Show first Xcode errors
         if: failure()
@@ -149,34 +152,66 @@ jobs:
           path: build/xcodebuild.log
           if-no-files-found: ignore
 
-      - name: Verify iPad build metadata
+      - name: Verify iPad archive metadata
         shell: bash
         run: |
-          APP_PATH="$(find "$DERIVED_DATA_PATH/Build/Products/Release-iphoneos" -maxdepth 1 -name '*.app' -print -quit)"
+          test -d "$UNSIGNED_ARCHIVE_PATH"
+          test -f "$UNSIGNED_ARCHIVE_PATH/Info.plist"
+
+          APP_PATH="$(find "$UNSIGNED_ARCHIVE_PATH/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)"
           test -n "$APP_PATH"
+
+          echo "===== Archive metadata ====="
+          /usr/libexec/PlistBuddy -c 'Print :ArchiveVersion' "$UNSIGNED_ARCHIVE_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :Name' "$UNSIGNED_ARCHIVE_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :SchemeName' "$UNSIGNED_ARCHIVE_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:ApplicationPath' "$UNSIGNED_ARCHIVE_PATH/Info.plist"
+
           echo "===== Built app metadata ====="
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist"
           /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP_PATH/Info.plist"
           /usr/libexec/PlistBuddy -c 'Print :UIDeviceFamily' "$APP_PATH/Info.plist"
+
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist")" = "$IOS_BUNDLE_IDENTIFIER"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP_PATH/Info.plist")" = "15.0"
 
       - name: Package unsigned IPA
         shell: bash
         run: |
-          APP_PATH="$(find "$DERIVED_DATA_PATH/Build/Products/Release-iphoneos" -maxdepth 1 -name '*.app' -print -quit)"
+          APP_PATH="$(find "$UNSIGNED_ARCHIVE_PATH/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)"
           test -n "$APP_PATH"
           rm -rf build/Payload
           mkdir -p build/Payload
-          cp -R "$APP_PATH" build/Payload/
+          ditto "$APP_PATH" "build/Payload/$(basename "$APP_PATH")"
           (
             cd build
             zip -qry "lx-music-mobile-v${PACKAGE_VERSION}-ios-unsigned.ipa" Payload
           )
 
+      - name: Package Xcode archive for download
+        shell: bash
+        run: |
+          ARCHIVE_ZIP="build/LX-Music-v${PACKAGE_VERSION}-build${PACKAGE_VERSION_CODE}.xcarchive.zip"
+          rm -f "$ARCHIVE_ZIP"
+          ditto -c -k --sequesterRsrc --keepParent "$UNSIGNED_ARCHIVE_PATH" "$ARCHIVE_ZIP"
+          test -s "$ARCHIVE_ZIP"
+          echo "Xcode archive package: $ARCHIVE_ZIP"
+          ls -lh "$ARCHIVE_ZIP"
+
       - name: Upload unsigned IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ios-ipa-v${{ env.PACKAGE_VERSION }}-unsigned
+          name: ios-ipa-v${{ env.PACKAGE_VERSION }}-build${{ env.PACKAGE_VERSION_CODE }}-unsigned
           path: build/lx-music-mobile-v${{ env.PACKAGE_VERSION }}-ios-unsigned.ipa
+
+      - name: Upload Xcode archive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-archive-v${{ env.PACKAGE_VERSION }}-build${{ env.PACKAGE_VERSION_CODE }}
+          path: build/LX-Music-v${{ env.PACKAGE_VERSION }}-build${{ env.PACKAGE_VERSION_CODE }}.xcarchive.zip
+          if-no-files-found: error
 
       - name: Release unsigned IPA
         if: startsWith(github.ref, 'refs/tags/v')
