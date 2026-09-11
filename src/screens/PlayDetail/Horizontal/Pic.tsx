@@ -13,6 +13,7 @@ import Image from '@/components/common/Image'
 import { useStatusbarHeight } from '@/store/common/hook'
 import commonState from '@/store/common/state'
 
+const MAX_IPAD_PIC_WIDTH = 420
 
 export default memo(({ componentId }: { componentId: string }) => {
   const musicInfo = usePlayerMusicInfo()
@@ -29,7 +30,11 @@ export default memo(({ componentId }: { componentId: string }) => {
     setAnimated(true)
   })
 
-  let imgWidth = Math.min((winWidth * 0.45 - marginLeft - BTN_WIDTH) * 0.76, (winHeight - statusBarHeight - HEADER_HEIGHT) * 0.62)
+  let imgWidth = Math.min(
+    (winWidth * 0.45 - marginLeft - BTN_WIDTH) * 0.76,
+    (winHeight - statusBarHeight - HEADER_HEIGHT) * 0.62,
+    winWidth >= 900 ? MAX_IPAD_PIC_WIDTH : Number.POSITIVE_INFINITY,
+  )
   imgWidth -= imgWidth * (global.lx.fontSize - 1) * 0.3
   let contentHeight = (winHeight - statusBarHeight - HEADER_HEIGHT) * 0.66
   contentHeight -= contentHeight * (global.lx.fontSize - 1) * 0.2
