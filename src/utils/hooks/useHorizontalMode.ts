@@ -1,9 +1,9 @@
 import { useWindowSize } from '@/utils/hooks'
-import { isHorizontalMode } from '../tools'
+import { shouldUseHorizontalLayout } from '../layout'
 
 
 export default () => {
   const windowSize = useWindowSize()
 
-  return isHorizontalMode(windowSize.width, windowSize.height)
+  return shouldUseHorizontalLayout(windowSize.width, windowSize.height)
 }
