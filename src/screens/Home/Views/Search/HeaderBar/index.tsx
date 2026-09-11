@@ -13,6 +13,7 @@ import { createStyle } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import { type Source as MusicSource } from '@/store/search/music/state'
 import { type Source as SonglistSource } from '@/store/search/songlist/state'
+import { useWindowSize } from '@/utils/hooks'
 
 type Sources = Readonly<Array<MusicSource | SonglistSource>>
 type SourceSelectorProps = _SourceSelectorProps<Sources>
@@ -37,6 +38,8 @@ export default forwardRef<HeaderBarType, HeaderBarProps>(({ onSourceChange, onTi
   const sourceSelectorRef = useRef<SourceSelectorType>(null)
   const searchInputRef = useRef<SearchInputType>(null)
   const theme = useTheme()
+  const { width: windowWidth } = useWindowSize()
+  const expanded = windowWidth >= 900
 
   useImperativeHandle(ref, () => ({
     setSourceList(list, source) {
@@ -53,27 +56,34 @@ export default forwardRef<HeaderBarType, HeaderBarProps>(({ onSourceChange, onTi
 
   return (
     <View style={{ ...styles.searchBar, borderBottomColor: theme['c-border-background'] }}>
-      <View style={styles.selector}>
-        <SourceSelector ref={sourceSelectorRef} onSourceChange={onSourceChange} center />
+      <View style={{ ...styles.searchBarInner, maxWidth: expanded ? 720 : undefined }}>
+        <View style={styles.selector}>
+          <SourceSelector ref={sourceSelectorRef} onSourceChange={onSourceChange} center />
+        </View>
+        <SearchInput
+          ref={searchInputRef}
+          onChangeText={onTipSearch}
+          onSubmit={onSearch}
+          onBlur={onHideTipList}
+          onTouchStart={onShowTipList}
+        />
       </View>
-      <SearchInput
-        ref={searchInputRef}
-        onChangeText={onTipSearch}
-        onSubmit={onSearch}
-        onBlur={onHideTipList}
-        onTouchStart={onShowTipList}
-      />
     </View>
   )
 })
 
 const styles = createStyle({
   searchBar: {
-    flexDirection: 'row',
     height: 38,
     zIndex: 2,
-    paddingRight: 10,
     borderBottomWidth: BorderWidths.normal,
+    alignItems: 'center',
+  },
+  searchBarInner: {
+    width: '100%',
+    height: 38,
+    flexDirection: 'row',
+    paddingRight: 10,
   },
   selector: {
     // width: 86,
