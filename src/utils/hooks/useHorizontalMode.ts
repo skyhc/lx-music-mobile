@@ -1,4 +1,4 @@
-import { useWindowSize } from '@/utils/hooks'
+import useWindowSize from './useWindowSize'
 import { shouldUseHorizontalLayout } from '../layout'
 
 
