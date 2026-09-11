@@ -3,7 +3,8 @@ import { FlatList, type FlatListProps, RefreshControl, View } from 'react-native
 
 // import { useMusicList } from '@/store/list/hook'
 import ListItem, { ITEM_HEIGHT } from './ListItem'
-import { createStyle, getRowInfo, type RowInfoType } from '@/utils/tools'
+import { createStyle, type RowInfoType } from '@/utils/tools'
+import { getResponsiveRowInfo } from '@/utils/layout'
 import type { Position } from './ListMenu'
 import type { SelectMode } from './MultipleModeBar'
 import { useTheme } from '@/store/theme/hook'
@@ -13,6 +14,7 @@ import { useI18n } from '@/lang'
 import Text from '@/components/common/Text'
 import { handlePlay } from './listAction'
 import { useSettingValue } from '@/store/setting/hook'
+import { useWindowSize } from '@/utils/hooks'
 
 type FlatListType = FlatListProps<LX.Music.MusicInfoOnline>
 
@@ -68,7 +70,9 @@ const List = forwardRef<ListType, ListProps>(({
   const selectedListRef = useRef<LX.Music.MusicInfoOnline[]>([])
   const [visibleMultiSelect, setVisibleMultiSelect] = useState(false)
   const [status, setStatus] = useState<Status>('idle')
-  const rowInfo = useRef(getRowInfo(rowType))
+  const { width: windowWidth } = useWindowSize()
+  const rowInfo = useMemo(() => getResponsiveRowInfo(windowWidth, rowType), [rowType, windowWidth])
+  const columnCount = rowInfo.rowNum ?? 1
   const isShowAlbumName = useSettingValue('list.isShowAlbumName')
   const isShowInterval = useSettingValue('list.isShowInterval')
   // const currentListIdRef = useRef('')
@@ -189,14 +193,14 @@ const List = forwardRef<ListType, ListProps>(({
       onLongPress={handleLongPress}
       onShowMenu={onShowMenu}
       selectedList={selectedList}
-      rowInfo={rowInfo.current}
+      rowInfo={rowInfo}
       isShowAlbumName={isShowAlbumName}
       isShowInterval={isShowInterval}
     />
   )
   const getkey: FlatListType['keyExtractor'] = item => item.id
   const getItemLayout: FlatListType['getItemLayout'] = (data, index) => {
-    return { length: ITEM_HEIGHT, offset: ITEM_HEIGHT * index, index }
+    return { length: ITEM_HEIGHT, offset: ITEM_HEIGHT * Math.floor(index / columnCount), index }
   }
   const refreshControl = useMemo(() => (
     <RefreshControl
@@ -231,10 +235,11 @@ const List = forwardRef<ListType, ListProps>(({
 
   return (
     <FlatList
+      key={`columns-${columnCount}`}
       ref={flatListRef}
       style={styles.list}
       data={currentList}
-      numColumns={rowInfo.current.rowNum}
+      numColumns={columnCount}
       horizontal={false}
       maxToRenderPerBatch={4}
       // updateCellsBatchingPeriod={80}
