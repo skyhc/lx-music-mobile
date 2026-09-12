@@ -1,8 +1,14 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
+import { View, Platform } from 'react-native'
+import Text from '@/components/common/Text'
+import Button from '@/components/common/Button'
+import { useTheme } from '@/store/theme/hook'
+import { useHorizontalMode } from '@/utils/hooks'
+import { toast } from '@/utils/tools'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import OnlineList, { type OnlineListType, type OnlineListProps } from '@/components/OnlineList'
 import { clearListDetail, getListDetail, setListDetail, setListDetailInfo } from '@/core/leaderboard'
 import boardState from '@/store/leaderboard/state'
-import { handlePlay } from './listAction'
+import { handlePlay, handleCollect } from './listAction'
 
 // export type MusicListProps = Pick<OnlineListProps,
 // 'onLoadMore'
@@ -15,6 +21,10 @@ export interface MusicListType {
 }
 
 export default forwardRef<MusicListType, {}>((props, ref) => {
+  const horizontal = useHorizontalMode()
+  const wide = Platform.OS == 'ios' && horizontal
+  const theme = useTheme()
+  const [board, setBoard] = useState<{ name: string, id: string, source: LX.OnlineSource | null }>({ name: '排行榜', id: '', source: null })
   const listRef = useRef<OnlineListType>(null)
   const isUnmountedRef = useRef(false)
   const loadRequestIdRef = useRef(0)
@@ -50,6 +60,7 @@ export default forwardRef<MusicListType, {}>((props, ref) => {
     async loadList(source, id) {
       const requestId = ++loadRequestIdRef.current
       currentListIdRef.current = id
+      setBoard({ id, source, name: boardState.boards[source]?.list.find(item => item.id == id)?.name ?? '排行榜' })
       const listDetailInfo = boardState.listDetailInfo
       listRef.current?.setList([])
       if (listDetailInfo.id == id && listDetailInfo.source == source && listDetailInfo.list.length) {
@@ -107,7 +118,17 @@ export default forwardRef<MusicListType, {}>((props, ref) => {
     })
   }
 
-  return <OnlineList
+  return <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+    {wide ? <View style={{ flexDirection: 'row', alignItems: 'center', minHeight: 76, padding: 16, gap: 12 }}>
+      <Text size={18} style={{ flex: 1, minWidth: 0, fontWeight: '600' }} numberOfLines={2}>{board.name}</Text>
+      <Button style={{ minHeight: 44, paddingHorizontal: 16, justifyContent: 'center', backgroundColor: theme['c-button-background'] }} onPress={() => {
+        if (board.id) void handlePlay(board.id, boardState.listDetailInfo.list).catch(() => toast('播放失败，请重试'))
+      }}><Text color={theme['c-button-font']}>播放</Text></Button>
+      <Button style={{ minHeight: 44, paddingHorizontal: 16, justifyContent: 'center', backgroundColor: theme['c-button-background'] }} onPress={() => {
+        if (board.id && board.source) void handleCollect(board.id, board.name, board.source).catch(() => toast('收藏失败，请重试'))
+      }}><Text color={theme['c-button-font']}>收藏</Text></Button>
+    </View> : null}
+    <OnlineList
     ref={listRef}
     onPlayList={handlePlayList}
     onRefresh={handleRefresh}
@@ -115,5 +136,6 @@ export default forwardRef<MusicListType, {}>((props, ref) => {
     checkHomePagerIdle
     rowType='medium'
    />
+  </View>
 })
 

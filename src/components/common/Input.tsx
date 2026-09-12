@@ -116,7 +116,7 @@ export default forwardRef<InputType, InputProps>(({ onChangeText, onClearText, c
         onChangeText={changeText}
         autoComplete="off"
         style={StyleSheet.compose({ ...styles.input, color: theme['c-font'], fontSize: setSpText(size) }, style)}
-        placeholderTextColor={theme['c-primary-dark-100-alpha-600']}
+        placeholderTextColor={theme['c-font-label']}
         selectionColor={theme['c-primary-light-100-alpha-300']}
         ref={inputRef} {...props} />
       {/* <View style={styles.clearBtnContent}>

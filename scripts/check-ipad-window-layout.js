@@ -42,10 +42,10 @@ check('the whole player remains inside the left column', () => {
   assert.ok(!content.includes('<PageContent'))
   assert.ok(content.includes('appstateListener.remove()'))
 })
-check('landscape iPad popup policy overrides callers requesting bottom or right', () => {
+check('popup direction uses explicit list/panel intent', () => {
   const content = read(popupPath)
-  assert.ok(content.includes("Platform.OS == 'ios' && Platform.isPad && shouldUseIPadLayout(width, height) ? 'left' : position"))
-  assert.ok(content.includes('switch (actualPosition)'))
+  assert.ok(content.includes("panelPosition(Platform.OS == 'ios', kind, position)"))
+  assert.ok(content.includes('panelBounds('))
 })
 check('native vertical region and modal roots consume safe insets exactly once', () => {
   assert.ok(read('ios/LxMusicMobile/LXWindowInsets.swift').includes('.safeArea(cornerAdaptation: .vertical)'))
@@ -53,9 +53,9 @@ check('native vertical region and modal roots consume safe insets exactly once',
   assert.ok(read(windowPath).includes("Platform.OS != 'ios' || consumed"))
   assert.ok(!read(popupPath).includes("const fill = { position: 'absolute'"))
 })
-check('timer and favorite editors also use the left panel', () => {
-  assert.ok(read('src/screens/PlayDetail/Horizontal/MoreBtn/MusicAddBtn.tsx').includes('<MusicAddModal position="left"'))
-  assert.ok(read('src/screens/PlayDetail/Horizontal/MoreBtn/TimeoutExitBtn.tsx').includes('<TimeoutExitEditModal position="left"'))
+check('timer and favorite editors remain centered while lists are explicit', () => {
+  assert.ok(read('src/screens/PlayDetail/Horizontal/MoreBtn/MusicAddBtn.tsx').includes('<MusicAddModal position="center"'))
+  assert.ok(read('src/screens/PlayDetail/Horizontal/MoreBtn/TimeoutExitBtn.tsx').includes('<TimeoutExitEditModal position="center"'))
   assert.ok(read('src/components/common/ConfirmAlert.tsx').includes('<Dialog position={position}'))
   assert.ok(read('src/components/common/Dialog.tsx').includes('<Popup ref={modalRef}'))
 })

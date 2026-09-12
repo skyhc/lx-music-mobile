@@ -41,11 +41,11 @@ const check = async(name, fn) => { await fn(); n++; console.log('PASS', name) }
     assert.equal(sizing.windowSizeTools.getSize().width, 1366)
     remove(); remove() // idempotent removal cannot splice another listener
   })
-  const pixels = load('src/utils/pixelRatio.ts', { 'react-native': native, './windowSizeTools': sizing }, { global: { lx: { fontSize: 1 } } })
+  const pixels = load('src/utils/pixelRatio.ts', { 'react-native': native, './windowSizeTools': sizing, './readability': load('src/utils/readability.ts') }, { global: { lx: { fontSize: 1 } } })
   await check('iOS text and secondary icons keep native point sizes during window resize', () => {
     for (const [w,h] of [[1366,1024],[400,550],[1366,1024]]) {
       sizing.windowSizeTools.setWindowSize(w,h)
-      assert.equal(pixels.getTextSize(15),15)
+      assert.equal(pixels.getTextSize(15),17)
       assert.equal(pixels.scaleSizeW(18),18)
       assert.equal(pixels.scaleSizeH(44),44)
     }

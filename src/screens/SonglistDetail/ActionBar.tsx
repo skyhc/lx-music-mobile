@@ -34,11 +34,11 @@ export default memo(() => {
 
   return (
     <View style={styles.container}>
-      <Button onPress={handleCollection} style={styles.controlBtn}>
-        <Text style={{ ...styles.controlBtnText, color: theme['c-button-font'] }}>{t('collect_songlist')}</Text>
-      </Button>
       <Button onPress={handlePlayAll} style={styles.controlBtn}>
         <Text style={{ ...styles.controlBtnText, color: theme['c-button-font'] }}>{t('play_all')}</Text>
+      </Button>
+      <Button onPress={handleCollection} style={styles.controlBtn}>
+        <Text style={{ ...styles.controlBtnText, color: theme['c-button-font'] }}>{t('collect_songlist')}</Text>
       </Button>
       <Button onPress={back} style={styles.controlBtn}>
         <Text style={{ ...styles.controlBtnText, color: theme['c-button-font'] }}>{t('back')}</Text>
@@ -60,11 +60,11 @@ const styles = createStyle({
     width: '33%',
     paddingTop: 12,
     paddingBottom: 12,
-    paddingLeft: 10,
-    paddingRight: 10,
+    paddingLeft: 6,
+    paddingRight: 6,
   },
   controlBtnText: {
-    fontSize: 13,
+    fontSize: 16,
     textAlign: 'center',
   },
 })

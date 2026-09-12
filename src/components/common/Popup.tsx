@@ -1,50 +1,37 @@
-import { shouldUseIPadLayout } from '@/utils/layout'
-import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
+import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import { View, Animated, TouchableOpacity, Platform, useWindowDimensions } from 'react-native'
 import Modal, { type ModalType } from './Modal'
-import { Icon } from '@/components/common/Icon'
+import { Icon } from './Icon'
 import { useKeyboard } from '@/utils/hooks'
-import { createStyle } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import Text from './Text'
-import { useStatusbarHeight } from '@/store/common/hook'
-import WindowContent from '@/components/WindowContent'
-
-const styles = createStyle({
-  centeredView: { flex: 1 },
-  modalView: { elevation: 6, flexGrow: 0, flexShrink: 1 },
-  header: { flexShrink: 0, minHeight: 44, flexDirection: 'row', alignItems: 'center', borderTopLeftRadius: 8, borderTopRightRadius: 8 },
-  title: { flex: 1, paddingLeft: 12, paddingRight: 48, paddingVertical: 10 },
-  closeBtn: { position: 'absolute', right: 0, top: 0, height: 44, width: 44, justifyContent: 'center', alignItems: 'center' },
-})
+import { panelBounds, panelPosition, type PanelPosition } from '@/utils/panelLayout'
 
 export interface PopupProps {
   onHide?: () => void
   keyHide?: boolean
   bgHide?: boolean
   closeBtn?: boolean
-  position?: 'top' | 'left' | 'right' | 'bottom'
+  position?: PanelPosition
+  kind?: 'list' | 'panel'
   title?: string
   children: React.ReactNode
 }
-export interface PopupType {
-  setVisible: (visible: boolean) => void
-}
+export interface PopupType { setVisible: (visible: boolean) => void }
 
 export default forwardRef<PopupType, PopupProps>(({
-  onHide = () => {}, keyHide = true, bgHide = true, closeBtn = true,
-  position = 'bottom', title = '', children,
-}: PopupProps, ref) => {
+  onHide, keyHide = true, bgHide = true, closeBtn = true,
+  position = 'bottom', kind = 'panel', title = '', children,
+}, ref) => {
   const theme = useTheme()
   const { keyboardShown, keyboardHeight } = useKeyboard()
-  const statusBarHeight = useStatusbarHeight()
-  const { width, height } = useWindowDimensions()
+  const window = useWindowDimensions()
+  const [frame, setFrame] = useState({ width: 0, height: 0 })
   const modalRef = useRef<ModalType>(null)
   const entrance = useRef(new Animated.Value(1)).current
-  // Central policy also covers player sheets whose callers still request bottom.
-  const actualPosition = Platform.OS == 'ios' && Platform.isPad && shouldUseIPadLayout(width, height) ? 'left' : position
-  const useWindowContent = Platform.OS == 'ios' && (actualPosition == 'left' || actualPosition == 'right')
-
+  // Only an explicit list panel uses the left drawer. Settings are centered.
+  const actualPosition = panelPosition(Platform.OS == 'ios', kind, position)
+  const bounds = panelBounds(frame.width || window.width, frame.height || Math.max(0, window.height - 80 - (keyboardShown ? keyboardHeight : 0)), kind)
   useImperativeHandle(ref, () => ({
     setVisible(visible: boolean) {
       entrance.stopAnimation()
@@ -52,52 +39,28 @@ export default forwardRef<PopupType, PopupProps>(({
       modalRef.current?.setVisible(visible)
     },
   }))
-
-  const [centeredViewStyle, modalViewStyle] = useMemo(() => {
-    const fill = { flex: 1, minWidth: 0, minHeight: 0 } as const
-    switch (actualPosition) {
-      case 'top':
-        return [
-          { ...fill, justifyContent: 'flex-start' },
-          { width: '100%', maxHeight: '78%', minHeight: '20%' },
-        ] as const
-      case 'left':
-      case 'right':
-        return [
-          { ...fill, flexDirection: 'row', justifyContent: actualPosition == 'left' ? 'flex-start' : 'flex-end' },
-          { minWidth: '45%', maxWidth: '78%', height: '100%', paddingTop: useWindowContent ? 0 : statusBarHeight },
-        ] as const
-      default:
-        return [
-          { ...fill, justifyContent: 'flex-end' },
-          { width: '100%', maxHeight: '78%', minHeight: '20%', borderTopLeftRadius: 8, borderTopRightRadius: 8 },
-        ] as const
-    }
-  }, [actualPosition, statusBarHeight, useWindowContent])
-
-  const content = (
-    <>
-      <View style={styles.header}>
-        <Text size={13} style={styles.title} numberOfLines={1}>{title}</Text>
-        {closeBtn ? (
-          <TouchableOpacity style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="关闭" onPress={() => modalRef.current?.setVisible(false)}>
-            <Icon name="close" style={{ color: theme['c-font-label'] }} size={12} />
-          </TouchableOpacity>
-        ) : null}
-      </View>
-      {children}
-    </>
-  )
-
-  return (
-    <Modal animationType={actualPosition == 'left' ? 'none' : 'fade'} onShow={() => {
+  const side = actualPosition == 'left' || actualPosition == 'right'
+  return <Modal ref={modalRef} onHide={onHide} keyHide={keyHide} bgHide={bgHide} bgColor="rgba(0,0,0,.28)"
+    animationType={actualPosition == 'left' ? 'none' : 'fade'} onShow={() => {
       if (actualPosition == 'left') Animated.timing(entrance, { toValue: 1, duration: 220, useNativeDriver: true }).start()
-    }} onHide={onHide} keyHide={keyHide} bgHide={bgHide} bgColor="rgba(50,50,50,.2)" ref={modalRef}>
-      <View style={{ ...styles.centeredView, ...centeredViewStyle, paddingBottom: keyboardShown ? keyboardHeight : 0 }}>
-        <Animated.View style={{ ...styles.modalView, ...modalViewStyle, transform: actualPosition == 'left' ? [{ translateX: entrance.interpolate({ inputRange: [0, 1], outputRange: [-width, 0] }) }] : undefined, backgroundColor: theme['c-content-background'] }} onStartShouldSetResponder={() => true}>
-          {useWindowContent ? <WindowContent>{content}</WindowContent> : content}
+    }}>
+    <View style={{ flex: 1, paddingBottom: keyboardShown ? keyboardHeight : 0 }}>
+      <View onLayout={e => setFrame(e.nativeEvent.layout)} style={{ flex: 1, minHeight: 0, paddingHorizontal: 12,
+        alignItems: side ? actualPosition == 'left' ? 'flex-start' : 'flex-end' : 'center',
+        justifyContent: actualPosition == 'top' ? 'flex-start' : actualPosition == 'bottom' ? 'flex-end' : 'center' }}>
+        <Animated.View onStartShouldSetResponder={() => true} style={{ width: bounds.width, height: bounds.height, minHeight: 0,
+          borderRadius: 12, overflow: 'hidden', elevation: 6, backgroundColor: theme['c-content-background'],
+          transform: actualPosition == 'left' ? [{ translateX: entrance.interpolate({ inputRange: [0, 1], outputRange: [-bounds.width - 12, 0] }) }] : undefined }}>
+          <View style={{ minHeight: 48, flexShrink: 0, justifyContent: 'center', borderBottomWidth: .5, borderBottomColor: theme['c-border-background'] }}>
+            <Text size={15} numberOfLines={1} style={{ paddingLeft: 16, paddingRight: 52, fontWeight: '600' }}>{title}</Text>
+            {closeBtn ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="关闭" onPress={() => modalRef.current?.setVisible(false)}
+              style={{ position: 'absolute', right: 0, top: 2, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="close" rawSize={16} color={theme['c-font']} />
+            </TouchableOpacity> : null}
+          </View>
+          <View style={{ flex: 1, minHeight: 0 }}>{children}</View>
         </Animated.View>
       </View>
-    </Modal>
-  )
+    </View>
+  </Modal>
 })

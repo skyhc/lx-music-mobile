@@ -508,6 +508,14 @@ export const trasformeStyle = <T extends Style>(styles: T): T => {
         newStyle.marginRight = newStyle.marginLeft = scaleSizeW(v)
         newStyle.marginBottom = newStyle.marginTop = scaleSizeH(v)
         break
+      case 'top':
+      case 'bottom':
+        newStyle[p] = Platform.OS == 'ios' ? scaleSizeH(v) : setSpText(v)
+        break
+      case 'left':
+      case 'right':
+        newStyle[p] = Platform.OS == 'ios' ? scaleSizeW(v) : setSpText(v)
+        break
       default:
         // @ts-expect-error
         if (trasformeProps.includes(p)) newStyle[p] = setSpText(v)

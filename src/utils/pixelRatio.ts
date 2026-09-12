@@ -5,6 +5,7 @@
  * width:375
  * height:667
  */
+import { readableTextSize } from './readability'
 import { Dimensions, PixelRatio, Platform } from 'react-native'
 import { windowSizeTools } from './windowSizeTools'
 
@@ -49,7 +50,7 @@ const getMetrics = () => {
  * @returns dp
  */
 export function getTextSize(size: number) {
-  if (Platform.OS == 'ios') return size
+  if (Platform.OS == 'ios') return readableTextSize(size)
   const { screenW, screenH, fontScale } = getMetrics()
   const scaleWidth = screenW / designWidth
   const scaleHeight = screenH / designHeight

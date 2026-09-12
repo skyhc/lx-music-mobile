@@ -11,7 +11,7 @@ import { scaleSizeH } from '@/utils/pixelRatio'
 import { LIST_ITEM_HEIGHT } from '@/config/constant'
 import { createStyle } from '@/utils/tools'
 
-export const ITEM_HEIGHT = Platform.OS == 'ios' ? 50 : scaleSizeH(LIST_ITEM_HEIGHT)
+export const ITEM_HEIGHT = Platform.OS == 'ios' ? 54 : scaleSizeH(LIST_ITEM_HEIGHT)
 
 const useQualityTag = (musicInfo: LX.Music.MusicInfoOnline) => {
   const t = useI18n()
@@ -62,7 +62,7 @@ export default memo(({ item, index, showSource, onPress, onLongPress, onShowMenu
   return (
     <View style={{ ...styles.listItem, width: rowInfo.rowWidth, height: ITEM_HEIGHT, backgroundColor: isSelected ? theme['c-primary-background-hover'] : 'rgba(0,0,0,0)' }}>
       <TouchableOpacity style={styles.listItemLeft} onPress={() => { onPress(item, index) }} onLongPress={() => { onLongPress(item, index) }}>
-        <Text style={styles.sn} size={13} color={theme['c-300']}>{index + 1}</Text>
+        <Text style={styles.sn} size={13} color={theme['c-font-label']}>{index + 1}</Text>
         {Platform.OS == 'ios' ? <SongRowContent name={item.name} singer={item.singer} album={item.meta.albumName}
           interval={item.interval} showAlbum={isShowAlbumName} showInterval={isShowInterval} source={showSource ? item.source : undefined} /> : <>
         <View style={styles.itemInfo}>
@@ -80,8 +80,8 @@ export default memo(({ item, index, showSource, onPress, onLongPress, onShowMenu
         }
         </>}
       </TouchableOpacity>
-     <TouchableOpacity onPress={handleShowMenu} ref={moreButtonRef} style={styles.moreButton}>
-        <Icon name="dots-vertical" style={{ color: theme['c-350'] }} size={12} />
+     <TouchableOpacity onPress={handleShowMenu} ref={moreButtonRef} style={[styles.moreButton, Platform.OS == 'ios' ? { width: 44, paddingLeft: 0, paddingRight: 0, alignItems: 'center' } : null]}>
+        <Icon name="dots-vertical" style={{ color: theme['c-font-label'] }} size={12} />
       </TouchableOpacity>
     </View>
   )

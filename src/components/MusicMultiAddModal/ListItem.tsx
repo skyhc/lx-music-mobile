@@ -31,15 +31,15 @@ export default ({ listInfo, onPress, width }: {
 export const styles = createStyle({
   listItem: {
     // width: '50%',
-    paddingRight: 13,
+    paddingRight: 12,
   },
   button: {
-    height: 36,
+    minHeight: 48,
     paddingLeft: 10,
     paddingRight: 10,
-    marginRight: 10,
-    marginBottom: 10,
-    borderRadius: 4,
+    marginRight: 0,
+    marginBottom: 12,
+    borderRadius: 6,
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',

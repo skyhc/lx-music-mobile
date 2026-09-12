@@ -1,3 +1,4 @@
+import SongTableHeader from '@/components/common/SongTableHeader'
 import { useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import { FlatList, type FlatListProps, RefreshControl, View, Platform } from 'react-native'
 
@@ -30,7 +31,7 @@ export interface ListProps {
   onLoadMore: () => void
   onPlayList?: (index: number) => void
   progressViewOffset?: number
-  ListHeaderComponent?: FlatListType['ListEmptyComponent']
+  ListHeaderComponent?: FlatListType['ListHeaderComponent']
   checkHomePagerIdle: boolean
   rowType?: RowInfoType
 }
@@ -73,7 +74,8 @@ const List = forwardRef<ListType, ListProps>(({
   const { width: windowWidth } = useWindowSize()
   const rowInfo = useMemo(() => Platform.OS == 'ios' ? { rowNum: 1, rowWidth: '100%' as const } : getResponsiveRowInfo(windowWidth, rowType), [rowType, windowWidth])
   const columnCount = rowInfo.rowNum ?? 1
-  const isShowAlbumName = useSettingValue('list.isShowAlbumName')
+  const showAlbumPreference = useSettingValue('list.isShowAlbumName')
+  const isShowAlbumName = Platform.OS == 'ios' || showAlbumPreference
   const isShowInterval = useSettingValue('list.isShowInterval')
   // const currentListIdRef = useRef('')
   // console.log('render music list')
@@ -233,7 +235,10 @@ const List = forwardRef<ListType, ListProps>(({
     )
   }, [onLoadMore, status, visibleMultiSelect])
 
+  const detailHeader = typeof ListHeaderComponent == 'function' ? <ListHeaderComponent /> : ListHeaderComponent
   return (
+    <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+    {Platform.OS == 'ios' ? <>{detailHeader}<SongTableHeader showAlbum={isShowAlbumName} showInterval={isShowInterval} /></> : null}
     <FlatList
       key={`columns-${columnCount}`}
       ref={flatListRef}
@@ -254,10 +259,11 @@ const List = forwardRef<ListType, ListProps>(({
       onEndReachedThreshold={0.5}
       onEndReached={handleLoadMore}
       progressViewOffset={progressViewOffset}
-      ListHeaderComponent={ListHeaderComponent}
+      ListHeaderComponent={Platform.OS == 'ios' ? undefined : ListHeaderComponent}
       refreshControl={refreshControl}
       ListFooterComponent={footerComponent}
     />
+    </View>
   )
 })
 

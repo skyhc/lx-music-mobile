@@ -1,5 +1,3 @@
-import { createList } from '@/core/list'
-import listState from '@/store/list/state'
 import { Platform, View } from 'react-native'
 import Text from '@/components/common/Text'
 import { useEffect, useRef, useState } from 'react'
@@ -63,11 +61,6 @@ const LegacyDrawer = () => {
 }
 
 const IOSLibrary = () => {
-  useEffect(() => {
-    if (!listState.allList.some(list => list.id == 'userlist_local_music' || list.name == '本地音乐')) {
-      void createList({ id: 'userlist_local_music', name: '本地音乐' }).catch(error => { console.warn('Local list creation failed', error) })
-    }
-  }, [])
   const theme = useTheme()
   const [width, setWidth] = useState(0)
   const sidebar = width >= 700

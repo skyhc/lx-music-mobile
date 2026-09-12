@@ -2254,6 +2254,12 @@ RCT_REMAP_METHOD(updateEqualizerConfig, updateEqualizerConfig:(NSDictionary *)co
 
 @end
 
+#if TARGET_OS_SIMULATOR
+static std::atomic<float> LXTestOutputRMS(0.0f);
+static std::atomic<float> LXTestOutputPeak(0.0f);
+static std::atomic<int64_t> LXTestOutputBlocks(0);
+#endif
+
 @interface StreamingFlacPlayerModule : RCTEventEmitter<RCTBridgeModule, NSURLSessionDataDelegate>
 @property (nonatomic, assign) NSUInteger openRequestGeneration;
 @property (nonatomic, assign) BOOL validCompleteResponse;
@@ -3063,16 +3069,40 @@ RCT_EXPORT_MODULE();
                  fromBus:0
                   format:self.outputFormat];
     [self.engine connect:self.reverbNode to:self.wetMixerNode format:self.outputFormat];
-    [self.engine connect:self.dryMixerNode to:self.soundEffectMixerNode format:self.outputFormat];
-    [self.engine connect:self.wetMixerNode to:self.soundEffectMixerNode format:self.outputFormat];
+    [self.engine connect:self.dryMixerNode to:self.soundEffectMixerNode fromBus:0 toBus:0 format:self.outputFormat];
+    [self.engine connect:self.wetMixerNode to:self.soundEffectMixerNode fromBus:0 toBus:1 format:self.outputFormat];
     [self.engine connect:self.soundEffectMixerNode to:self.engine.mainMixerNode format:self.outputFormat];
     self.timePitchNode.rate = self.currentRate;
     self.reverbNode.wetDryMix = 100.0f;
     self.dryMixerNode.outputVolume = 1.0f;
     self.wetMixerNode.outputVolume = 0.0f;
+    self.engine.mainMixerNode.outputVolume = 1.0f;
+    self.dryMixerNode.pan = 0.0f;
+    self.wetMixerNode.pan = 0.0f;
     self.soundEffectMixerNode.pan = 0.0f;
     self.soundEffectMixerNode.outputVolume = self.currentVolume;
     [self applySoundEffectConfigLocked];
+#if TARGET_OS_SIMULATOR
+    if ([NSProcessInfo.processInfo.arguments containsObject:@"--lx-playback-smoke"]) {
+      LXTestOutputRMS.store(0); LXTestOutputPeak.store(0); LXTestOutputBlocks.store(0);
+      [self.engine.mainMixerNode installTapOnBus:0 bufferSize:1024 format:nil block:^(AVAudioPCMBuffer *buffer, AVAudioTime *when) {
+        (void)when;
+        if (buffer.floatChannelData == nullptr || buffer.frameLength == 0) return;
+        double energy = 0; float peak = 0;
+        const UInt32 channels = buffer.format.channelCount;
+        const BOOL interleaved = buffer.format.interleaved;
+        for (UInt32 channel = 0; channel < channels; channel++) {
+          const float *samples = buffer.floatChannelData[interleaved ? 0 : channel];
+          for (UInt32 frame = 0; frame < buffer.frameLength; frame++) {
+            const float sample = samples[interleaved ? frame * channels + channel : frame];
+            energy += (double)sample * sample; peak = fmaxf(peak, fabsf(sample));
+          }
+        }
+        LXTestOutputRMS.store((float)sqrt(energy / MAX(1, buffer.frameLength * channels)));
+        LXTestOutputPeak.store(peak); LXTestOutputBlocks.fetch_add(1);
+      }];
+    }
+#endif
     [self.engine prepare];
 
     NSError *error = nil;
@@ -3357,7 +3387,7 @@ RCT_REMAP_METHOD(openStream, openStream:(NSString *)urlString headers:(NSDiction
     [self resetStreamingState];
     self.currentURL = urlString;
     self.currentState = @"loading";
-    self.currentVolume = [volume floatValue];
+    self.currentVolume = LXSoundEffectClampFloatValue(volume, 1.0f, 0.0f, 1.0f);
     self.currentRate = MAX([rate floatValue], 0.5f);
     BOOL shouldAutoplay = autoplay == nil ? YES : [autoplay boolValue];
     self.manualPause = !shouldAutoplay;
@@ -3534,12 +3564,22 @@ RCT_REMAP_METHOD(seekTo, seekToStream:(nonnull NSNumber *)position resolver:(RCT
 }
 
 RCT_REMAP_METHOD(setVolume, setStreamVolume:(nonnull NSNumber *)volume resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
-  self.currentVolume = [volume floatValue];
+  self.currentVolume = LXSoundEffectClampFloatValue(volume, 1.0f, 0.0f, 1.0f);
   dispatch_sync(self.renderQueue, ^{
     if (self.soundEffectMixerNode != nil) self.soundEffectMixerNode.outputVolume = self.currentVolume;
   });
   resolve(nil);
 }
+
+#if TARGET_OS_SIMULATOR
+RCT_REMAP_METHOD(getOutputMetrics, getOutputMetricsWithResolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_sync(self.renderQueue, ^{
+    resolve(@{ @"rms": @(LXTestOutputRMS.load()), @"peak": @(LXTestOutputPeak.load()), @"blocks": @(LXTestOutputBlocks.load()),
+      @"requestedVolume": @(self.currentVolume), @"appliedVolume": @(self.soundEffectMixerNode.outputVolume),
+      @"masterVolume": @(self.engine.mainMixerNode.outputVolume), @"dryVolume": @(self.dryMixerNode.outputVolume) });
+  });
+}
+#endif
 
 RCT_REMAP_METHOD(setRate, setStreamRate:(nonnull NSNumber *)rate resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
   self.currentRate = MAX([rate floatValue], 0.5f);
@@ -4657,8 +4697,12 @@ RCT_EXPORT_MODULE();
 + (BOOL)requiresMainQueueSetup { return NO; }
 - (NSDictionary *)constantsToExport {
   NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
+  NSString *uiPhase = @"";
+  for (NSString *arg in args) if ([arg hasPrefix:@"--lx-ui="]) uiPhase = [arg substringFromIndex:8];
   return @{ @"enabled": @([args containsObject:@"--lx-playback-smoke"]),
-            @"offline": @([args containsObject:@"--lx-playback-offline"]) };
+            @"offline": @([args containsObject:@"--lx-playback-offline"]),
+            @"uiPhase": uiPhase,
+            @"uiOrientation": [args containsObject:@"--lx-ui-landscape"] ? @"landscape" : @"portrait" };
 }
 RCT_REMAP_METHOD(record, record:(NSDictionary *)report resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
   NSError *error = nil;

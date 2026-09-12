@@ -20,7 +20,7 @@ export default () => {
   return (
     <>
       <Btn icon="add-music" onPress={handleShowMusicAddModal} />
-      <MusicAddModal position="left" ref={musicAddModalRef} />
+      <MusicAddModal position="center" ref={musicAddModalRef} />
     </>
   )
 }

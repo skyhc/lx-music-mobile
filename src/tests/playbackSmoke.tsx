@@ -1,14 +1,20 @@
+import TrackPlayer from 'react-native-track-player'
 import React from 'react'
 import { NativeModules, View, Text } from 'react-native'
 import { Navigation } from 'react-native-navigation'
 import RNFS from 'react-native-fs'
 import { onAppLaunched } from '@/navigation/regLaunchedEvent'
 import { initial } from '@/plugins/player'
-import { getPosition, setPause, setPlay, setStop, setCurrentTime } from '@/plugins/player/utils'
+import { getPosition, setPause, setPlay, setStop, setCurrentTime, setVolume } from '@/plugins/player/utils'
 import { loadPlaybackResource } from '@/plugins/player/engine/resourceLoader'
 import { initUnifiedPlayerEngine, onUnifiedPlayerEvent } from '@/plugins/player/engine'
 import { lookupAudioCache, configureAudioCache, clearAudioCache, getAudioCacheSize } from '@/plugins/player/cache'
 import settingState from '@/store/setting/state'
+import { createI18n } from '@/lang'
+import { createList, removeUserList, removeListMusics, getUserLists, setUserList } from '@/core/list'
+import { getUserLists as getStoredLists, getListMusics as getStoredMusics } from '@/utils/data'
+import { bootstrapLibrary, LOCAL_LIBRARY_ID } from '@/utils/libraryBootstrap'
+import listState from '@/store/list/state'
 
 const support = NativeModules.LXPlaybackTestSupport
 const sleep = async(ms: number) => new Promise(resolve => setTimeout(resolve, ms))
@@ -46,6 +52,12 @@ export const run = async() => {
   }
   try {
     await new Promise<void>(resolve => onAppLaunched(resolve))
+    if (support.uiPhase) {
+      await import('./uiSmoke').then(test => test.runUI())
+      return
+    }
+    global.i18n = createI18n('zh_cn')
+    setUserList(await getUserLists())
     Navigation.registerComponent('LXPlaybackSmoke', () => () => <View><Text>Native playback regression test</Text></View>)
     await Navigation.setRoot({ root: { component: { name: 'LXPlaybackSmoke' } } })
     initUnifiedPlayerEngine()
@@ -59,12 +71,55 @@ export const run = async() => {
     const formats = [['mp3', '128k'], ['flac', 'flac']] as const
     if (!support.offline) {
       await clearAudioCache()
+      await check('real native storage persists list and song removal', async() => {
+        await bootstrapLibrary(() => listState.allList.some(l => l.id == LOCAL_LIBRARY_ID),
+          async() => createList({ id: LOCAL_LIBRARY_ID, name: '本地音乐' }))
+        await removeUserList([LOCAL_LIBRARY_ID])
+        await createList({ id: 'ci-list-removed', name: 'CI removed list', list: [music('mp3')] })
+        await removeUserList(['ci-list-removed'])
+        await createList({ id: 'ci-list-kept', name: 'CI kept list', list: [music('mp3'), music('flac')] })
+        await removeListMusics('ci-list-kept', [music('mp3').id])
+        assert(!(await getStoredLists()).some(l => ['ci-list-removed', LOCAL_LIBRARY_ID].includes(l.id)), 'Removed list remains on disk')
+        const kept = await getStoredMusics('ci-list-kept')
+        assert(kept.length == 1 && kept[0].id == music('flac').id, 'Song removal not persisted')
+        return { removed: ['ci-list-removed', LOCAL_LIBRARY_ID], keptSongs: kept.map(s => s.id) }
+      })
       for (const [format, quality] of formats) {
         const info = music(format)
         const url = `http://127.0.0.1:18779/tone.${format}`
         await check(`${format}: cold remote stream actually advances`, async() => {
           await loadPlaybackResource({ musicInfo: info, url, time: 0, quality })
           return audibleTimeline(format)
+        })
+        await check(`${format}: output gain matches application volume`, async() => {
+          const values: unknown[] = []
+          if (format == 'flac') {
+            let fullRMS = 0
+            for (const level of [1, 0.5, 1]) {
+              await setVolume(level)
+              const before = await NativeModules.StreamingFlacPlayerModule.getOutputMetrics()
+              await until(async() => (await NativeModules.StreamingFlacPlayerModule.getOutputMetrics()).blocks > before.blocks + 4, 'No post-mix PCM output')
+              const metrics = await NativeModules.StreamingFlacPlayerModule.getOutputMetrics()
+              assert(Math.abs(metrics.appliedVolume - level) < 0.01, 'FLAC gain is different from requested')
+              assert(metrics.masterVolume == 1 && metrics.dryVolume == 1, 'Unexpected bypass attenuation')
+              // Generated sine: peak 6000/32768. Allow mono-to-stereo pan law,
+              // but reject large unexplained output loss or fixed extra gain.
+              if (level == 1) {
+                assert(metrics.rms > 0.07 && metrics.rms < 0.16, `FLAC RMS out of range: ${metrics.rms}`)
+                fullRMS = metrics.rms
+              } else assert(metrics.rms / fullRMS > 0.40 && metrics.rms / fullRMS < 0.60, 'Volume not linear or applied twice')
+              values.push({ level, ...metrics })
+            }
+          } else {
+            for (const level of [1, 0.5, 1]) {
+              await setVolume(level)
+              const applied = await TrackPlayer.getVolume()
+              assert(Math.abs(applied - level) < 0.01, `AVPlayer volume mismatch: ${applied}`)
+              values.push({ level, applied })
+            }
+          }
+          await setVolume(settingState.setting['player.volume'])
+          return values
         })
         await check(`${format}: pause and resume`, async() => {
           await setPause(); await sleep(250)
@@ -91,6 +146,16 @@ export const run = async() => {
         return audibleTimeline('switch')
       })
     } else {
+      await check('second app process does not restore removed lists or songs', async() => {
+        let recreated = false
+        await bootstrapLibrary(() => listState.allList.some(l => l.id == LOCAL_LIBRARY_ID), async() => { recreated = true })
+        assert(!recreated, 'Local library recreated after removal')
+        const stored = await getStoredLists()
+        assert(!stored.some(l => ['ci-list-removed', LOCAL_LIBRARY_ID].includes(l.id)), 'Removed list restored on restart')
+        const kept = await getStoredMusics('ci-list-kept')
+        assert(kept.length == 1 && kept[0].id == music('flac').id, 'Removed song restored on restart')
+        return { persisted: stored.map(l => l.id), songs: kept.map(s => s.id) }
+      })
       for (const [format, quality] of formats) {
         await check(`${format}: second app process offline cache playback`, async() => {
           const local = await lookupAudioCache(music(format), quality)

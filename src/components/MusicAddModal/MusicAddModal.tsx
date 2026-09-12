@@ -28,7 +28,7 @@ export interface MusicAddModalType {
   show: (info: SelectInfo) => void
 }
 
-export default forwardRef<MusicAddModalType, MusicAddModalProps>(({ onAdded, position }, ref) => {
+export default forwardRef<MusicAddModalType, MusicAddModalProps>(({ onAdded }, ref) => {
   const t = useI18n()
   const dialogRef = useRef<DialogType>(null)
   const [selectInfo, setSelectInfo] = useState<SelectInfo>(initSelectInfo as SelectInfo)
@@ -75,7 +75,7 @@ export default forwardRef<MusicAddModalType, MusicAddModalProps>(({ onAdded, pos
   }
 
   return (
-    <Dialog position={position} ref={dialogRef} onHide={handleHide}>
+    <Dialog position="center" maxWidth={680} ref={dialogRef} onHide={handleHide}>
       {
         selectInfo.musicInfo
           ? (<>

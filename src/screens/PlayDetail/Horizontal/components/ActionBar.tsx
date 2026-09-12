@@ -28,8 +28,8 @@ export default () => {
         <View style={styles.slot}><TimeoutExitBtn /></View>
         <View style={styles.slot}><Btn icon="setting" size={18} onPress={() => { popupRef.current?.show() }} /></View>
       </View>
-      <SoundEffectPopup ref={soundEffectPopupRef} position="left" layoutMode="stacked" />
-      <SettingPopup ref={popupRef} position="left" direction="horizontal" />
+      <SoundEffectPopup ref={soundEffectPopupRef} position="center" layoutMode="stacked" />
+      <SettingPopup ref={popupRef} position="center" direction="horizontal" />
     </>
   )
 }

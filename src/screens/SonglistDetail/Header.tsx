@@ -1,5 +1,6 @@
+import { useHorizontalMode } from '@/utils/hooks'
 import { forwardRef, memo, useEffect, useImperativeHandle, useState } from 'react'
-import { View } from 'react-native'
+import { View, Platform } from 'react-native'
 import { BorderWidths } from '@/theme'
 import ButtonBar from './ActionBar'
 import { useNavigationComponentDidAppear } from '@/navigation'
@@ -72,6 +73,7 @@ export interface DetailInfo {
 }
 
 export default forwardRef<HeaderType, HeaderProps>(({ componentId }: { componentId: string }, ref) => {
+  const wide = useHorizontalMode() && Platform.OS == 'ios'
   const statusBarHeight = useStatusbarHeight()
   const theme = useTheme()
   const info = useListInfo()
@@ -84,17 +86,17 @@ export default forwardRef<HeaderType, HeaderProps>(({ componentId }: { component
   }), [])
 
   return (
-    <View style={{ ...styles.container, paddingTop: statusBarHeight, borderBottomColor: theme['c-border-background'] }}>
-      <View style={{ flexDirection: 'row', flexGrow: 0, flexShrink: 0, padding: 10 }}>
+    <View style={{ ...styles.container, paddingTop: Platform.OS == 'ios' ? 0 : statusBarHeight, flexDirection: wide ? 'row' : 'column', alignItems: wide ? 'center' : 'stretch', borderBottomColor: theme['c-border-background'] }}>
+      <View style={{ flexDirection: 'row', flex: 1, minWidth: 0, padding: 16 }}>
         <Pic componentId={componentId} playCount={detailInfo.playCount} imgUrl={detailInfo.imgUrl} />
-        <View style={{ flexDirection: 'column', flexGrow: 1, flexShrink: 1, paddingLeft: 5 }} nativeID={NAV_SHEAR_NATIVE_IDS.songlistDetail_title}>
-          <Text size={14} numberOfLines={ 1 }>{detailInfo.name}</Text>
+        <View style={{ flexDirection: 'column', flexGrow: 1, flexShrink: 1, paddingLeft: 12 }} nativeID={NAV_SHEAR_NATIVE_IDS.songlistDetail_title}>
+          <Text size={wide ? 18 : 16} numberOfLines={ 2 } style={{ fontWeight: '600', paddingBottom: 6 }}>{detailInfo.name}</Text>
           <View style={{ flexGrow: 0, flexShrink: 1 }}>
-            <Text size={13} color={theme['c-font-label']} numberOfLines={ 4 }>{detailInfo.desc}</Text>
+            <Text size={13} color={theme['c-font-label']} numberOfLines={wide ? 2 : 3}>{detailInfo.desc}</Text>
           </View>
         </View>
       </View>
-      <ButtonBar />
+      <View style={wide ? { width: 240, paddingRight: 12 } : undefined}><ButtonBar /></View>
       {/* <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <View style={{ flexGrow: 0, flexShrink: 1, paddingTop: 5, paddingRight: 5 }}>
               <Text style={{ fontSize: 12, color: AppColors.normal20 }} numberOfLines={ 1 }>{playCount || '-'}</Text>

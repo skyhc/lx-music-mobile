@@ -11,7 +11,7 @@ import { scaleSizeH } from '@/utils/pixelRatio'
 import Text from '@/components/common/Text'
 import Badge from '@/components/common/Badge'
 
-export const ITEM_HEIGHT = Platform.OS == 'ios' ? 50 : scaleSizeH(LIST_ITEM_HEIGHT)
+export const ITEM_HEIGHT = Platform.OS == 'ios' ? 54 : scaleSizeH(LIST_ITEM_HEIGHT)
 
 
 export default memo(({ item, index, activeIndex, onPress, onShowMenu, onLongPress, selectedList, rowInfo, isShowAlbumName, isShowInterval }: {
@@ -45,12 +45,12 @@ export default memo(({ item, index, activeIndex, onPress, onShowMenu, onLongPres
   const singer = `${item.singer}${isShowAlbumName && item.meta.albumName ? ` · ${item.meta.albumName}` : ''}`
 
   return (
-    <View style={{ ...styles.listItem, width: rowInfo.rowWidth, height: ITEM_HEIGHT, backgroundColor: isSelected ? theme['c-primary-background-hover'] : 'rgba(0,0,0,0)', opacity: isSupported ? 1 : 0.5 }}>
-      <TouchableOpacity style={styles.listItemLeft} onPress={() => { onPress(item, index) }} onLongPress={() => { onLongPress(item, index) }}>
+    <View style={{ ...styles.listItem, width: rowInfo.rowWidth, height: ITEM_HEIGHT, backgroundColor: isSelected ? theme['c-primary-background-hover'] : 'rgba(0,0,0,0)', opacity: Platform.OS == 'ios' || isSupported ? 1 : 0.5 }}>
+      <TouchableOpacity accessibilityHint={isSupported ? undefined : '当前音源可能不可用'} style={styles.listItemLeft} onPress={() => { onPress(item, index) }} onLongPress={() => { onLongPress(item, index) }}>
         {
           active
             ? <Icon style={styles.sn} name="play-outline" size={13} color={theme['c-primary-font']} />
-            : <Text style={styles.sn} size={13} color={theme['c-300']}>{index + 1}</Text>
+            : <Text style={styles.sn} size={13} color={theme['c-font-label']}>{index + 1}</Text>
         }
         {Platform.OS == 'ios' ? <SongRowContent name={item.name} singer={item.singer} album={item.meta.albumName}
           interval={item.interval} showAlbum={isShowAlbumName} showInterval={isShowInterval} source={item.source} active={active} /> : <>
@@ -73,8 +73,8 @@ export default memo(({ item, index, activeIndex, onPress, onShowMenu, onLongPres
         </>}
       </TouchableOpacity>
       {/* <View style={styles.listItemRight}> */}
-      <TouchableOpacity onPress={handleShowMenu} ref={moreButtonRef} style={styles.moreButton}>
-        <Icon name="dots-vertical" style={{ color: theme['c-350'] }} size={12} />
+      <TouchableOpacity onPress={handleShowMenu} ref={moreButtonRef} style={[styles.moreButton, Platform.OS == 'ios' ? { width: 44, paddingLeft: 0, paddingRight: 0, alignItems: 'center' } : null]}>
+        <Icon name="dots-vertical" style={{ color: theme['c-font-label'] }} size={12} />
       </TouchableOpacity>
       {/* </View> */}
     </View>

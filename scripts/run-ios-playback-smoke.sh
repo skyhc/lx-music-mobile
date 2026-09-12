@@ -43,3 +43,33 @@ for PHASE in online offline; do
   cat "build/checks/playback-$PHASE.json"
   python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d["success"], d.get("error")' "build/checks/playback-$PHASE.json"
 done
+# Capture real production component rendering at tablet and phone window sizes.
+# This is visual evidence, not an automated touch-interaction test.
+for FORM in tablet phone; do
+  if [ "$FORM" = phone ]; then
+    xcrun simctl shutdown "$SIM"; xcrun simctl delete "$SIM"
+    PHONE_TYPE=$(xcrun simctl list devicetypes | grep -E 'iPhone (17|16|15) Pro \(' | head -1 | sed -E 's/.*\(([^)]+)\)$/\1/')
+    SIM=$(xcrun simctl create LXPhoneUIReview "$PHONE_TYPE" "$RUNTIME")
+    xcrun simctl boot "$SIM"; xcrun simctl bootstatus "$SIM" -b
+    xcrun simctl install "$SIM" "$APP"
+    DATA=$(xcrun simctl get_app_container "$SIM" com.skyhc.lxmusic data)
+  fi
+  for UI in table favorites list settings; do
+    xcrun simctl terminate "$SIM" com.skyhc.lxmusic || true
+    rm -f "$DATA/Documents/playback-smoke.json"
+    EXTRA=(); if [ "$FORM" = tablet ]; then EXTRA=(--lx-ui-landscape); fi
+    xcrun simctl launch --stdout="$(pwd)/build/checks/ui-$FORM-$UI.out" --stderr="$(pwd)/build/checks/ui-$FORM-$UI.err" "$SIM" com.skyhc.lxmusic --lx-playback-smoke "--lx-ui=$UI" "${EXTRA[@]}"
+    DONE=0
+    for i in $(seq 1 30); do
+      if [ -f "$DATA/Documents/playback-smoke.json" ]; then
+        cp "$DATA/Documents/playback-smoke.json" "build/checks/ui-$FORM-$UI.json"
+        if python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("done") else 1)' "build/checks/ui-$FORM-$UI.json"; then DONE=1; break; fi
+      fi
+      sleep 2
+    done
+    if [ "$DONE" != 1 ]; then echo "UI fixture did not render: $FORM $UI"; exit 1; fi
+    python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d["success"], d' "build/checks/ui-$FORM-$UI.json"
+    sleep 2
+    xcrun simctl io "$SIM" screenshot "build/checks/ui-$FORM-$UI.png"
+  done
+done
