@@ -1,3 +1,4 @@
+import { stopAudioCacheObservation } from './cache'
 import { getAudioCacheSize, clearAudioCache } from './cache'
 import TrackPlayer, { Capability, RepeatMode, State } from 'react-native-track-player'
 import BackgroundTimer from 'react-native-background-timer'
@@ -212,6 +213,7 @@ export const getDuration = async() => {
   return TrackPlayer.getDuration()
 }
 export const setStop = async() => {
+  stopAudioCacheObservation()
   if (Platform.OS == 'ios' && isNativeFlacActive()) {
     global.lx.playerTrackId = ''
     return stopNativeFlacPlayback()
@@ -281,6 +283,7 @@ export const migratePlayerCache = async() => {
 }
 
 export const destroy = async() => {
+  stopAudioCacheObservation()
   if (global.lx.playerStatus.isIniting || !global.lx.playerStatus.isInitialized) return
   try {
     if (Platform.OS == 'ios') await resetNativeFlacPlayback().catch(() => {})

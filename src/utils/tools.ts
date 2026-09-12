@@ -539,6 +539,7 @@ export interface RowInfo {
 export type RowInfoType = 'full' | 'medium'
 
 export const getRowInfo = (type: RowInfoType = 'full'): RowInfo => {
+  if (Platform.OS == 'ios') return { rowNum: 1, rowWidth: '100%' }
   const win = windowSizeTools.getSize()
   let isMultiRow = isHorizontalMode(win.width, win.height)
   if (type == 'medium' && win.width / win.height < 1.8) isMultiRow = false

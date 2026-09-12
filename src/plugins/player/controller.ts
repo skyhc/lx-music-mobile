@@ -36,8 +36,9 @@ export const initUnifiedPlayerController = () => {
   }
 
   const startLoadingTimeout = () => {
-    clearLoadingTimeout()
+    if (loadingTimeout) return
     loadingTimeout = BackgroundTimer.setTimeout(() => {
+      loadingTimeout = null
       if (prevTimeoutId == playerState.musicInfo.id) {
         prevTimeoutId = null
         void playNext(true)

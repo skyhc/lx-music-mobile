@@ -2256,6 +2256,7 @@ RCT_REMAP_METHOD(updateEqualizerConfig, updateEqualizerConfig:(NSDictionary *)co
 
 @interface StreamingFlacPlayerModule : RCTEventEmitter<RCTBridgeModule, NSURLSessionDataDelegate>
 @property (nonatomic, assign) NSUInteger openRequestGeneration;
+@property (nonatomic, assign) BOOL validCompleteResponse;
 @property (nonatomic, strong) NSURLSession *session;
 @property (nonatomic, strong) NSURLSessionDataTask *task;
 @property (nonatomic, strong) NSMutableData *streamData;
@@ -2537,6 +2538,7 @@ RCT_EXPORT_MODULE();
   self.readOffset = 0;
   self.streamError = nil;
   self.downloadCompleted = NO;
+  self.validCompleteResponse = NO;
   self.stopRequested = NO;
   _streamFinished.store(false, std::memory_order_release);
   _stopRequestedFlag.store(false, std::memory_order_release);
@@ -3404,6 +3406,7 @@ RCT_REMAP_METHOD(openStream, openStream:(NSString *)urlString headers:(NSDiction
     }
 
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+    request.timeoutInterval = 20;
     if ([headers isKindOfClass:[NSDictionary class]]) {
       for (NSString *key in headers) {
         NSString *value = [headers[key] isKindOfClass:[NSString class]] ? headers[key] : nil;
@@ -3413,7 +3416,10 @@ RCT_REMAP_METHOD(openStream, openStream:(NSString *)urlString headers:(NSDiction
 
     NSOperationQueue *delegateQueue = [[NSOperationQueue alloc] init];
     delegateQueue.maxConcurrentOperationCount = 1;
-    self.session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:self delegateQueue:delegateQueue];
+    NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration defaultSessionConfiguration];
+    configuration.timeoutIntervalForRequest = 20;
+    configuration.timeoutIntervalForResource = 180;
+    self.session = [NSURLSession sessionWithConfiguration:configuration delegate:self delegateQueue:delegateQueue];
     self.task = [self.session dataTaskWithRequest:request];
     self.startThresholdSeconds = 1.5;
     [self.task resume];
@@ -3567,6 +3573,25 @@ RCT_REMAP_METHOD(getState, getStreamStateWithResolver:(RCTPromiseResolveBlock)re
   resolve(self.currentState ?: @"idle");
 }
 
+// Export only the current, fully received FLAC response. This avoids a second
+// request using the same signed URL while playback is starting.
+RCT_REMAP_METHOD(exportCompletedStream, exportCompletedStream:(NSString *)urlString resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  [self.streamCondition lock];
+  BOOL complete = [self.currentURL isEqualToString:urlString] && self.downloadCompleted && self.validCompleteResponse && self.streamError == nil && !self.stopRequested;
+  NSData *data = complete ? self.streamData : nil;
+  if (data.length < 4 || memcmp(data.bytes, "fLaC", 4) != 0 || (self.expectedContentLength > 0 && (int64_t)data.length != self.expectedContentLength)) data = nil;
+  [self.streamCondition unlock];
+  if (data == nil) { resolve((id)kCFNull); return; }
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+    NSString *directory = [NSTemporaryDirectory() stringByAppendingPathComponent:@"LXCompletedAudio"];
+    NSError *error = nil;
+    [[NSFileManager defaultManager] createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:&error];
+    NSString *path = [directory stringByAppendingPathComponent:[NSUUID.UUID.UUIDString stringByAppendingPathExtension:@"flac"]];
+    if (![data writeToFile:path options:NSDataWritingAtomic error:&error]) { reject(@"audio_cache_export", error.localizedDescription, error); return; }
+    resolve(path);
+  });
+}
+
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveResponse:(NSURLResponse *)response completionHandler:(void (^)(NSURLSessionResponseDisposition disposition))completionHandler {
   if (![self isCurrentStreamSession:session task:dataTask]) {
     completionHandler(NSURLSessionResponseCancel);
@@ -3578,6 +3603,26 @@ RCT_REMAP_METHOD(getState, getStreamStateWithResolver:(RCTPromiseResolveBlock)re
     if ([contentLengthValue isKindOfClass:[NSString class]]) expectedContentLength = [contentLengthValue longLongValue];
   }
   self.expectedContentLength = expectedContentLength > 0 ? expectedContentLength : -1;
+  NSInteger status = [response isKindOfClass:[NSHTTPURLResponse class]] ? ((NSHTTPURLResponse *)response).statusCode : 0;
+  self.validCompleteResponse = status == 200;
+  if (status == 206) {
+    NSString *range = [((NSHTTPURLResponse *)response) valueForHTTPHeaderField:@"Content-Range"];
+    long long last = -1, total = -1;
+    if (range && sscanf(range.UTF8String, "bytes 0-%lld/%lld", &last, &total) == 2) {
+      self.validCompleteResponse = total > 0 && last + 1 == total && expectedContentLength == total;
+    }
+  }
+  if (status < 200 || status >= 300 || (status == 206 && !self.validCompleteResponse)) {
+    NSError *error = LXError(@"streaming_flac_http", [NSString stringWithFormat:@"FLAC server returned HTTP %ld or an incomplete byte range", (long)status]);
+    [self.streamCondition lock];
+    self.streamError = error;
+    self.downloadCompleted = YES;
+    [self.streamCondition broadcast];
+    [self.streamCondition unlock];
+    [self emitErrorMessage:error.localizedDescription];
+    completionHandler(NSURLSessionResponseCancel);
+    return;
+  }
   completionHandler(NSURLSessionResponseAllow);
 }
 
@@ -4603,6 +4648,30 @@ RCT_REMAP_METHOD(sha1, sha1:(NSString *)input resolver:(RCTPromiseResolveBlock)r
 }
 
 @end
+
+#if TARGET_OS_SIMULATOR
+@interface LXPlaybackTestSupport : NSObject<RCTBridgeModule>
+@end
+@implementation LXPlaybackTestSupport
+RCT_EXPORT_MODULE();
++ (BOOL)requiresMainQueueSetup { return NO; }
+- (NSDictionary *)constantsToExport {
+  NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
+  return @{ @"enabled": @([args containsObject:@"--lx-playback-smoke"]),
+            @"offline": @([args containsObject:@"--lx-playback-offline"]) };
+}
+RCT_REMAP_METHOD(record, record:(NSDictionary *)report resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  NSError *error = nil;
+  NSData *data = [NSJSONSerialization dataWithJSONObject:report options:NSJSONWritingPrettyPrinted error:&error];
+  NSString *folder = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+  NSString *path = [folder stringByAppendingPathComponent:@"playback-smoke.json"];
+  if (!data || ![data writeToFile:path options:NSDataWritingAtomic error:&error]) {
+    reject(@"smoke_report", error.localizedDescription, error); return;
+  }
+  resolve(path);
+}
+@end
+#endif
 
 @implementation AppDelegate
 

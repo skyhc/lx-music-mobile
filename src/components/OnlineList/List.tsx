@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react'
-import { FlatList, type FlatListProps, RefreshControl, View } from 'react-native'
+import { FlatList, type FlatListProps, RefreshControl, View, Platform } from 'react-native'
 
 // import { useMusicList } from '@/store/list/hook'
 import ListItem, { ITEM_HEIGHT } from './ListItem'
@@ -71,7 +71,7 @@ const List = forwardRef<ListType, ListProps>(({
   const [visibleMultiSelect, setVisibleMultiSelect] = useState(false)
   const [status, setStatus] = useState<Status>('idle')
   const { width: windowWidth } = useWindowSize()
-  const rowInfo = useMemo(() => getResponsiveRowInfo(windowWidth, rowType), [rowType, windowWidth])
+  const rowInfo = useMemo(() => Platform.OS == 'ios' ? { rowNum: 1, rowWidth: '100%' as const } : getResponsiveRowInfo(windowWidth, rowType), [rowType, windowWidth])
   const columnCount = rowInfo.rowNum ?? 1
   const isShowAlbumName = useSettingValue('list.isShowAlbumName')
   const isShowInterval = useSettingValue('list.isShowInterval')

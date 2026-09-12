@@ -1,3 +1,4 @@
+import { shouldUseIPadLayout } from '@/utils/layout'
 import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
 import { View, Animated, TouchableOpacity, Platform, useWindowDimensions } from 'react-native'
 import Modal, { type ModalType } from './Modal'
@@ -41,7 +42,7 @@ export default forwardRef<PopupType, PopupProps>(({
   const modalRef = useRef<ModalType>(null)
   const entrance = useRef(new Animated.Value(1)).current
   // Central policy also covers player sheets whose callers still request bottom.
-  const actualPosition = Platform.OS == 'ios' && Platform.isPad && width > height ? 'left' : position
+  const actualPosition = Platform.OS == 'ios' && Platform.isPad && shouldUseIPadLayout(width, height) ? 'left' : position
   const useWindowContent = Platform.OS == 'ios' && (actualPosition == 'left' || actualPosition == 'right')
 
   useImperativeHandle(ref, () => ({

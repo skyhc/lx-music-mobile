@@ -1,5 +1,6 @@
+import SongRowContent from '@/components/common/SongRowContent'
 import { memo, useRef } from 'react'
-import { View, TouchableOpacity } from 'react-native'
+import { View, TouchableOpacity, Platform } from 'react-native'
 // import Button from '@/components/common/Button'
 import Text from '@/components/common/Text'
 import Badge, { type BadgeType } from '@/components/common/Badge'
@@ -8,9 +9,9 @@ import { useI18n } from '@/lang'
 import { useTheme } from '@/store/theme/hook'
 import { scaleSizeH } from '@/utils/pixelRatio'
 import { LIST_ITEM_HEIGHT } from '@/config/constant'
-import { createStyle, type RowInfo } from '@/utils/tools'
+import { createStyle } from '@/utils/tools'
 
-export const ITEM_HEIGHT = scaleSizeH(LIST_ITEM_HEIGHT)
+export const ITEM_HEIGHT = Platform.OS == 'ios' ? 50 : scaleSizeH(LIST_ITEM_HEIGHT)
 
 const useQualityTag = (musicInfo: LX.Music.MusicInfoOnline) => {
   const t = useI18n()
@@ -37,7 +38,7 @@ export default memo(({ item, index, showSource, onPress, onLongPress, onShowMenu
   onLongPress: (item: LX.Music.MusicInfoOnline, index: number) => void
   onShowMenu: (item: LX.Music.MusicInfoOnline, index: number, position: { x: number, y: number, w: number, h: number }) => void
   selectedList: LX.Music.MusicInfoOnline[]
-  rowInfo: RowInfo
+  rowInfo: { rowNum?: number, rowWidth: `${number}%` }
   isShowAlbumName: boolean
   isShowInterval: boolean
 }) => {
@@ -62,6 +63,8 @@ export default memo(({ item, index, showSource, onPress, onLongPress, onShowMenu
     <View style={{ ...styles.listItem, width: rowInfo.rowWidth, height: ITEM_HEIGHT, backgroundColor: isSelected ? theme['c-primary-background-hover'] : 'rgba(0,0,0,0)' }}>
       <TouchableOpacity style={styles.listItemLeft} onPress={() => { onPress(item, index) }} onLongPress={() => { onLongPress(item, index) }}>
         <Text style={styles.sn} size={13} color={theme['c-300']}>{index + 1}</Text>
+        {Platform.OS == 'ios' ? <SongRowContent name={item.name} singer={item.singer} album={item.meta.albumName}
+          interval={item.interval} showAlbum={isShowAlbumName} showInterval={isShowInterval} source={showSource ? item.source : undefined} /> : <>
         <View style={styles.itemInfo}>
           <Text numberOfLines={1}>{item.name}</Text>
           <View style={styles.listItemSingle}>
@@ -75,6 +78,7 @@ export default memo(({ item, index, showSource, onPress, onLongPress, onShowMenu
             <Text size={12} color={theme['c-250']} numberOfLines={1}>{item.interval}</Text>
           ) : null
         }
+        </>}
       </TouchableOpacity>
      <TouchableOpacity onPress={handleShowMenu} ref={moreButtonRef} style={styles.moreButton}>
         <Icon name="dots-vertical" style={{ color: theme['c-350'] }} size={12} />
@@ -82,8 +86,8 @@ export default memo(({ item, index, showSource, onPress, onLongPress, onShowMenu
     </View>
   )
 }, (prevProps, nextProps) => {
-  return !!(prevProps.item === nextProps.item &&
-    prevProps.index === nextProps.index &&
+  return !!(prevProps.rowInfo.rowWidth === nextProps.rowInfo.rowWidth && prevProps.item === nextProps.item &&
+    prevProps.index === nextProps.index && prevProps.showSource === nextProps.showSource &&
     prevProps.isShowAlbumName === nextProps.isShowAlbumName &&
     prevProps.isShowInterval === nextProps.isShowInterval &&
     nextProps.selectedList.includes(nextProps.item) == prevProps.selectedList.includes(nextProps.item)
@@ -101,6 +105,7 @@ const styles = createStyle({
     // borderBottomWidth: BorderWidths.normal,
   },
   listItemLeft: {
+    height: '100%',
     flex: 1,
     flexGrow: 1,
     flexShrink: 1,

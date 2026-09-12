@@ -1,3 +1,6 @@
+import TrackPlayer, { State } from 'react-native-track-player'
+import { exportCompletedStreamingFlac, getStreamingFlacState } from '@/utils/nativeModules/streamingFlac'
+import { optionalTask } from './optionalTask'
 import { Platform } from 'react-native'
 import RNFS from 'react-native-fs'
 import { stringMd5 } from 'react-native-quick-md5'
@@ -63,27 +66,33 @@ const io: AudioCacheIO = {
 }
 const cache = Platform.OS == 'ios' ? new DiskAudioCache(root, io) : null
 let configured: number | null = null
+let configuring: Promise<void> | null = null
 export const configureAudioCache = async(megabytes: number) => {
   if (!cache) return
   const bytes = Number.isFinite(megabytes) ? Math.max(0, megabytes) * 1024 * 1024 : 0
   if (configured == bytes) return
-  await cache.configure(bytes)
-  configured = bytes
+  if (configuring) await configuring
+  if (configured == bytes) return
+  const task = cache.configure(bytes).then(() => { configured = bytes })
+  configuring = task
+  try { await task } finally { if (configuring === task) configuring = null }
 }
 const ready = async() => configureAudioCache(parseInt(settingState.setting['player.cacheSize'] || '0', 10))
 const keyFor = (music: LX.Music.MusicInfoOnline, quality: LX.Quality) => audioCacheKey(music.source, music.id, quality)
 export const lookupAudioCache = async(music: LX.Music.MusicInfoOnline, quality: LX.Quality) => {
   if (!cache) return null
-  try { await ready(); return await cache.lookup(keyFor(music, quality)) } catch (error) { console.warn('[audio-cache] lookup failed', error); return null }
+  return optionalTask(ready().then(async() => cache.lookup(keyFor(music, quality))), 1200, null, 'lookup')
 }
 export const queueAudioCache = (music: LX.Music.MusicInfoOnline, quality: LX.Quality, url: string) => {
   if (!cache) return
-  void ready().then(async() => cache.prefetch(keyFor(music, quality), url)).catch(error => { console.warn('[audio-cache] prefetch failed', error) })
+  // Register only. Build 78 started a second request before the audio engine
+  // consumed the URL, competing for bandwidth / single-use stream credentials.
+  pendingKeys.set(url, keyFor(music, quality))
+  if (pendingKeys.size > 16) pendingKeys.delete(pendingKeys.keys().next().value!)
 }
 export const invalidateAudioCache = async(music: LX.Music.MusicInfoOnline, quality: LX.Quality) => {
   if (!cache) return
-  await ready()
-  await cache.invalidate(keyFor(music, quality))
+  await optionalTask(ready().then(async() => cache.invalidate(keyFor(music, quality))), 600, undefined, 'invalidate')
 }
 export const getAudioCacheSize = async() => {
   if (!cache) return 0
@@ -92,10 +101,17 @@ export const getAudioCacheSize = async() => {
 }
 export const clearAudioCache = async() => {
   if (!cache) return
+  stopAudioCacheObservation()
   await ready()
   await cache.clear()
 }
-export const acquireAudioCacheURL = async(url: string) => cache ? cache.acquire(url) : url
+export const acquireAudioCacheURL = async(url: string) => {
+  // No cache code (including init) may delay a remote resource.
+  if (!cache || !url.startsWith('file:')) return url
+  const lease = await optionalTask(cache.acquire(url), 1800, null, 'playback-lease')
+  if (!lease) throw new Error('Cached file unavailable; retrying online playback')
+  return lease
+}
 export const releaseAudioCacheURL = async(url: string) => cache?.release(url)
 
 let currentPlaybackURL = ''
@@ -103,4 +119,58 @@ export const adoptAudioCacheURL = async(url: string) => {
   const old = currentPlaybackURL
   currentPlaybackURL = url
   if (old && old != url) await releaseAudioCacheURL(old)
+}
+
+const pendingKeys = new Map<string, string>()
+let observation = 0
+let observationTimer: ReturnType<typeof setTimeout> | null = null
+export const stopAudioCacheObservation = () => {
+  observation++
+  if (observationTimer) clearTimeout(observationTimer)
+  observationTimer = null
+  cache?.cancelPending()
+}
+
+/** Observe the actual player, never pre-download before audio starts.
+ * FLAC saves its existing response. System-player caching is deferred until
+ * the *entire* track is buffered, so it cannot starve startup/rebuffering. */
+export const observePlaybackAudioCache = (music: LX.Player.PlayMusic, url: string, quality?: LX.Quality | null) => {
+  stopAudioCacheObservation()
+  if (!cache || !/^https?:\/\//i.test(url) || !quality || 'progress' in music || music.source == 'local') return
+  const token = observation
+  const key = pendingKeys.get(url) ?? keyFor(music, quality)
+  const native = quality == 'flac' || quality == 'flac24bit'
+  let attempts = 0
+  const current = () => token == observation
+  const poll = async() => {
+    if (!current() || ++attempts > 1200) return
+    let completed = false
+    try {
+      await ready()
+      if (!current() || !configured) return
+      if (native) {
+        const state = await optionalTask(getStreamingFlacState(), 1000, 'idle' as const, 'native-state')
+        if (state == 'playing' || state == 'paused') {
+          const file = await optionalTask(exportCompletedStreamingFlac(url), 3000, null, 'stream-export')
+          if (file) {
+            try {
+              if (current()) await cache.importCompleteFile(key, file, current)
+              completed = current()
+            } finally { await RNFS.unlink(file).catch(() => {}) }
+          }
+        }
+      } else {
+        const state = await optionalTask(TrackPlayer.getState(), 1000, State.None, 'system-state')
+        if (state == State.Playing || state == State.Paused) {
+          const progress = await optionalTask(Promise.all([TrackPlayer.getBufferedPosition(), TrackPlayer.getDuration()]), 1000, [0, 0], 'system-buffer')
+          if (current() && progress[1] > 0 && progress[0] >= progress[1] - 0.25) {
+            await cache.prefetch(key, url)
+            completed = true
+          }
+        }
+      }
+    } catch (error) { console.warn('[audio-cache] optional persistence failed', String(error)) }
+    if (current() && !completed) observationTimer = setTimeout(() => { void poll() }, 1500)
+  }
+  observationTimer = setTimeout(() => { void poll() }, 1500)
 }

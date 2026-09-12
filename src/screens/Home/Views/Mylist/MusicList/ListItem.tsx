@@ -1,5 +1,6 @@
+import SongRowContent from '@/components/common/SongRowContent'
 import { memo, useRef } from 'react'
-import { View, TouchableOpacity } from 'react-native'
+import { View, TouchableOpacity, Platform } from 'react-native'
 import { LIST_ITEM_HEIGHT } from '@/config/constant'
 // import { BorderWidths } from '@/theme'
 import { Icon } from '@/components/common/Icon'
@@ -10,7 +11,7 @@ import { scaleSizeH } from '@/utils/pixelRatio'
 import Text from '@/components/common/Text'
 import Badge from '@/components/common/Badge'
 
-export const ITEM_HEIGHT = scaleSizeH(LIST_ITEM_HEIGHT)
+export const ITEM_HEIGHT = Platform.OS == 'ios' ? 50 : scaleSizeH(LIST_ITEM_HEIGHT)
 
 
 export default memo(({ item, index, activeIndex, onPress, onShowMenu, onLongPress, selectedList, rowInfo, isShowAlbumName, isShowInterval }: {
@@ -51,6 +52,8 @@ export default memo(({ item, index, activeIndex, onPress, onShowMenu, onLongPres
             ? <Icon style={styles.sn} name="play-outline" size={13} color={theme['c-primary-font']} />
             : <Text style={styles.sn} size={13} color={theme['c-300']}>{index + 1}</Text>
         }
+        {Platform.OS == 'ios' ? <SongRowContent name={item.name} singer={item.singer} album={item.meta.albumName}
+          interval={item.interval} showAlbum={isShowAlbumName} showInterval={isShowInterval} source={item.source} active={active} /> : <>
         <View style={styles.itemInfo}>
           {/* <View style={styles.listItemTitle}> */}
           <Text color={active ? theme['c-primary-font'] : theme['c-font']} numberOfLines={1}>{item.name}</Text>
@@ -67,6 +70,7 @@ export default memo(({ item, index, activeIndex, onPress, onShowMenu, onLongPres
             <Text size={12} color={active ? theme['c-primary-alpha-400'] : theme['c-250']} numberOfLines={1}>{item.interval}</Text>
           ) : null
         }
+        </>}
       </TouchableOpacity>
       {/* <View style={styles.listItemRight}> */}
       <TouchableOpacity onPress={handleShowMenu} ref={moreButtonRef} style={styles.moreButton}>
@@ -76,7 +80,7 @@ export default memo(({ item, index, activeIndex, onPress, onShowMenu, onLongPres
     </View>
   )
 }, (prevProps, nextProps) => {
-  return !!(prevProps.item === nextProps.item &&
+  return !!(prevProps.rowInfo.rowWidth === nextProps.rowInfo.rowWidth && prevProps.item === nextProps.item &&
     prevProps.index === nextProps.index &&
     prevProps.isShowAlbumName === nextProps.isShowAlbumName &&
     prevProps.isShowInterval === nextProps.isShowInterval &&
@@ -98,6 +102,7 @@ const styles = createStyle({
     // borderBottomWidth: BorderWidths.normal,
   },
   listItemLeft: {
+    height: '100%',
     flex: 1,
     flexGrow: 1,
     flexShrink: 1,

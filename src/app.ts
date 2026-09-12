@@ -1,3 +1,4 @@
+import { NativeModules } from 'react-native'
 import '@/utils/errorHandle'
 import { init as initLog } from '@/utils/log'
 import { bootLog, getBootLog } from '@/utils/bootLog'
@@ -11,6 +12,10 @@ import { tipDialog } from './utils/tools'
 console.log('starting app...')
 listenLaunchEvent()
 
+if (NativeModules.LXPlaybackTestSupport?.enabled) {
+  // This module exists only in simulator builds and requires explicit launch args.
+  void import('./tests/playbackSmoke').then(test => test.run())
+} else {
 void Promise.all([getFontSize(), windowSizeTools.init()]).then(async([fontSize]) => {
   global.lx.fontSize = fontSize
   bootLog('Font size setting loaded.')
@@ -75,3 +80,5 @@ void Promise.all([getFontSize(), windowSizeTools.init()]).then(async([fontSize])
     exitApp()
   })
 })
+
+}

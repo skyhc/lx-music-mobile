@@ -5,7 +5,7 @@
  * width:375
  * height:667
  */
-import { Dimensions, PixelRatio } from 'react-native'
+import { Dimensions, PixelRatio, Platform } from 'react-native'
 import { windowSizeTools } from './windowSizeTools'
 
 const designWidth = 375.0
@@ -49,6 +49,7 @@ const getMetrics = () => {
  * @returns dp
  */
 export function getTextSize(size: number) {
+  if (Platform.OS == 'ios') return size
   const { screenW, screenH, fontScale } = getMetrics()
   const scaleWidth = screenW / designWidth
   const scaleHeight = screenH / designHeight
@@ -66,6 +67,7 @@ export function setSpText(size: number) {
  * @returns dp
  */
 export function scaleSizeH(size: number) {
+  if (Platform.OS == 'ios') return size * global.lx.fontSize
   const { scale, pixelRatio } = getMetrics()
   const scaleHeight = size * scale
   size = Math.floor(scaleHeight / pixelRatio)
@@ -78,6 +80,7 @@ export function scaleSizeH(size: number) {
  * @returns dp
  */
 export function scaleSizeW(size: number) {
+  if (Platform.OS == 'ios') return size * global.lx.fontSize
   const { scale, pixelRatio } = getMetrics()
   const scaleWidth = size * scale
   size = Math.floor(scaleWidth / pixelRatio)
@@ -93,6 +96,7 @@ export const scaleSizeHR = (size: number) => {
 }
 
 export const scaleSizeAbsHR = (size: number) => {
+  if (Platform.OS == 'ios') return size
   const { scale, pixelRatio } = getMetrics()
   const scaleHeight = size * scale
   return size * 2 - Math.floor(scaleHeight / pixelRatio)

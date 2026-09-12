@@ -1,4 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { createList } from '@/core/list'
+import listState from '@/store/list/state'
+import { Platform, View } from 'react-native'
+import Text from '@/components/common/Text'
+import { useEffect, useRef, useState } from 'react'
 import settingState from '@/store/setting/state'
 import MusicList from './MusicList'
 import MyList from './MyList'
@@ -11,7 +15,7 @@ import { useWindowSize } from '@/utils/hooks'
 
 const MAX_WIDTH = scaleSizeW(400)
 
-export default () => {
+const LegacyDrawer = () => {
   const drawer = useRef<DrawerLayoutFixedType>(null)
   const theme = useTheme()
   const { width: windowWidth } = useWindowSize()
@@ -57,3 +61,26 @@ export default () => {
     </DrawerLayoutFixed>
   )
 }
+
+const IOSLibrary = () => {
+  useEffect(() => {
+    if (!listState.allList.some(list => list.id == 'userlist_local_music' || list.name == '本地音乐')) {
+      void createList({ id: 'userlist_local_music', name: '本地音乐' }).catch(error => { console.warn('Local list creation failed', error) })
+    }
+  }, [])
+  const theme = useTheme()
+  const [width, setWidth] = useState(0)
+  const sidebar = width >= 700
+  return <View style={{ flex: 1, minHeight: 0 }} onLayout={event => setWidth(event.nativeEvent.layout.width)}>
+    <View style={{ flex: 1, minHeight: 0, flexDirection: sidebar ? 'row' : 'column' }}>
+      <View style={sidebar
+        ? { width: 208, borderRightWidth: 0.5, borderRightColor: theme['c-border-background'] }
+        : { borderBottomWidth: 0.5, borderBottomColor: theme['c-border-background'] }}>
+        {sidebar ? <Text size={13} style={{ paddingHorizontal: 14, paddingVertical: 10 }}>我的列表</Text> : null}
+        <MyList compact={!sidebar} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}><MusicList /></View>
+    </View>
+  </View>
+}
+export default () => Platform.OS == 'ios' ? <IOSLibrary /> : <LegacyDrawer />

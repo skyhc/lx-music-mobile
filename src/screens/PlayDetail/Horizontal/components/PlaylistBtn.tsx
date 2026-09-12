@@ -1,14 +1,15 @@
 import { useRef, useState } from 'react'
-import { FlatList, TouchableOpacity, View } from 'react-native'
+import { FlatList, TouchableOpacity } from 'react-native'
 import Popup, { type PopupType } from '@/components/common/Popup'
 import Text from '@/components/common/Text'
 import { getList } from '@/core/player/playInfo'
 import { playListById } from '@/core/player/player'
 import { markTimeoutExitInteraction } from '@/core/player/timeoutExit'
 import { usePlayInfo, usePlayMusicInfo } from '@/store/player/hook'
-import { useTheme } from '@/store/theme/hook'
 import { toast } from '@/utils/tools'
 import Btn from './Btn'
+import PlaylistIcon from '@/components/common/PlaylistIcon'
+import SongRowContent from '@/components/common/SongRowContent'
 
 type Music = LX.Music.MusicInfo | LX.Download.ListItem
 
@@ -18,7 +19,6 @@ export default () => {
   const [listId, setListId] = useState<string | null>(null)
   const playInfo = usePlayInfo()
   const current = usePlayMusicInfo()
-  const theme = useTheme()
 
   const show = () => {
     const id = playInfo.playerListId ?? current.listId
@@ -36,7 +36,7 @@ export default () => {
 
   return (
     <>
-      <Btn icon="list-order" onPress={show} />
+      <Btn label="播放列表" onPress={show}><PlaylistIcon /></Btn>
       <Popup ref={popupRef} position="left" title="播放列表">
         <FlatList<Music>
           style={{ flex: 1 }}
@@ -48,11 +48,8 @@ export default () => {
             const info = 'progress' in item ? item.metadata.musicInfo : item
             const active = item.id == current.musicInfo?.id
             return (
-              <TouchableOpacity accessibilityRole="button" onPress={() => { select(item) }} style={{ minHeight: 56, paddingHorizontal: 20, paddingVertical: 10 }}>
-                <View>
-                  <Text numberOfLines={1} color={active ? theme['c-primary-font-active'] : undefined}>{info.name}</Text>
-                  <Text numberOfLines={1} size={12} color={theme['c-font-label']}>{info.singer}</Text>
-                </View>
+              <TouchableOpacity accessibilityRole="button" onPress={() => { select(item) }} style={{ height: 50, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' }}>
+                <SongRowContent name={info.name} singer={info.singer} album={info.meta.albumName} interval={info.interval} active={active} />
               </TouchableOpacity>
             )
           }}

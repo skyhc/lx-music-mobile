@@ -44,7 +44,7 @@ check('the whole player remains inside the left column', () => {
 })
 check('landscape iPad popup policy overrides callers requesting bottom or right', () => {
   const content = read(popupPath)
-  assert.ok(content.includes("Platform.OS == 'ios' && Platform.isPad && width > height ? 'left' : position"))
+  assert.ok(content.includes("Platform.OS == 'ios' && Platform.isPad && shouldUseIPadLayout(width, height) ? 'left' : position"))
   assert.ok(content.includes('switch (actualPosition)'))
 })
 check('native vertical region and modal roots consume safe insets exactly once', () => {

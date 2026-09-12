@@ -231,6 +231,34 @@ export class DiskAudioCache {
       })
     })
   }
+  cancelPending() { this.cancel() }
+  importCompleteFile(key: string, source: string, stillCurrent: () => boolean = () => true): Promise<void> {
+    return this.locked(async() => {
+      await this.init()
+      if (!this.limit || this.entries.has(key) || !stillCurrent()) return
+      const size = (await this.io.stat(source)).size
+      if (size <= 0 || size > this.limit) return
+      const ext = audioExtension(await this.io.head(source))
+      if (!ext) throw new Error('Unsupported completed audio format')
+      const file = `${this.io.digestKey(key)}-${this.io.id()}.${ext}`
+      const target = `${this.folder}/${file}`
+      const pending = `${target}.json.tmp`
+      try {
+        await this.io.copy(source, target)
+        const entry: Entry = { schema: 1, key, file, size, sha256: await this.io.hash(target), accessed: Date.now() }
+        if ((await this.io.stat(target)).size != size || !stillCurrent()) throw new Error('Completed stream superseded')
+        await this.io.write(pending, JSON.stringify(entry))
+        if (!stillCurrent()) throw new Error('Completed stream superseded')
+        await this.io.move(pending, `${target}.json`)
+        this.entries.set(key, entry)
+        await this.prune()
+        this.io.log('stream-committed', String(size))
+      } catch (error) {
+        await this.remove(pending); await this.remove(target)
+        throw error
+      }
+    })
+  }
   clear() {
     return this.locked(async() => {
       await this.init()
@@ -256,6 +284,7 @@ export class DiskAudioCache {
     })
   }
   acquire(url: string): Promise<string> {
+    if (!url.startsWith(`${fileURL(this.root)}/`)) return Promise.resolve(url)
     return this.locked(async() => {
       await this.init()
       const prefix = `${fileURL(this.folder)}/`
@@ -270,6 +299,7 @@ export class DiskAudioCache {
     })
   }
   release(url: string) {
+    if (!url.startsWith(`${fileURL(this.root)}/playback/`)) return Promise.resolve()
     return this.locked(async() => {
       const prefix = `${fileURL(this.root)}/playback/`
       if (url.startsWith(prefix) && safeName.test(url.slice(prefix.length))) await this.remove(decodeURIComponent(url.slice('file://'.length)))

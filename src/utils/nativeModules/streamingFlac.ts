@@ -41,6 +41,7 @@ export type StreamingFlacEvent =
   | StreamingFlacEndedEvent
 
 interface NativeStreamingFlacModule {
+  exportCompletedStream?: (url: string) => Promise<string | null>
   openStream?: (url: string, headers?: Record<string, string>, volume?: number, rate?: number, autoplay?: boolean) => Promise<void>
   resume?: () => Promise<void>
   pause?: () => Promise<void>
@@ -102,3 +103,5 @@ export const onStreamingFlacEvent = (listener: (event: StreamingFlacEvent) => vo
     subscription.remove()
   }
 }
+
+export const exportCompletedStreamingFlac = async(url: string) => assertSupported('exportCompletedStream')(url)
