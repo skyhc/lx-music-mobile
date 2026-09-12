@@ -2,7 +2,7 @@ name: Apply verified Build 80 repairs
 on:
   push:
     branches: [codex/ipad-player-layout-cache-review]
-    paths: [ci/build80.part1, ci/build80.part2, .github/workflows/apply-build80.yml]
+    paths: [ci/build80.part1, ci/build80.part2, ci/build80.part3, .github/workflows/apply-build80.yml]
 permissions:
   contents: write
 jobs:
@@ -14,6 +14,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build80-source-transport
+          path: ci/build80.part*
+          retention-days: 1
+          if-no-files-found: error
       - name: Verify exact patch and source, then commit source
         env:
           TARGET_BRANCH: codex/ipad-player-layout-cache-review
@@ -21,10 +27,10 @@ jobs:
         run: |
           set -euo pipefail
           git merge-base --is-ancestor f37e95c35ced720d3eafea1d4ae59808975f0632 HEAD
-          git diff --exit-code f37e95c35ced720d3eafea1d4ae59808975f0632 HEAD -- . ':(exclude).github/workflows/apply-build80.yml' ':(exclude)ci/build80.part1' ':(exclude)ci/build80.part2'
+          git diff --exit-code f37e95c35ced720d3eafea1d4ae59808975f0632 HEAD -- . ':(exclude).github/workflows/apply-build80.yml' ':(exclude)ci/build80.part*'
           python3 - <<'PY'
           import base64, lzma, hashlib, pathlib
-          text = pathlib.Path('ci/build80.part1').read_text() + pathlib.Path('ci/build80.part2').read_text()
+          text = ''.join(p.read_text() for p in sorted(pathlib.Path('ci').glob('build80.part*')))
           patch = lzma.decompress(base64.b64decode(text))
           digest = hashlib.sha256(patch).hexdigest()
           print('Decoded patch SHA256:', digest)
