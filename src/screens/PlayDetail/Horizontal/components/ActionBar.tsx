@@ -7,7 +7,8 @@ import SettingPopup, { type SettingPopupType } from '../../components/SettingPop
 import SoundEffectPopup, { type SoundEffectPopupType } from '../../components/SoundEffectPopup'
 import CommentBtn from './CommentBtn'
 import Btn from './Btn'
-import MoreBtn from '../MoreBtn'
+import MusicAddBtn from '../MoreBtn/MusicAddBtn'
+import TimeoutExitBtn from '../MoreBtn/TimeoutExitBtn'
 import { createStyle } from '@/utils/tools'
 
 export default () => {
@@ -15,33 +16,25 @@ export default () => {
   const soundEffectPopupRef = useRef<SoundEffectPopupType>(null)
   const setting = useSetting()
   const theme = useTheme()
-
   return (
     <>
       <View style={styles.container}>
-        <CommentBtn />
-        <Btn
-          icon="slider"
-          color={isSoundEffectActive(setting) ? theme['c-primary-font-active'] : undefined}
-          onPress={() => { soundEffectPopupRef.current?.show() }}
-        />
-        <MoreBtn />
-        <Btn icon="setting" size={18} onPress={() => { popupRef.current?.show() }} />
+        <View style={styles.slot}><CommentBtn /></View>
+        <View style={styles.slot}>
+          <Btn icon="slider" color={isSoundEffectActive(setting) ? theme['c-primary-font-active'] : undefined}
+            onPress={() => { soundEffectPopupRef.current?.show() }} />
+        </View>
+        <View style={styles.slot}><MusicAddBtn /></View>
+        <View style={styles.slot}><TimeoutExitBtn /></View>
+        <View style={styles.slot}><Btn icon="setting" size={18} onPress={() => { popupRef.current?.show() }} /></View>
       </View>
-      <SoundEffectPopup ref={soundEffectPopupRef} position="bottom" layoutMode="split" />
+      <SoundEffectPopup ref={soundEffectPopupRef} position="left" layoutMode="stacked" />
       <SettingPopup ref={popupRef} position="left" direction="horizontal" />
     </>
   )
 }
 
 const styles = createStyle({
-  container: {
-    flexShrink: 0,
-    flexGrow: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 2,
-    paddingBottom: 2,
-  },
+  container: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', paddingVertical: 2, minHeight: 44 },
+  slot: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' },
 })
