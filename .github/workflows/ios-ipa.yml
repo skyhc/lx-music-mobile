@@ -24,6 +24,8 @@ jobs:
       UNSIGNED_ARCHIVE_PATH: build/LxMusicMobile-unsigned.xcarchive
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Snapshot exact build source
         run: git archive --format=zip --output=lx-build-source.zip HEAD
       - name: Upload build source snapshot
@@ -61,10 +63,25 @@ jobs:
           bundler-cache: true
       - name: Install dependencies
         run: npm ci
-      - name: Check iPad layout contracts
+      - name: Test persistent cache and iPad integration
+        shell: bash
         run: |
-          node scripts/check-ipad-player-layout.js
-          node scripts/check-ipad-window-layout.js
+          set -euo pipefail
+          mkdir -p build/checks
+          node scripts/check-audio-cache.js 2>&1 | tee build/checks/audio-cache.log
+          node scripts/check-ipad-player-layout.js 2>&1 | tee build/checks/ipad-player.log
+          node scripts/check-ipad-window-layout.js 2>&1 | tee build/checks/ipad-window.log
+          node scripts/check-build78-integration.js 2>&1 | tee build/checks/integration.log
+          npx tsc --strict --noEmit --skipLibCheck --moduleResolution node --target ES2020 src/plugins/player/cache/DiskAudioCache.ts
+      - name: Check full-project TypeScript regressions
+        run: node scripts/check-type-regressions.js
+      - name: Upload validation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-${{ github.sha }}
+          path: build/checks
+          if-no-files-found: ignore
       - name: Install CocoaPods dependencies
         run: cd ios && bundle exec pod install --repo-update
       - name: Read package version
