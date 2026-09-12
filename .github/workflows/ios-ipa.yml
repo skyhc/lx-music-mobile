@@ -21,6 +21,7 @@ jobs:
       IOS_SCHEME: LxMusicMobile
       IOS_WORKSPACE: ios/LxMusicMobile.xcworkspace
       IOS_BUNDLE_IDENTIFIER: com.skyhc.lxmusic
+      IOS_TEAM_ID: LW54AZ8PXT
       DERIVED_DATA_PATH: build/DerivedData
       UNSIGNED_ARCHIVE_PATH: build/LxMusicMobile-unsigned.xcarchive
 
@@ -122,6 +123,8 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath "$UNSIGNED_ARCHIVE_PATH" \
             -derivedDataPath "$DERIVED_DATA_PATH" \
+            DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
             PRODUCT_BUNDLE_IDENTIFIER="$IOS_BUNDLE_IDENTIFIER" \
             TARGETED_DEVICE_FAMILY="1,2" \
             IPHONEOS_DEPLOYMENT_TARGET=15.0 \
@@ -146,6 +149,22 @@ jobs:
           path: build/xcodebuild.log
           if-no-files-found: ignore
 
+      - name: Attach distribution team metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCHIVE_INFO="$UNSIGNED_ARCHIVE_PATH/Info.plist"
+          test -f "$ARCHIVE_INFO"
+
+          if /usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:Team' "$ARCHIVE_INFO" >/dev/null 2>&1; then
+            /usr/libexec/PlistBuddy -c "Set :ApplicationProperties:Team $IOS_TEAM_ID" "$ARCHIVE_INFO"
+          else
+            /usr/libexec/PlistBuddy -c "Add :ApplicationProperties:Team string $IOS_TEAM_ID" "$ARCHIVE_INFO"
+          fi
+
+          echo "Archive Team:"
+          /usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:Team' "$ARCHIVE_INFO"
+
       - name: Verify iPad archive metadata
         shell: bash
         run: |
@@ -160,6 +179,7 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Print :Name' "$UNSIGNED_ARCHIVE_PATH/Info.plist"
           /usr/libexec/PlistBuddy -c 'Print :SchemeName' "$UNSIGNED_ARCHIVE_PATH/Info.plist"
           /usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:ApplicationPath' "$UNSIGNED_ARCHIVE_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:Team' "$UNSIGNED_ARCHIVE_PATH/Info.plist"
 
           echo "===== Built app metadata ====="
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist"
@@ -168,6 +188,7 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP_PATH/Info.plist"
           /usr/libexec/PlistBuddy -c 'Print :UIDeviceFamily' "$APP_PATH/Info.plist"
 
+          test "$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:Team' "$UNSIGNED_ARCHIVE_PATH/Info.plist")" = "$IOS_TEAM_ID"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist")" = "$IOS_BUNDLE_IDENTIFIER"
           test "$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP_PATH/Info.plist")" = "15.0"
 
