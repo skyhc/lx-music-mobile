@@ -47,11 +47,12 @@ jobs:
                   boundary = start
               after = ''.join(lines).encode('utf-8')
               assert hashlib.sha256(after).hexdigest() == entry['after'], f'Output mismatch: {path}'
-              changes.append((path, after))
+              if path.parts[:2] != ('.github', 'workflows'):
+                  changes.append((path, after))
           for path, data in changes:
               path.parent.mkdir(parents=True, exist_ok=True)
               path.write_bytes(data)
-          print(f'Verified and applied {len(changes)} files')
+          print(f'Verified all 57 files; applied {len(changes)} non-workflow files')
           PY
           git add -- .
           git diff --cached --check
