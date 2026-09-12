@@ -27,13 +27,13 @@ for (const name of sourcePaths) {
     assert.equal(errors.length, 0, errors.map(d => ts.flattenDiagnosticMessageText(d.messageText, '\n')).join('\n'))
   })
 }
-check('vertical strip supplements, rather than adds to, native top padding', () => {
+check('vertical strip supplements native top padding and preserves a small gap', () => {
   const code = ts.transpileModule(read('src/components/WindowContent.tsx'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText
   const exports = {}
-  vm.runInNewContext(code, { exports, require: () => ({}) })
-  for (const [top, expected] of [[0, 36], [24, 12], [36, 0], [48, 0], [-4, 36]]) {
+  vm.runInNewContext(code, { exports, require: () => ({ StyleSheet: { create: value => value, absoluteFillObject: {} } }) })
+  for (const [top, expected] of [[0, 40], [24, 16], [36, 4], [48, 4], [-4, 40]]) {
     assert.equal(exports.getWindowControlTopPadding(top), expected)
   }
 })
@@ -47,11 +47,12 @@ check('all dimensions produce zero horizontal window-control allowance', () => {
     assert.equal(exports.getIPadWindowControlsLeadingInset(w, h), 0)
   }
 })
-check('horizontal player does not create a second safe-area/background owner', () => {
+check('horizontal player has one safe-area owner and keeps controls in its left column', () => {
   const content = read(`${horizontal}index.tsx`)
   assert.ok(!content.includes('<PageContent'))
   assert.ok(!content.includes('<StatusBar'))
   assert.ok(content.indexOf('<SongInfo />') < content.indexOf('<Player />'))
+  assert.ok(content.indexOf('<Player />') < content.indexOf('<View style={styles.right}>'))
   assert.ok(!read(`${horizontal}components/Header.tsx`).includes('paddingLeft'))
 })
 check('dock order is progress, transport row, utility row', () => {

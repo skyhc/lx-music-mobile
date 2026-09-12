@@ -1,0 +1,50 @@
+// Focused source contracts, not a React Native render or a complete type check.
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+const vm = require('node:vm')
+const ts = require('typescript')
+const root = path.resolve(__dirname, '..')
+const read = name => fs.readFileSync(path.join(root, name), 'utf8')
+const windowPath = 'src/components/WindowContent.tsx'
+const popupPath = 'src/components/common/Popup.tsx'
+const layoutPath = 'src/screens/PlayDetail/Horizontal/index.tsx'
+const playerPath = 'src/screens/PlayDetail/Horizontal/Player/index.tsx'
+const options = { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX }
+let checks = 0
+const check = (name, test) => { test(); checks++; console.log(`PASS ${name}`) }
+for (const file of [windowPath, popupPath, layoutPath, playerPath]) {
+  check(`syntax: ${file}`, () => {
+    const result = ts.transpileModule(read(file), { fileName: file, reportDiagnostics: true, compilerOptions: options })
+    assert.equal((result.diagnostics || []).filter(d => d.category === ts.DiagnosticCategory.Error).length, 0)
+  })
+}
+check('vertical inset preserves a four-point gap without double-counting native inset', () => {
+  const exports = {}
+  const code = ts.transpileModule(read(windowPath), { compilerOptions: options }).outputText
+  vm.runInNewContext(code, { exports, require: () => ({ StyleSheet: { create: value => value, absoluteFillObject: {} } }) })
+  for (const [top, expected] of [[0, 40], [24, 16], [36, 4], [48, 4], [-4, 40]]) {
+    assert.equal(exports.getWindowControlTopPadding(top), expected)
+  }
+})
+check('iPad horizontal padding is not applied to visible content', () => {
+  const content = read(windowPath)
+  assert.ok(!/paddingLeft|paddingRight|translateX/.test(content))
+  assert.ok(content.includes('style={styles.probe}'))
+  assert.ok(content.includes('paddingTop: top, paddingBottom: bottom'))
+})
+check('the whole player remains inside the left column', () => {
+  const content = read(layoutPath)
+  const start = content.indexOf('<View style={styles.left}>')
+  const player = content.indexOf('<Player />')
+  const right = content.indexOf('<View style={styles.right}>')
+  assert.ok(start >= 0 && player > start && right > player)
+  assert.ok(!content.includes('<PageContent'))
+  assert.ok(content.includes('appstateListener.remove()'))
+})
+check('landscape iPad popup policy overrides callers requesting bottom or right', () => {
+  const content = read(popupPath)
+  assert.ok(content.includes("Platform.OS == 'ios' && Platform.isPad && width > height ? 'left' : position"))
+  assert.ok(content.includes('switch (actualPosition)'))
+})
+console.log(`${checks} focused checks passed. Native build, rendering and cache persistence NOT tested.`)
