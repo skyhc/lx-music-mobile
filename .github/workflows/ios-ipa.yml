@@ -5,17 +5,23 @@ on:
     branches:
       - ios-adaptation
       - ipad-landscape
+      - codex/ipad-player-layout-cache-review
     tags:
       - 'v*'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: ios-archive-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-ios-ipa:
     name: iOS IPA + Xcode Archive
     runs-on: macos-26
+    timeout-minutes: 60
     env:
       NO_FLIPPER: 1
       IOS_SCHEME: LxMusicMobile
@@ -29,6 +35,17 @@ jobs:
       - name: Check out git repository
         uses: actions/checkout@v4
 
+      - name: Snapshot exact build source
+        run: git archive --format=zip --output=../lx-build-source.zip HEAD
+
+      - name: Upload build source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-${{ github.sha }}
+          path: ../lx-build-source.zip
+          retention-days: 7
+          if-no-files-found: error
+
       - name: Select Xcode 26.6
         run: |
           sudo xcode-select -s /Applications/Xcode_26.6.app/Contents/Developer
@@ -39,46 +56,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           TOOLCHAIN="$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphoneos"
           SDK="$(xcrun --sdk iphoneos --show-sdk-path)/usr/lib/swift"
-
-          echo "Toolchain Swift path:"
-          echo "$TOOLCHAIN"
-
-          echo "SDK Swift path:"
-          echo "$SDK"
-
-          LIBS=(
-            libswiftCompatibility50.a
-            libswiftCompatibility51.a
-            libswiftCompatibility56.a
-            libswiftCompatibilityConcurrency.a
-            libswiftCompatibilityDynamicReplacements.a
-            libswiftCompatibilityPacks.a
-          )
-
+          LIBS=(libswiftCompatibility50.a libswiftCompatibility51.a libswiftCompatibility56.a libswiftCompatibilityConcurrency.a libswiftCompatibilityDynamicReplacements.a libswiftCompatibilityPacks.a)
           for LIB in "${LIBS[@]}"; do
             SRC="$TOOLCHAIN/$LIB"
             DST="$SDK/$LIB"
             TBD="${DST%.a}.tbd"
-
-            if [ -f "$SRC" ]; then
-              echo "Found: $SRC"
-
-              if [ ! -e "$DST" ] && [ ! -e "$TBD" ]; then
-                echo "Linking $LIB into SDK"
-                sudo ln -s "$SRC" "$DST"
-              else
-                echo "$LIB already available in SDK"
-              fi
-            else
-              echo "Warning: $LIB not found in toolchain"
+            if [ -f "$SRC" ] && [ ! -e "$DST" ] && [ ! -e "$TBD" ]; then
+              sudo ln -s "$SRC" "$DST"
             fi
           done
-
-          echo "Swift compatibility libraries available to SDK:"
-          ls -la "$SDK" | grep Compatibility || true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -94,6 +82,11 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Check iPad layout contracts
+        run: |
+          node scripts/check-ipad-player-layout.js
+          node scripts/check-ipad-window-layout.js
 
       - name: Install CocoaPods dependencies
         shell: bash
@@ -137,15 +130,13 @@ jobs:
       - name: Show first Xcode errors
         if: failure()
         shell: bash
-        run: |
-          echo "===== Xcode errors ====="
-          grep -n -C 3 "error:" build/xcodebuild.log | head -120 || true
+        run: grep -n -C 3 "error:" build/xcodebuild.log | head -120 || true
 
       - name: Upload Xcode build log
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: xcodebuild-log
+          name: xcodebuild-log-${{ github.run_number }}
           path: build/xcodebuild.log
           if-no-files-found: ignore
 
@@ -155,88 +146,67 @@ jobs:
           set -euo pipefail
           ARCHIVE_INFO="$UNSIGNED_ARCHIVE_PATH/Info.plist"
           test -f "$ARCHIVE_INFO"
-
           if /usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:Team' "$ARCHIVE_INFO" >/dev/null 2>&1; then
             /usr/libexec/PlistBuddy -c "Set :ApplicationProperties:Team $IOS_TEAM_ID" "$ARCHIVE_INFO"
           else
             /usr/libexec/PlistBuddy -c "Add :ApplicationProperties:Team string $IOS_TEAM_ID" "$ARCHIVE_INFO"
           fi
 
-          echo "Archive Team:"
-          /usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:Team' "$ARCHIVE_INFO"
-
       - name: Verify iPad archive metadata
         shell: bash
         run: |
+          set -euo pipefail
           test -d "$UNSIGNED_ARCHIVE_PATH"
           test -f "$UNSIGNED_ARCHIVE_PATH/Info.plist"
-
           APP_PATH="$(find "$UNSIGNED_ARCHIVE_PATH/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)"
           test -n "$APP_PATH"
-
-          echo "===== Archive metadata ====="
-          /usr/libexec/PlistBuddy -c 'Print :ArchiveVersion' "$UNSIGNED_ARCHIVE_PATH/Info.plist"
-          /usr/libexec/PlistBuddy -c 'Print :Name' "$UNSIGNED_ARCHIVE_PATH/Info.plist"
-          /usr/libexec/PlistBuddy -c 'Print :SchemeName' "$UNSIGNED_ARCHIVE_PATH/Info.plist"
-          /usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:ApplicationPath' "$UNSIGNED_ARCHIVE_PATH/Info.plist"
-          /usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:Team' "$UNSIGNED_ARCHIVE_PATH/Info.plist"
-
-          echo "===== Built app metadata ====="
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist"
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist"
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist"
-          /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP_PATH/Info.plist"
-          /usr/libexec/PlistBuddy -c 'Print :UIDeviceFamily' "$APP_PATH/Info.plist"
-
           test "$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:Team' "$UNSIGNED_ARCHIVE_PATH/Info.plist")" = "$IOS_TEAM_ID"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist")" = "$IOS_BUNDLE_IDENTIFIER"
           test "$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP_PATH/Info.plist")" = "15.0"
-
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")" = "$PACKAGE_VERSION_CODE"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")" = "$PACKAGE_VERSION"
           DEVICE_FAMILY="$(/usr/libexec/PlistBuddy -c 'Print :UIDeviceFamily' "$APP_PATH/Info.plist")"
           echo "$DEVICE_FAMILY" | grep -q '1'
           echo "$DEVICE_FAMILY" | grep -q '2'
+          test -s "$APP_PATH/main.jsbundle"
 
       - name: Package unsigned IPA
         shell: bash
         run: |
+          set -euo pipefail
           APP_PATH="$(find "$UNSIGNED_ARCHIVE_PATH/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)"
           test -n "$APP_PATH"
           rm -rf build/Payload
           mkdir -p build/Payload
           ditto "$APP_PATH" "build/Payload/$(basename "$APP_PATH")"
-          (
-            cd build
-            zip -qry "lx-music-mobile-v${PACKAGE_VERSION}-ios-unsigned.ipa" Payload
-          )
+          (cd build && zip -qry "lx-music-mobile-v${PACKAGE_VERSION}-build${PACKAGE_VERSION_CODE}-ios-unsigned.ipa" Payload)
 
       - name: Package Xcode archive for download
         shell: bash
         run: |
+          set -euo pipefail
           ARCHIVE_ZIP="build/LX-Music-v${PACKAGE_VERSION}-build${PACKAGE_VERSION_CODE}.xcarchive.zip"
-          rm -f "$ARCHIVE_ZIP"
           ditto -c -k --sequesterRsrc --keepParent "$UNSIGNED_ARCHIVE_PATH" "$ARCHIVE_ZIP"
           test -s "$ARCHIVE_ZIP"
-          echo "Xcode archive package: $ARCHIVE_ZIP"
-          ls -lh "$ARCHIVE_ZIP"
+          (cd build && shasum -a 256 *.ipa *.xcarchive.zip > SHA256SUMS.txt)
+          printf 'commit=%s\nrun=%s\nversion=%s\nbuild=%s\nsigning=unsigned\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$PACKAGE_VERSION" "$PACKAGE_VERSION_CODE" > build/BUILD-METADATA.txt
 
       - name: Upload unsigned IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: ios-ipa-v${{ env.PACKAGE_VERSION }}-build${{ env.PACKAGE_VERSION_CODE }}-unsigned
-          path: build/lx-music-mobile-v${{ env.PACKAGE_VERSION }}-ios-unsigned.ipa
+          path: |
+            build/lx-music-mobile-v${{ env.PACKAGE_VERSION }}-build${{ env.PACKAGE_VERSION_CODE }}-ios-unsigned.ipa
+            build/SHA256SUMS.txt
+            build/BUILD-METADATA.txt
+          if-no-files-found: error
 
       - name: Upload Xcode archive artifact
         uses: actions/upload-artifact@v4
         with:
           name: xcode-archive-v${{ env.PACKAGE_VERSION }}-build${{ env.PACKAGE_VERSION_CODE }}
-          path: build/LX-Music-v${{ env.PACKAGE_VERSION }}-build${{ env.PACKAGE_VERSION_CODE }}.xcarchive.zip
+          path: |
+            build/LX-Music-v${{ env.PACKAGE_VERSION }}-build${{ env.PACKAGE_VERSION_CODE }}.xcarchive.zip
+            build/SHA256SUMS.txt
+            build/BUILD-METADATA.txt
           if-no-files-found: error
-
-      - name: Release unsigned IPA
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ env.PACKAGE_VERSION }}
-          prerelease: false
-          draft: false
-          files: build/lx-music-mobile-v${{ env.PACKAGE_VERSION }}-ios-unsigned.ipa
