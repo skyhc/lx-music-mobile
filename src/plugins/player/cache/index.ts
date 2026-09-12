@@ -1,0 +1,106 @@
+import { Platform } from 'react-native'
+import RNFS from 'react-native-fs'
+import { stringMd5 } from 'react-native-quick-md5'
+import { Buffer } from '@craftzdog/react-native-buffer'
+import settingState from '@/store/setting/state'
+import { DiskAudioCache, audioCacheKey, type AudioCacheIO } from './DiskAudioCache'
+
+const userAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile'
+const root = `${RNFS.LibraryDirectoryPath}/Application Support/LXAudioCache/v1`
+let sequence = 0
+const io: AudioCacheIO = {
+  mkdir: async(path) => RNFS.mkdir(path, { NSURLIsExcludedFromBackupKey: true }),
+  list: async(path) => (await RNFS.readDir(path)).map(file => ({ name: file.name, size: Number(file.size), mtime: file.mtime?.getTime() ?? 0, isFile: file.isFile() })),
+  read: async(path) => RNFS.readFile(path, 'utf8'),
+  write: async(path, text) => RNFS.writeFile(path, text, 'utf8'),
+  touch: async(path) => { await RNFS.touch(path, new Date()) },
+  head: async(path) => Buffer.from(await RNFS.read(path, 64, 0, 'base64'), 'base64'),
+  hash: async(path) => RNFS.hash(path, 'sha256'),
+  move: async(from, to) => RNFS.moveFile(from, to),
+  copy: async(from, to) => RNFS.copyFile(from, to),
+  remove: async(path) => RNFS.unlink(path),
+  stat: async(path) => ({ size: Number((await RNFS.stat(path)).size) }),
+  digestKey: stringMd5,
+  id: () => `${Date.now().toString(36)}-${(++sequence).toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
+  log: (event, detail = '') => { console.info('[audio-cache]', event, detail) },
+  download: (url, path, maxBytes) => {
+    let expected = -1
+    let completeRange = false
+    let aborted = false
+    let jobId: number | undefined
+    const cancel = () => {
+      aborted = true
+      if (jobId !== undefined) RNFS.stopDownload(jobId)
+    }
+    const task = RNFS.downloadFile({
+      fromUrl: url,
+      toFile: path,
+      headers: { 'User-Agent': userAgent, 'Accept-Encoding': 'identity' },
+      background: false,
+      cacheable: false,
+      connectionTimeout: 15000,
+      readTimeout: 60000,
+      progressInterval: 200,
+      begin: response => {
+        expected = response.contentLength
+        const rangeHeader = Object.entries(response.headers).find(([name]) => name.toLowerCase() == 'content-range')?.[1]
+        const range = typeof rangeHeader == 'string' ? /^bytes 0-(\d+)\/(\d+)$/.exec(rangeHeader) : null
+        completeRange = !!range && Number(range[1]) + 1 == Number(range[2]) && expected == Number(range[2])
+        if ((response.statusCode != 200 && !(response.statusCode == 206 && completeRange)) || expected > maxBytes) cancel()
+      },
+      progress: response => { if (response.bytesWritten > maxBytes) cancel() },
+    })
+    jobId = task.jobId
+    if (aborted) RNFS.stopDownload(jobId)
+    return {
+      cancel,
+      done: task.promise.then(result => {
+        if (aborted) throw new Error('Cache transfer cancelled')
+        return { status: result.statusCode, bytes: result.bytesWritten, expected, completeRange }
+      }),
+    }
+  },
+}
+const cache = Platform.OS == 'ios' ? new DiskAudioCache(root, io) : null
+let configured: number | null = null
+export const configureAudioCache = async(megabytes: number) => {
+  if (!cache) return
+  const bytes = Number.isFinite(megabytes) ? Math.max(0, megabytes) * 1024 * 1024 : 0
+  if (configured == bytes) return
+  await cache.configure(bytes)
+  configured = bytes
+}
+const ready = async() => configureAudioCache(parseInt(settingState.setting['player.cacheSize'] || '0', 10))
+const keyFor = (music: LX.Music.MusicInfoOnline, quality: LX.Quality) => audioCacheKey(music.source, music.id, quality)
+export const lookupAudioCache = async(music: LX.Music.MusicInfoOnline, quality: LX.Quality) => {
+  if (!cache) return null
+  try { await ready(); return await cache.lookup(keyFor(music, quality)) } catch (error) { console.warn('[audio-cache] lookup failed', error); return null }
+}
+export const queueAudioCache = (music: LX.Music.MusicInfoOnline, quality: LX.Quality, url: string) => {
+  if (!cache) return
+  void ready().then(async() => cache.prefetch(keyFor(music, quality), url)).catch(error => { console.warn('[audio-cache] prefetch failed', error) })
+}
+export const invalidateAudioCache = async(music: LX.Music.MusicInfoOnline, quality: LX.Quality) => {
+  if (!cache) return
+  await ready()
+  await cache.invalidate(keyFor(music, quality))
+}
+export const getAudioCacheSize = async() => {
+  if (!cache) return 0
+  await ready()
+  return cache.size()
+}
+export const clearAudioCache = async() => {
+  if (!cache) return
+  await ready()
+  await cache.clear()
+}
+export const acquireAudioCacheURL = async(url: string) => cache ? cache.acquire(url) : url
+export const releaseAudioCacheURL = async(url: string) => cache?.release(url)
+
+let currentPlaybackURL = ''
+export const adoptAudioCacheURL = async(url: string) => {
+  const old = currentPlaybackURL
+  currentPlaybackURL = url
+  if (old && old != url) await releaseAudioCacheURL(old)
+}

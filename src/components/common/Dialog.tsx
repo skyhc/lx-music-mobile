@@ -1,5 +1,6 @@
 import { useImperativeHandle, forwardRef, useMemo, useRef } from 'react'
-import { View, TouchableHighlight } from 'react-native'
+import { View, TouchableHighlight, Platform, useWindowDimensions } from 'react-native'
+import Popup from './Popup'
 
 import Modal, { type ModalType } from './Modal'
 import { Icon } from '@/components/common/Icon'
@@ -57,6 +58,7 @@ const styles = createStyle({
 })
 
 export interface DialogProps {
+  position?: 'center' | 'left'
   onHide?: () => void
   keyHide?: boolean
   bgHide?: boolean
@@ -76,10 +78,12 @@ export default forwardRef<DialogType, DialogProps>(({
   bgHide = true,
   closeBtn = true,
   title = '',
+  position = 'center',
   children,
   height,
 }: DialogProps, ref) => {
   const theme = useTheme()
+  const { width, height: windowHeight } = useWindowDimensions()
   const { keyboardShown, keyboardHeight } = useKeyboard()
   const { width: windowWidth } = useWindowSize()
   const modalRef = useRef<ModalType>(null)
@@ -105,6 +109,10 @@ export default forwardRef<DialogType, DialogProps>(({
         maxWidth: 560,
       }
     : null
+
+  if (position == 'left' && Platform.OS == 'ios' && Platform.isPad && width > windowHeight) {
+    return <Popup ref={modalRef} onHide={onHide} keyHide={keyHide} bgHide={bgHide} closeBtn={closeBtn} title={title} position="left">{children}</Popup>
+  }
 
   return (
     <Modal onHide={onHide} keyHide={keyHide} bgHide={bgHide} bgColor="rgba(50,50,50,.3)" ref={modalRef}>

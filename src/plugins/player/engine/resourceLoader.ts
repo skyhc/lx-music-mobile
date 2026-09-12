@@ -1,3 +1,4 @@
+import { acquireAudioCacheURL, adoptAudioCacheURL, releaseAudioCacheURL } from '../cache'
 import TrackPlayer from 'react-native-track-player'
 import { Platform } from 'react-native'
 import {
@@ -19,7 +20,7 @@ const resolveShouldAutoStart = (currentTrackIndex: number | null) => {
   return false
 }
 
-export const loadPlaybackResource = async({
+const loadResource = async({
   musicInfo,
   url,
   time,
@@ -73,3 +74,16 @@ export const loadPlaybackResource = async({
   })
 }
 
+
+// Lease complete cached audio until the replacement player has opened its new
+// resource. Clearing/evicting the cache must not remove the current song.
+export const loadPlaybackResource = async(args: Parameters<typeof loadResource>[0]) => {
+  const url = await acquireAudioCacheURL(args.url)
+  try {
+    await loadResource({ ...args, url })
+    await adoptAudioCacheURL(url)
+  } catch (error) {
+    if (url != args.url) await releaseAudioCacheURL(url)
+    throw error
+  }
+}

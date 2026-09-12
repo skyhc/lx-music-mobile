@@ -2255,6 +2255,7 @@ RCT_REMAP_METHOD(updateEqualizerConfig, updateEqualizerConfig:(NSDictionary *)co
 @end
 
 @interface StreamingFlacPlayerModule : RCTEventEmitter<RCTBridgeModule, NSURLSessionDataDelegate>
+@property (nonatomic, assign) NSUInteger openRequestGeneration;
 @property (nonatomic, strong) NSURLSession *session;
 @property (nonatomic, strong) NSURLSessionDataTask *task;
 @property (nonatomic, strong) NSMutableData *streamData;
@@ -3285,6 +3286,7 @@ RCT_EXPORT_MODULE();
 }
 
 - (void)stopStreamingInternal:(BOOL)resetAudio {
+  self.openRequestGeneration += 1;
   self.stopRequested = YES;
   _stopRequestedFlag.store(true, std::memory_order_release);
   [self.streamCondition lock];
@@ -3365,6 +3367,39 @@ RCT_REMAP_METHOD(openStream, openStream:(NSString *)urlString headers:(NSDiction
     if (url == nil) {
       NSError *error = LXError(@"streaming_flac_url", @"Invalid FLAC stream url");
       reject(@"streaming_flac_url", error.localizedDescription, error);
+      return;
+    }
+
+    if (url.isFileURL) {
+      // Read off the main thread; the generation guard prevents a slow local
+      // read from resurrecting a track that was stopped or replaced.
+      const NSUInteger openGeneration = self.openRequestGeneration;
+      dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSError *readError = nil;
+        NSMutableData *data = [NSMutableData dataWithContentsOfURL:url options:NSDataReadingMappedIfSafe error:&readError];
+        dispatch_async(dispatch_get_main_queue(), ^{
+          if (openGeneration != self.openRequestGeneration || self.stopRequested) {
+            reject(@"streaming_flac_cancelled", @"Local FLAC load was superseded", nil);
+            return;
+          }
+          if (data.length < 4 || memcmp(data.bytes, "fLaC", 4) != 0) {
+            NSString *message = readError.localizedDescription ?: @"Invalid local FLAC file";
+            [self emitErrorMessage:message];
+            reject(@"streaming_flac_file", message, readError);
+            return;
+          }
+          [self.streamCondition lock];
+          self.streamData = data;
+          self.expectedContentLength = (int64_t)data.length;
+          self.downloadCompleted = YES;
+          _streamFinished.store(true, std::memory_order_release);
+          [self.streamCondition broadcast];
+          [self.streamCondition unlock];
+          self.startThresholdSeconds = 1.5;
+          [self startDecoderLoop];
+          resolve(nil);
+        });
+      });
       return;
     }
 

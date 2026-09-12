@@ -32,7 +32,7 @@ check('vertical strip supplements native top padding and preserves a small gap',
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText
   const exports = {}
-  vm.runInNewContext(code, { exports, require: () => ({ StyleSheet: { create: value => value, absoluteFillObject: {} } }) })
+  vm.runInNewContext(code, { exports, require: () => ({ createContext: value => ({ Provider: () => null }), Platform: { OS: 'test' }, StyleSheet: { create: value => value, absoluteFillObject: {} } }) })
   for (const [top, expected] of [[0, 40], [24, 16], [36, 4], [48, 4], [-4, 40]]) {
     assert.equal(exports.getWindowControlTopPadding(top), expected)
   }

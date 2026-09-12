@@ -22,7 +22,7 @@ for (const file of [windowPath, popupPath, layoutPath, playerPath]) {
 check('vertical inset preserves a four-point gap without double-counting native inset', () => {
   const exports = {}
   const code = ts.transpileModule(read(windowPath), { compilerOptions: options }).outputText
-  vm.runInNewContext(code, { exports, require: () => ({ StyleSheet: { create: value => value, absoluteFillObject: {} } }) })
+  vm.runInNewContext(code, { exports, require: () => ({ createContext: value => ({ Provider: () => null }), Platform: { OS: 'test' }, StyleSheet: { create: value => value, absoluteFillObject: {} } }) })
   for (const [top, expected] of [[0, 40], [24, 16], [36, 4], [48, 4], [-4, 40]]) {
     assert.equal(exports.getWindowControlTopPadding(top), expected)
   }
@@ -35,7 +35,7 @@ check('iPad horizontal padding is not applied to visible content', () => {
 })
 check('the whole player remains inside the left column', () => {
   const content = read(layoutPath)
-  const start = content.indexOf('<View style={styles.left}>')
+  const start = content.indexOf('<ScrollView style={[styles.left,')
   const player = content.indexOf('<Player />')
   const right = content.indexOf('<View style={styles.right}>')
   assert.ok(start >= 0 && player > start && right > player)
@@ -46,5 +46,17 @@ check('landscape iPad popup policy overrides callers requesting bottom or right'
   const content = read(popupPath)
   assert.ok(content.includes("Platform.OS == 'ios' && Platform.isPad && width > height ? 'left' : position"))
   assert.ok(content.includes('switch (actualPosition)'))
+})
+check('native vertical region and modal roots consume safe insets exactly once', () => {
+  assert.ok(read('ios/LxMusicMobile/LXWindowInsets.swift').includes('.safeArea(cornerAdaptation: .vertical)'))
+  assert.ok(read('src/components/common/Modal.tsx').includes('<WindowInsetsScope><WindowContent>'))
+  assert.ok(read(windowPath).includes("Platform.OS != 'ios' || consumed"))
+  assert.ok(!read(popupPath).includes("const fill = { position: 'absolute'"))
+})
+check('timer and favorite editors also use the left panel', () => {
+  assert.ok(read('src/screens/PlayDetail/Horizontal/MoreBtn/MusicAddBtn.tsx').includes('<MusicAddModal position="left"'))
+  assert.ok(read('src/screens/PlayDetail/Horizontal/MoreBtn/TimeoutExitBtn.tsx').includes('<TimeoutExitEditModal position="left"'))
+  assert.ok(read('src/components/common/ConfirmAlert.tsx').includes('<Dialog position={position}'))
+  assert.ok(read('src/components/common/Dialog.tsx').includes('<Popup ref={modalRef}'))
 })
 console.log(`${checks} focused checks passed. Native build, rendering and cache persistence NOT tested.`)

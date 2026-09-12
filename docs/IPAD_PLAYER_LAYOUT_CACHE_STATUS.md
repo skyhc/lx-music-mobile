@@ -1,39 +1,27 @@
-# iPad 横屏播放器修改与未完成项
+# iPad 横屏播放器与持久缓存 · v1.8.2 Build 78
 
-原基线：`ipad-landscape`，`d9cf9f3b881b1ab45674662977f8ca9be3c21655`（Build 77）。
-继续修改分支：`codex/ipad-player-layout-cache-review`。
-本轮 UI 提交：`4119f3336d4a976ff47e00f1ebce43d58e0f656a`。
-不修改版本号，不签名，不生成 IPA，不自动合并。
+## 五项需求对应代码
 
-## 本轮 UI 代码修改
+1. 收起箭头保持原有左侧横坐标，不继承系统横向安全区；顶部使用 iOS 26 `safeArea(cornerAdaptation: .vertical)`，旧系统回退为至少 36 点并留 4 点间隔。
+2. PageContent、通用 Modal、Popup 与 Dialog 共用 WindowContent；新的原生 Modal 重置安全区上下文，同一窗口内嵌套面板只消费一次安全区。系统红绿灯由 iPadOS 管理，不使用私有 API 移动它们。
+3. 横屏左栏容纳封面、歌曲名/歌手、进度/时间、两行控制；右栏歌词。矮窗口左栏可独立滚动，保持各按钮可访问，普通尺寸封面按剩余空间缩放。
+4. iOS 完整音频存入 Library/Application Support/LXAudioCache/v1，排除 iCloud 备份。歌曲来源、ID 和实际音质作为缓存键，不用临时 URL 作键；读取先于联网解析。只有完整响应、文件长度与格式头有效、SHA-256 校验通过的文件才发布索引。重启恢复索引，部分文件不被当作缓存。TrackPlayer 读取本地文件；FLAC 本地文件进入现有 libFLAC/AVAudioEngine 链路，不改换引擎。
+5. iPad 横屏设置、音效、播放列表、定时及收藏添加编辑面板全部走左侧 Popup，并从左侧滑入。其余平台及竖屏保留原方向。
 
-1. `WindowContent` 在 iPad 上使用不可交互的 SafeAreaView 测量垂直安全区；可见内容使用普通 View，不继承原生横向 padding。收起箭头不再因为该安全区而横移。
-2. 顶部内容起点为 `max(原生顶部安全区, 36) + 4` 点；底部保留原生安全区。36 点是集中管理的回退值，不是系统窗口按钮实际几何测量。红绿灯由系统控制，本轮不移动系统按钮。
-3. `PageContent` 和侧边 `Popup` 已共用 WindowContent，本轮规则随之作用于这些页面。未作脱离该公共容器的每个独立原生窗口的视觉验收。
-4. 横屏播放器恢复左右双栏：左栏封面、歌曲名、歌手、进度和两行按钮；右栏歌词。左栏宽度为 48%，歌词使用剩余空间。控制区不再占用底部通栏，左右内边距收紧。
-5. iPad 横屏的通用 Popup 统一取左侧位置，不再随调用方的 bottom/right 参数变化。iPhone、Android 和竖屏保持调用方位置。原有收藏、定时确认框仍是确认框，不把它们改造成设置编辑面板。
+## 缓存运行边界
 
-保留现有屏幕唤醒生命周期、播放控制、歌词逻辑和解码引擎。封面继续使用实际剩余空间缩放。播放列表入口仍显示来源列表，不声称是完整的随机队列或稍后播放队列。
+- 复用现有缓存容量设置，单位 MiB；0/空表示关闭缓存。完整缓存按最近使用时间淘汰。
+- 首次播放继续流式起播，同时最多额外进行一个完整音频缓存下载。因此首次未命中时可能多一次传输；不把“正在播放的部分缓冲”冒充完整持久缓存。
+- 下一曲仅预解析地址，不取消当前歌曲的缓存写入；正式播放才安排缓存下载。快速切歌会取消旧的未完成缓存任务。
+- 清理通过新一代目录与任务版本隔离，旧任务的迟到回调不可重新发布缓存。当前播放使用独立文件副本，清理/淘汰及配置重载不破坏当前资源。该副本在换曲后或下次启动清理。
+- 完整缓存命中不需要解析音源 URL；歌词和封面仍使用已有独立缓存。没有缓存或文件损坏时回退现有联网路径，断网时无法凭空播放未缓存的歌曲。
+- 卸载 App 会删除沙盒；只更新安装不应清除缓存。
 
-## 未完成：音频持久缓存
+## 验证入口
 
-本轮没有提交缓存实现，不得宣称“重启缓存已修复”。
+- `node scripts/check-audio-cache.js`：真实磁盘、HTTP 与独立新进程离线命中测试，覆盖完整性、音质隔离、URL 更新、容量、清理并发与播放文件副本。
+- `node scripts/check-ipad-player-layout.js` 与 `node scripts/check-ipad-window-layout.js`：语法和布局源码规则检查，不是截图测试。
+- `node scripts/check-build78-integration.js`：缓存接入与原生/界面源文件检查。
+- GitHub Actions：macOS 26 / Xcode 26.6，编译真实 Release Archive，核验版本、Bundle ID、设备类型和 JS Bundle，打包未签名 IPA 与 `.xcarchive.zip`，附提交标识和 SHA-256。
 
-已读取的代码事实：
-- `src/plugins/player/index.ts` 读取 `player.cacheSize`，并向 TrackPlayer 传入 `maxCacheSize`。
-- `src/plugins/player/utils.ts` 有旧 TrackPlayer 目录迁移逻辑，目标为 `temporaryDirectoryPath + '/TrackPlayer'`；变量名本身不能证明 iOS 每次启动清空该目录。iOS 缓存统计与清理依赖 NativeTrackPlayerModule 对应方法。
-- `src/plugins/player/nativeFlac.ts` 的自定义无损播放入口仅接受 HTTP(S)，本地地址会抛出 `Native local FLAC playback is disabled`。不能仅保存音频文件就认为这条播放链已经支持缓存命中。
-
-还需要实现或核实：音频落盘、完整性标记、来源/歌曲 ID/实际音质隔离的索引、重启恢复、播放前本地命中、容量淘汰与清理并发控制。完整缓存应先于联网解析音源命中，半成品不可作为完整文件使用。应分别测试 TrackPlayer 与自定义 FLAC 路径，而不是强行更换解码引擎。
-
-缓存验收必须包括：普通音质与 FLAC、关闭进程后断网重开、URL 更新、音质切换、半成品、文件丢失/损坏、容量上限、缓冲中清理、更新安装但不卸载。需要文件、命中日志与网络请求证据。
-
-## 已执行验证与边界
-
-本轮执行 `node scripts/check-ipad-window-layout.js`：8 项定向检查通过，包含 4 个修改文件的 TS/TSX 转译语法检查，以及垂直留白、无横向避让、双栏归属、Popup 位置 4 组源码/纯函数检查。
-
-同时更新既有 `scripts/check-ipad-player-layout.js` 的顶部留白预期与 StyleSheet 测试替身；本轮没有在完整仓库安装依赖后重跑该旧脚本。
-
-这些不是全项目类型检查、Metro 构建、Xcode 编译或截图验收。本轮没有生成 IPA，没有完成 iPad 真机/模拟器验证，也没有完成音频缓存重启测试。
-
-合并前需要验证全屏/浮动窗口/缩放/系统控件显示隐藏、软键盘、大字体与横竖屏切换；核对按钮热区、歌词与进度拖动、播放列表、设置和音效。缓存问题保持未完成状态，不得据本轮 UI 检查关闭。
+本文件不预先宣称任何 Actions 运行成功。以对应提交的 job conclusion、日志及产物为准。自动化文件缓存测试不是 iPad 真机断网或触控截图测试；实体设备视觉、音频输出和系统窗口交互仍需安装后回归。

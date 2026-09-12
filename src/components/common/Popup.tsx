@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
-import { View, TouchableOpacity, Platform, useWindowDimensions } from 'react-native'
+import { View, Animated, TouchableOpacity, Platform, useWindowDimensions } from 'react-native'
 import Modal, { type ModalType } from './Modal'
 import { Icon } from '@/components/common/Icon'
 import { useKeyboard } from '@/utils/hooks'
@@ -39,16 +39,21 @@ export default forwardRef<PopupType, PopupProps>(({
   const statusBarHeight = useStatusbarHeight()
   const { width, height } = useWindowDimensions()
   const modalRef = useRef<ModalType>(null)
+  const entrance = useRef(new Animated.Value(1)).current
   // Central policy also covers player sheets whose callers still request bottom.
   const actualPosition = Platform.OS == 'ios' && Platform.isPad && width > height ? 'left' : position
   const useWindowContent = Platform.OS == 'ios' && (actualPosition == 'left' || actualPosition == 'right')
 
   useImperativeHandle(ref, () => ({
-    setVisible(visible: boolean) { modalRef.current?.setVisible(visible) },
+    setVisible(visible: boolean) {
+      entrance.stopAnimation()
+      entrance.setValue(visible && actualPosition == 'left' ? 0 : 1)
+      modalRef.current?.setVisible(visible)
+    },
   }))
 
   const [centeredViewStyle, modalViewStyle] = useMemo(() => {
-    const fill = { position: 'absolute', left: 0, right: 0, bottom: 0, top: 0 } as const
+    const fill = { flex: 1, minWidth: 0, minHeight: 0 } as const
     switch (actualPosition) {
       case 'top':
         return [
@@ -84,11 +89,13 @@ export default forwardRef<PopupType, PopupProps>(({
   )
 
   return (
-    <Modal onHide={onHide} keyHide={keyHide} bgHide={bgHide} bgColor="rgba(50,50,50,.2)" ref={modalRef}>
+    <Modal animationType={actualPosition == 'left' ? 'none' : 'fade'} onShow={() => {
+      if (actualPosition == 'left') Animated.timing(entrance, { toValue: 1, duration: 220, useNativeDriver: true }).start()
+    }} onHide={onHide} keyHide={keyHide} bgHide={bgHide} bgColor="rgba(50,50,50,.2)" ref={modalRef}>
       <View style={{ ...styles.centeredView, ...centeredViewStyle, paddingBottom: keyboardShown ? keyboardHeight : 0 }}>
-        <View style={{ ...styles.modalView, ...modalViewStyle, backgroundColor: theme['c-content-background'] }} onStartShouldSetResponder={() => true}>
+        <Animated.View style={{ ...styles.modalView, ...modalViewStyle, transform: actualPosition == 'left' ? [{ translateX: entrance.interpolate({ inputRange: [0, 1], outputRange: [-width, 0] }) }] : undefined, backgroundColor: theme['c-content-background'] }} onStartShouldSetResponder={() => true}>
           {useWindowContent ? <WindowContent>{content}</WindowContent> : content}
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   )

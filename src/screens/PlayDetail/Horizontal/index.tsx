@@ -1,5 +1,5 @@
-import { memo, useEffect } from 'react'
-import { View, AppState, Platform } from 'react-native'
+import { memo, useEffect, useState } from 'react'
+import { View, ScrollView, AppState, Platform, useWindowDimensions } from 'react-native'
 import { screenkeepAwake, screenUnkeepAwake } from '@/utils/nativeModules/utils'
 import Header from './components/Header'
 import { setComponentId } from '@/core/common'
@@ -14,6 +14,10 @@ import { useStatusbarHeight } from '@/store/common/hook'
 
 export default memo(({ componentId }: { componentId: string }) => {
   const statusBarHeight = useStatusbarHeight()
+  const [bodySize, setBodySize] = useState({ width: 0, height: 0 })
+  const { fontScale } = useWindowDimensions()
+  const leftWidth = Math.min(Math.max(bodySize.width * 0.48, 268), bodySize.width * 0.62)
+  const leftHeight = Math.max(bodySize.height, 380 * Math.max(1, fontScale))
 
   useEffect(() => {
     setComponentId(COMPONENT_IDS.playDetail, componentId)
@@ -46,12 +50,14 @@ export default memo(({ componentId }: { componentId: string }) => {
   return (
     <View style={[styles.container, { paddingTop: Platform.OS == 'ios' ? 0 : statusBarHeight }]}>
       <Header />
-      <View style={styles.body}>
-        <View style={styles.left}>
-          <Pic componentId={componentId} />
-          <SongInfo />
-          <Player />
-        </View>
+      <View style={styles.body} onLayout={({ nativeEvent: { layout } }) => setBodySize(previous => previous.width == layout.width && previous.height == layout.height ? previous : { width: layout.width, height: layout.height })}>
+        <ScrollView style={[styles.left, { width: leftWidth || '48%' }]} contentContainerStyle={{ minHeight: leftHeight }} showsVerticalScrollIndicator={false}>
+          <View style={{ height: leftHeight, minWidth: 0 }}>
+            <Pic componentId={componentId} />
+            <SongInfo />
+            <Player />
+          </View>
+        </ScrollView>
         <View style={styles.right}><Lyric /></View>
       </View>
     </View>
@@ -61,6 +67,6 @@ export default memo(({ componentId }: { componentId: string }) => {
 const styles = createStyle({
   container: { flex: 1, minWidth: 0, minHeight: 0 },
   body: { flex: 1, minWidth: 0, minHeight: 0, flexDirection: 'row', paddingHorizontal: 12 },
-  left: { width: '48%', minWidth: 0, minHeight: 0, paddingRight: 12, paddingBottom: 8 },
+  left: { flexGrow: 0, flexShrink: 0, minWidth: 0, minHeight: 0, paddingRight: 12, paddingBottom: 8 },
   right: { flex: 1, minWidth: 0, minHeight: 0, position: 'relative', overflow: 'hidden' },
 })

@@ -1,3 +1,4 @@
+import { configureAudioCache } from './cache'
 import TrackPlayer, { State } from 'react-native-track-player'
 import { Platform } from 'react-native'
 import { updateOptions, setVolume, setPlaybackRate, migratePlayerCache, destroy as destroyPlayer, getPosition } from './utils'
@@ -32,6 +33,7 @@ const initial = async({ volume, playRate, cacheSize, isHandleAudioFocus, isEnabl
   if (global.lx.playerStatus.isIniting || global.lx.playerStatus.isInitialized) return
   global.lx.playerStatus.isIniting = true
   console.log('Cache Size', cacheSize * 1024)
+  await configureAudioCache(cacheSize).catch(error => { console.warn('[audio-cache] configure failed', error) })
   await migratePlayerCache()
   await TrackPlayer.setupPlayer({
     maxCacheSize: cacheSize * 1024,

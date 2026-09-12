@@ -36,5 +36,5 @@ export default () => {
 const styles = StyleSheet.create({
   content: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', minHeight: 56 },
   slot: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' },
-  button: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
+  button: { width: '100%', maxWidth: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
 })
