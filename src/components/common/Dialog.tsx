@@ -3,7 +3,7 @@ import { View, TouchableHighlight } from 'react-native'
 
 import Modal, { type ModalType } from './Modal'
 import { Icon } from '@/components/common/Icon'
-import { useKeyboard } from '@/utils/hooks'
+import { useKeyboard, useWindowSize } from '@/utils/hooks'
 import { createStyle } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import Text from './Text'
@@ -81,6 +81,7 @@ export default forwardRef<DialogType, DialogProps>(({
 }: DialogProps, ref) => {
   const theme = useTheme()
   const { keyboardShown, keyboardHeight } = useKeyboard()
+  const { width: windowWidth } = useWindowSize()
   const modalRef = useRef<ModalType>(null)
 
   useImperativeHandle(ref, () => ({
@@ -97,10 +98,18 @@ export default forwardRef<DialogType, DialogProps>(({
       : null
   }, [closeBtn, theme])
 
+  const wideDialogStyle = windowWidth >= 700
+    ? {
+        width: Math.min(Math.max(windowWidth - 48, 420), 560),
+        minWidth: 0,
+        maxWidth: 560,
+      }
+    : null
+
   return (
     <Modal onHide={onHide} keyHide={keyHide} bgHide={bgHide} bgColor="rgba(50,50,50,.3)" ref={modalRef}>
       <View style={{ ...styles.centeredView, paddingBottom: keyboardShown ? keyboardHeight : 0 }}>
-        <View style={{ ...styles.modalView, height, backgroundColor: theme['c-content-background'] }} onStartShouldSetResponder={() => true}>
+        <View style={{ ...styles.modalView, ...wideDialogStyle, height, backgroundColor: theme['c-content-background'] }} onStartShouldSetResponder={() => true}>
           <View style={{ ...styles.header, backgroundColor: theme['c-primary-light-100-alpha-100'] }}>
             <Text style={styles.title} size={13} color={theme['c-primary-light-1000']} numberOfLines={1}>{title}</Text>
             {closeBtnComponent}

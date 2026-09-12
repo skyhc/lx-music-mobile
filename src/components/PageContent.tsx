@@ -8,41 +8,36 @@ import { scaleSizeAbsHR } from '@/utils/pixelRatio'
 import { defaultHeaders } from './common/Image'
 import SizeView from './SizeView'
 import { useBgPic } from '@/store/common/hook'
+import { isIPadWindowed } from '@/utils/ipadWindow'
 
 interface Props {
   children: React.ReactNode
+  integrateWindowControls?: boolean
+}
+
+interface ContentContainerProps {
+  children: React.ReactNode
+  integratedWindowControls: boolean
 }
 
 const BLUR_RADIUS = Math.max(scaleSizeAbsHR(18), 10)
 
-const ContentContainer = ({ children }: Props) => {
-  if (Platform.OS == 'ios') return <SafeAreaView style={{ flex: 1 }}>{children}</SafeAreaView>
+const ContentContainer = ({ children, integratedWindowControls }: ContentContainerProps) => {
+  if (Platform.OS == 'ios') {
+    // In iPad window mode, selected screens can opt into a macOS-like integrated
+    // title bar. Those screens handle the leading window-control exclusion zone
+    // themselves instead of pushing the whole UI below the system controls.
+    if (integratedWindowControls) return <View style={{ flex: 1 }}>{children}</View>
+    return <SafeAreaView style={{ flex: 1 }}>{children}</SafeAreaView>
+  }
   return <>{children}</>
 }
 
-export default ({ children }: Props) => {
+export default ({ children, integrateWindowControls = false }: Props) => {
   const theme = useTheme()
   const windowSize = useWindowSize()
   const pic = useBgPic()
-  // const [wh, setWH] = useState<{ width: number | string, height: number | string }>({ width: '100%', height: Dimensions.get('screen').height })
-
-  // 固定宽高度 防止弹窗键盘时大小改变导致背景被缩放
-  // useEffect(() => {
-  //   const onChange = () => {
-  //     setWH({ width: '100%', height: '100%' })
-  //   }
-
-  //   const changeEvent = Dimensions.addEventListener('change', onChange)
-  //   return () => {
-  //     changeEvent.remove()
-  //   }
-  // }, [])
-  // const handleLayout = (e: LayoutChangeEvent) => {
-  //   // console.log('handleLayout', e.nativeEvent)
-  //   // console.log(Dimensions.get('screen'))
-  //   setWH({ width: e.nativeEvent.layout.width, height: Dimensions.get('screen').height })
-  // }
-  // console.log('render page content')
+  const integratedWindowControls = integrateWindowControls && isIPadWindowed(windowSize.width, windowSize.height)
 
   const themeComponent = useMemo(() => (
     <View style={{ flex: 1, overflow: 'hidden' }}>
@@ -60,13 +55,13 @@ export default ({ children }: Props) => {
           },
         ]}
       />
-      <ContentContainer>
+      <ContentContainer integratedWindowControls={integratedWindowControls}>
         <View style={{ flex: 1, flexDirection: 'column' }}>
           {children}
         </View>
       </ContentContainer>
     </View>
-  ), [children, theme, windowSize.height, windowSize.width])
+  ), [children, integratedWindowControls, theme, windowSize.height, windowSize.width])
   const picComponent = useMemo(() => {
     return (
       <View style={{ flex: 1, overflow: 'hidden' }}>
@@ -86,14 +81,14 @@ export default ({ children }: Props) => {
             },
           ]}
         />
-        <ContentContainer>
+        <ContentContainer integratedWindowControls={integratedWindowControls}>
           <View style={{ flex: 1, flexDirection: 'column' }}>
             {children}
           </View>
         </ContentContainer>
       </View>
     )
-  }, [children, pic, theme, windowSize.height, windowSize.width])
+  }, [children, integratedWindowControls, pic, theme, windowSize.height, windowSize.width])
 
   return (
     <>

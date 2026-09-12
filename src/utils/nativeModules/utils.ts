@@ -137,14 +137,16 @@ export const onHeadphonesDisconnected = (handler: () => void): () => void => {
 }
 
 export const onRemoteCommand = (handler: (event: {
-  command: 'play' | 'pause' | 'toggle' | 'next' | 'previous' | 'seek'
+  command: 'play' | 'pause' | 'toggle' | 'next' | 'previous' | 'seek' |
+    'nav_search' | 'nav_songlist' | 'nav_top' | 'nav_love' | 'nav_setting'
   position?: number
 }) => void): () => void => {
   const eventEmitter = createEmitter()
   if (!eventEmitter) return () => {}
   const eventListener = eventEmitter.addListener('remote-command', event => {
     handler(event as {
-      command: 'play' | 'pause' | 'toggle' | 'next' | 'previous' | 'seek'
+      command: 'play' | 'pause' | 'toggle' | 'next' | 'previous' | 'seek' |
+        'nav_search' | 'nav_songlist' | 'nav_top' | 'nav_love' | 'nav_setting'
       position?: number
     })
   })
@@ -206,7 +208,7 @@ export const requestIgnoreBatteryOptimization = async() => new Promise<boolean>(
       void isIgnoringBatteryOptimization().then(resolve)
     }, 1000)
   })
-  UtilsModule.requestIgnoreBatteryOptimization().then((result: boolean) => {
+  UtilsModule.openNotificationPermissionActivity().then((result: boolean) => {
     if (result) return
     subscription.remove()
     resolve(false)
