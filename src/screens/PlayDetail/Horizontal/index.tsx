@@ -41,8 +41,8 @@ export default memo(({ componentId }: { componentId: string }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // PlayDetail/index already owns PageContent and StatusBar. A second wrapper
-  // here used to duplicate safe-area handling and apply inconsistent offsets.
+  // PageContent owns the safe area. Keep controls in the left column so the
+  // lyrics can use the entire right column instead of sharing a bottom bar.
   return (
     <View style={[styles.container, { paddingTop: Platform.OS == 'ios' ? 0 : statusBarHeight }]}>
       <Header />
@@ -50,17 +50,17 @@ export default memo(({ componentId }: { componentId: string }) => {
         <View style={styles.left}>
           <Pic componentId={componentId} />
           <SongInfo />
+          <Player />
         </View>
         <View style={styles.right}><Lyric /></View>
       </View>
-      <Player />
     </View>
   )
 })
 
 const styles = createStyle({
-  container: { flex: 1, minHeight: 0 },
-  body: { flex: 1, minHeight: 0, flexDirection: 'row', paddingHorizontal: 20 },
-  left: { width: '45%', minHeight: 0, paddingRight: 12, paddingBottom: 8 },
+  container: { flex: 1, minWidth: 0, minHeight: 0 },
+  body: { flex: 1, minWidth: 0, minHeight: 0, flexDirection: 'row', paddingHorizontal: 12 },
+  left: { width: '48%', minWidth: 0, minHeight: 0, paddingRight: 12, paddingBottom: 8 },
   right: { flex: 1, minWidth: 0, minHeight: 0, position: 'relative', overflow: 'hidden' },
 })

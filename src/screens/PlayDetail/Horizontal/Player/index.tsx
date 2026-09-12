@@ -15,5 +15,5 @@ export default memo(() => (
 ))
 
 const styles = createStyle({
-  container: { flexShrink: 0, paddingHorizontal: 24, paddingTop: 4, paddingBottom: 8 },
+  container: { flexShrink: 0, minWidth: 0, paddingHorizontal: 4, paddingTop: 4, paddingBottom: 8 },
 })

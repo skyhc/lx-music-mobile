@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
-import { View, TouchableOpacity, Platform } from 'react-native'
+import { View, TouchableOpacity, Platform, useWindowDimensions } from 'react-native'
 import Modal, { type ModalType } from './Modal'
 import { Icon } from '@/components/common/Icon'
 import { useKeyboard } from '@/utils/hooks'
@@ -37,8 +37,11 @@ export default forwardRef<PopupType, PopupProps>(({
   const theme = useTheme()
   const { keyboardShown, keyboardHeight } = useKeyboard()
   const statusBarHeight = useStatusbarHeight()
+  const { width, height } = useWindowDimensions()
   const modalRef = useRef<ModalType>(null)
-  const useWindowContent = Platform.OS == 'ios' && (position == 'left' || position == 'right')
+  // Central policy also covers player sheets whose callers still request bottom.
+  const actualPosition = Platform.OS == 'ios' && Platform.isPad && width > height ? 'left' : position
+  const useWindowContent = Platform.OS == 'ios' && (actualPosition == 'left' || actualPosition == 'right')
 
   useImperativeHandle(ref, () => ({
     setVisible(visible: boolean) { modalRef.current?.setVisible(visible) },
@@ -46,7 +49,7 @@ export default forwardRef<PopupType, PopupProps>(({
 
   const [centeredViewStyle, modalViewStyle] = useMemo(() => {
     const fill = { position: 'absolute', left: 0, right: 0, bottom: 0, top: 0 } as const
-    switch (position) {
+    switch (actualPosition) {
       case 'top':
         return [
           { ...fill, justifyContent: 'flex-start' },
@@ -55,7 +58,7 @@ export default forwardRef<PopupType, PopupProps>(({
       case 'left':
       case 'right':
         return [
-          { ...fill, flexDirection: 'row', justifyContent: position == 'left' ? 'flex-start' : 'flex-end' },
+          { ...fill, flexDirection: 'row', justifyContent: actualPosition == 'left' ? 'flex-start' : 'flex-end' },
           { minWidth: '45%', maxWidth: '78%', height: '100%', paddingTop: useWindowContent ? 0 : statusBarHeight },
         ] as const
       default:
@@ -64,7 +67,7 @@ export default forwardRef<PopupType, PopupProps>(({
           { width: '100%', maxHeight: '78%', minHeight: '20%', borderTopLeftRadius: 8, borderTopRightRadius: 8 },
         ] as const
     }
-  }, [position, statusBarHeight, useWindowContent])
+  }, [actualPosition, statusBarHeight, useWindowContent])
 
   const content = (
     <>
