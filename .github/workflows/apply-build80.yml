@@ -23,10 +23,12 @@ jobs:
           git merge-base --is-ancestor f37e95c35ced720d3eafea1d4ae59808975f0632 HEAD
           git diff --exit-code f37e95c35ced720d3eafea1d4ae59808975f0632 HEAD -- . ':(exclude).github/workflows/apply-build80.yml' ':(exclude)ci/build80.part1' ':(exclude)ci/build80.part2'
           python3 - <<'PY'
-          import base64, gzip, hashlib, pathlib
+          import base64, lzma, hashlib, pathlib
           text = pathlib.Path('ci/build80.part1').read_text() + pathlib.Path('ci/build80.part2').read_text()
-          patch = gzip.decompress(base64.b64decode(text))
-          assert hashlib.sha256(patch).hexdigest() == 'b14e5c296ca92b430253d2bd535f7b8f690d50b76d28f30ddaf901e45ca932cc', 'Patch checksum mismatch'
+          patch = lzma.decompress(base64.b64decode(text))
+          digest = hashlib.sha256(patch).hexdigest()
+          print('Decoded patch SHA256:', digest)
+          assert digest == 'b14e5c296ca92b430253d2bd535f7b8f690d50b76d28f30ddaf901e45ca932cc', 'Patch checksum mismatch'
           pathlib.Path('/tmp/lx-build80.patch').write_bytes(patch)
           PY
           git apply --check /tmp/lx-build80.patch
