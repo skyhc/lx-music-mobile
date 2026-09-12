@@ -9,18 +9,19 @@ jobs:
   apply:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    if: startsWith(github.event.head_commit.message, 'ci: stage Build 79-to-80')
+    if: "startsWith(github.event.head_commit.message, 'ci: stage Build 79-to-80')"
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Verify exact patch and parent, then commit source
+      - name: Verify exact patch and source, then commit source
         env:
           TARGET_BRANCH: codex/ipad-player-layout-cache-review
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = f37e95c35ced720d3eafea1d4ae59808975f0632
+          git merge-base --is-ancestor f37e95c35ced720d3eafea1d4ae59808975f0632 HEAD
+          git diff --exit-code f37e95c35ced720d3eafea1d4ae59808975f0632 HEAD -- . ':(exclude).github/workflows/apply-build80.yml' ':(exclude)ci/build80.part1' ':(exclude)ci/build80.part2'
           python3 - <<'PY'
           import base64, gzip, hashlib, pathlib
           text = pathlib.Path('ci/build80.part1').read_text() + pathlib.Path('ci/build80.part2').read_text()
