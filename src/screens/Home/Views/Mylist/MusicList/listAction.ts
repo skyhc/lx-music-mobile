@@ -11,6 +11,7 @@ import type { SelectInfo } from './ListMenu'
 import { type Metadata } from '@/components/MetadataEditModal'
 import musicSdk from '@/utils/musicSdk'
 import { getListMusicSync } from '@/utils/listManage'
+import { clearSongResourceCache } from '@/core/music/cache'
 
 const searchFilterRxp = /\s|'|\.|,|，|&|"|、|\(|\)|（|）|`|~|-|<|>|\||\/|\]|\[|!|！|:|：|;|；|\?|？|·/g
 const normalizeSearchText = (str: string | undefined | null) => String(str ?? '').replace(searchFilterRxp, '').toLowerCase()
@@ -79,28 +80,38 @@ export const handleShare = (musicInfo: SelectInfo['musicInfo']) => {
 export const searchListMusic = (list: LX.Music.MusicInfo[], text: string) => {
   text = normalizeSearchText(text)
   if (!text) return []
-  let result: LX.Music.MusicInfo[] = []
-  let rxp = new RegExp(text.split('').map(s => s.replace(/[.*+?^${}()|[\]\\]/, '\\$&')).join('.*') + '.*', 'i')
-  for (const mInfo of list) {
-    const str = normalizeSearchText(getMusicSearchText(mInfo))
-    if (str.includes(text) || rxp.test(str)) result.push(mInfo)
+  const nameMatches: LX.Music.MusicInfo[] = []
+  const singerMatches: LX.Music.MusicInfo[] = []
+  const albumMatches: LX.Music.MusicInfo[] = []
+  const fuzzy: Array<{ num: number, data: LX.Music.MusicInfo }> = []
+  const escaped = [...text].map(char => char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*')
+  const pattern = new RegExp(escaped, 'i')
+  for (const music of list) {
+    if (normalizeSearchText(music.name).includes(text)) nameMatches.push(music)
+    else if (normalizeSearchText(music.singer).includes(text)) singerMatches.push(music)
+    else if (normalizeSearchText(music.meta.albumName).includes(text)) albumMatches.push(music)
+    else {
+      const combined = normalizeSearchText(getMusicSearchText(music))
+      if (pattern.test(combined)) sortInsert(fuzzy, { num: similar(text, combined), data: music })
+    }
   }
-
-  const sortedList: Array<{ num: number, data: LX.Music.MusicInfo }> = []
-
-  for (const mInfo of result) {
-    sortInsert(sortedList, {
-      num: similar(text, normalizeSearchText(getMusicSearchText(mInfo))),
-      data: mInfo,
-    })
-  }
-  return sortedList.map(item => item.data).reverse()
+  return [...nameMatches, ...singerMatches, ...albumMatches, ...fuzzy.map(item => item.data).reverse()]
 }
 
 export const handleShowMusicSourceDetail = async(minfo: SelectInfo['musicInfo']) => {
   const url = musicSdk[minfo.source as LX.OnlineSource]?.getMusicDetailPageUrl(toOldMusicInfo(minfo))
   if (!url) return
   void openUrl(url)
+}
+
+export const clearMusicUrl = async(musicInfo: SelectInfo['musicInfo']) => {
+  try {
+    await clearSongResourceCache(musicInfo)
+  } catch (error) {
+    toast(global.i18n.t('list_remove_cache_fail_tip', { msg: (error as Error).message }))
+    return
+  }
+  toast(global.i18n.t('list_remove_cache_success_tip'))
 }
 
 

@@ -195,7 +195,7 @@ check('release simulator validates scene style, live status colors and productio
   assert.ok(script.includes('36 production-view screenshots'))
 })
 check('Build82 version and seven-fix changelog ship with regression gates', () => {
-  assert.equal(JSON.parse(source('package.json')).versionCode, 82)
+  assert.ok(JSON.parse(source('package.json')).versionCode >= 82)
   assert.ok(source('CHANGELOG.md').includes('1.8.2 Build 82'))
   assert.ok(source('.github/workflows/ios-ipa.yml').includes('node scripts/check-build82-regressions.js'))
   assert.ok(source('.github/workflows/ios-ipa.yml').includes('run-ios-playback-smoke.sh'))

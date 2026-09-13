@@ -1,4 +1,5 @@
-import { lookupAudioCache, queueAudioCache, invalidateAudioCache } from '@/plugins/player/cache'
+import { getMusicCacheRevision } from '@/utils/musicCacheRevision'
+import { lookupAudioCache, queueAudioCache, invalidateAudioCache, suppressAudioCacheURL } from '@/plugins/player/cache'
 import {
   saveLyric,
   saveMusicUrl,
@@ -54,24 +55,27 @@ export const getMusicUrlInfo = async({ musicInfo, quality, isRefresh, allowToggl
 
   //   // return Promise.reject(new Error('该歌曲没有可播放的音频'))
   // }
+  const revision = getMusicCacheRevision(musicInfo.id)
+  const stillCurrent = () => revision == getMusicCacheRevision(musicInfo.id)
   const targetQuality = quality ?? getPlayQuality(settingState.setting['player.playQuality'], musicInfo)
   // Complete audio is resolved before URL lookup or source requests, including
   // after a process restart with no network connection.
   if (!isRefresh) {
     const local = await lookupAudioCache(musicInfo, targetQuality)
-    if (local) return { url: local, quality: targetQuality }
+    if (local && stillCurrent()) return { url: local, quality: targetQuality }
   } else {
     await invalidateAudioCache(musicInfo, targetQuality).catch(() => {})
   }
   const cachedUrl = await getStoreMusicUrl(musicInfo, targetQuality)
-  if (cachedUrl && !isRefresh) {
+  if (cachedUrl && !isRefresh && stillCurrent()) {
     if (cacheAudio) queueAudioCache(musicInfo, targetQuality, cachedUrl)
     return { url: cachedUrl, quality: targetQuality }
   }
 
-  return handleGetOnlineMusicUrl({ musicInfo, quality, onToggleSource, isRefresh, allowToggleSource }).then(({ url, quality: targetQuality, musicInfo: targetMusicInfo, isFromCache }) => {
-    if (targetMusicInfo.id != musicInfo.id && !isFromCache) void saveMusicUrl(targetMusicInfo, targetQuality, url)
-    void saveMusicUrl(musicInfo, targetQuality, url)
+  return handleGetOnlineMusicUrl({ musicInfo, quality, onToggleSource, isRefresh: isRefresh || !stillCurrent(), allowToggleSource }).then(({ url, quality: targetQuality, musicInfo: targetMusicInfo, isFromCache }) => {
+    if (!stillCurrent()) { suppressAudioCacheURL(url); return { url, quality: targetQuality } }
+    if (targetMusicInfo.id != musicInfo.id && !isFromCache) void saveMusicUrl(targetMusicInfo, targetQuality, url).catch(error => { console.warn('Optional URL cache write failed', String(error)) })
+    void saveMusicUrl(musicInfo, targetQuality, url, revision).catch(error => { console.warn('Optional URL cache write failed', String(error)) })
     if (cacheAudio) queueAudioCache(musicInfo, targetQuality, url)
     return { url, quality: targetQuality }
   })

@@ -69,6 +69,7 @@ const check = async(name, fn) => { await fn(); n++; console.log('PASS', name) }
   const core = load('src/plugins/player/trackPlayerCore.ts', {
     'react-native-track-player': { default: track }, '@/config': { defaultUrl: 'file://placeholder' },
     'react-native': { ...native, NativeModules: {} }, '@/store/setting/state': { default: { setting: { 'player.volume':0.7 } } },
+    './fullLyric': { getCurrentFullLyric: () => undefined },
     './seek': { seekToTime: async n=>{seeks++; if(!n) throw Error('zero seek') } },
     '@/utils/nativeModules/nowPlaying': {},
   }, { global: { lx: {} } })

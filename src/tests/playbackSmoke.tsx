@@ -15,6 +15,8 @@ import { createList, removeUserList, removeListMusics, getUserLists, setUserList
 import { getUserLists as getStoredLists, getListMusics as getStoredMusics } from '@/utils/data'
 import { bootstrapLibrary, LOCAL_LIBRARY_ID } from '@/utils/libraryBootstrap'
 import listState from '@/store/list/state'
+import { clearSongResourceCache } from '@/core/music/cache'
+import { saveMusicUrl, hasMusicUrlByMusic } from '@/utils/data'
 
 const support = NativeModules.LXPlaybackTestSupport
 const sleep = async(ms: number) => new Promise(resolve => setTimeout(resolve, ms))
@@ -171,7 +173,16 @@ export const run = async() => {
           return audibleTimeline(`${format} offline restart`)
         })
       }
-      await check('clear cache preserves the active FLAC playback lease', async() => {
+      await check('1.9.0 single-song clear removes URLs and complete FLAC while preserving MP3 and playing lease', async() => {
+        await saveMusicUrl(music('flac'), 'flac', 'https://invalid.example/old-token')
+        await saveMusicUrl(music('flac'), '320k', 'https://invalid.example/old-token2')
+        await clearSongResourceCache(music('flac'))
+        assert(!await hasMusicUrlByMusic(music('flac')), 'Per-song URL cache remains')
+        assert(!await lookupAudioCache(music('flac'), 'flac'), 'Per-song audio cache remains')
+        assert(!!await lookupAudioCache(music('mp3'), '128k'), 'Other song cache was deleted')
+        return audibleTimeline('playing during per-song clear')
+      })
+      await check('clear cache preserves the active FLAC playback lease' , async() => {
         await clearAudioCache()
         assert((await getAudioCacheSize()) == 0, 'Cache not cleared')
         return audibleTimeline('playing during clear')

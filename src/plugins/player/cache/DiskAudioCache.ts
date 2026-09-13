@@ -176,12 +176,23 @@ export class DiskAudioCache {
       }
     })
   }
-  invalidate(key: string) {
+  invalidate(key: string, strict = false) {
     return this.locked(async() => {
       await this.init()
       if (this.job?.key == key) this.cancel()
       const entry = this.entries.get(key)
-      if (entry) await this.discard(entry)
+      if (!entry) return
+      if (!strict) { await this.discard(entry); return }
+      const removeStrict = async(path: string) => {
+        try { await this.io.remove(path) } catch (error) {
+          // A missing file is already invalidated; real storage failures surface.
+          const stillExists = await this.io.stat(path).then(() => true, () => false)
+          if (stillExists) throw error
+        }
+      }
+      await removeStrict(this.manifest(entry))
+      await removeStrict(`${this.folder}/${entry.file}`)
+      this.entries.delete(key)
     })
   }
   /** One extra cache transfer at a time; never wait for it to start playback. */

@@ -1,5 +1,6 @@
 import BackgroundTimer from 'react-native-background-timer'
 import { Platform } from 'react-native'
+import { getCurrentFullLyric } from './fullLyric'
 import settingState from '@/store/setting/state'
 import { getAccuratePosition } from './seek'
 import {
@@ -29,7 +30,11 @@ const resolveMetadataDuration = (duration: number) => {
   return getTimelineDuration(playerState.playMusicInfo.musicInfo, duration)
 }
 
-export const updateMetaData = async(musicInfo: LX.Player.MusicInfo, isPlay: boolean, lyric?: string, force = false) => {
+export const updateMetaData = async(musicInfo: LX.Player.MusicInfo, isPlay: boolean, lyricOrForce?: string | boolean, force = false) => {
+  // Accept upstream's (music, playing, force) and the established iOS
+  // (music, playing, currentLyric, force) contract without treating true as text.
+  const lyric = typeof lyricOrForce == 'string' ? lyricOrForce : playerState.lastLyric
+  if (typeof lyricOrForce == 'boolean') force = lyricOrForce
   const prevIsPlaying = state.isPlaying
   state.isPlaying = isPlay
   if (force) {
@@ -80,7 +85,7 @@ export const playMusic = (musicInfo: LX.Player.PlayMusic, url: string, time: num
 
 // let musicId = null
 // let duration = 0
-const updateMetaInfo = async(mInfo: LX.Player.MusicInfo, lyric?: string, isPlaying = state.isPlaying) => {
+const updateMetaInfo = async(mInfo: LX.Player.MusicInfo, lyric = playerState.lastLyric, isPlaying = state.isPlaying) => {
   console.log('updateMetaInfo', lyric)
   const isShowNotificationImage = settingState.setting['player.isShowNotificationImage']
   // const mInfo = formatMusicInfo(musicInfo)
@@ -119,6 +124,7 @@ const updateMetaInfo = async(mInfo: LX.Player.MusicInfo, lyric?: string, isPlayi
     album,
     artwork,
     duration: state.prevDuration || 0,
+    lyric: Platform.OS == 'android' ? getCurrentFullLyric(mInfo.id) : undefined,
     elapsedTime: isNativeFlacActive()
       ? await getNativeFlacPosition().catch(() => 0)
       : await getAccuratePosition().catch(() => 0),

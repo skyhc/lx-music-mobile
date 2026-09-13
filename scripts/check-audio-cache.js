@@ -141,7 +141,27 @@ async function run() {
       assert.equal(await late.lookup(key('late')), null); assert.equal(await late.size(), 0)
       await fs.rm(root + '-late', { recursive: true, force: true })
     })
-    await test('LRU honors touch and bounds total complete data', async() => {
+    await test('single-song invalidate removes only selected key and preserves active lease', async() => {
+      await cache.configure(100000); await store('song-clear'); await store('song-keep')
+      const lease = await cache.acquire(await cache.lookup(key('song-clear')))
+      await cache.invalidate(key('song-clear'), true)
+      assert.equal(await cache.lookup(key('song-clear')), null)
+      assert.ok(await cache.lookup(key('song-keep')))
+      assert.deepEqual(await fs.readFile(fileURLToPath(lease)), audio)
+      const fresh = new DiskAudioCache(root, makeIO()); await fresh.configure(100000)
+      assert.equal(await fresh.lookup(key('song-clear')), null)
+      assert.ok(await fresh.lookup(key('song-keep')))
+    })
+    await test('explicit song clear surfaces filesystem denial', async() => {
+      const io = makeIO(); const strict = new DiskAudioCache(root + '-strict', io)
+      await strict.configure(100000); await strict.prefetch(key('denied'), base + '/ok'); await settle(strict)
+      const remove = io.remove; io.remove = async() => { throw Error('permission denied') }
+      await assert.rejects(strict.invalidate(key('denied'), true), /permission denied/)
+      io.remove = remove; await strict.invalidate(key('denied'), true)
+      assert.equal(await strict.lookup(key('denied')), null)
+      await fs.rm(root + '-strict', { recursive: true, force: true })
+    })
+    await test('LRU honors touch and bounds total complete data' , async() => {
       await cache.clear(); await cache.configure(audio.length * 2)
       await store('old'); await new Promise(resolve => setTimeout(resolve, 3)); await store('new')
       await new Promise(resolve => setTimeout(resolve, 3)); await cache.lookup(key('old'))

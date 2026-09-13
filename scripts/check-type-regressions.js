@@ -4,7 +4,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const cp = require('node:child_process')
 const root = path.resolve(__dirname, '..')
-const baseline = 'c68de7e11513a232666e2281097bd1012c3df561'
+const baseline = '3f008d3599f29ceeaf7925e5935882a78a3052ff'
 const baseDir = path.join(root, 'build', 'typecheck-base')
 const logs = path.join(root, 'build', 'checks')
 fs.mkdirSync(logs, { recursive: true })
@@ -45,4 +45,4 @@ try {
 } finally {
   if (fs.existsSync(baseDir)) git(['worktree', 'remove', '--force', baseDir])
 }
-if (added.length) process.exitCode = 1
+if (added.length || fs.readFileSync(path.join(logs, 'typescript-current.log'), 'utf8').includes('error TS')) process.exitCode = 1

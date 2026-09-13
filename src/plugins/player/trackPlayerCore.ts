@@ -1,3 +1,4 @@
+import { getCurrentFullLyric } from './fullLyric'
 import TrackPlayer from 'react-native-track-player'
 import { defaultUrl } from '@/config'
 import { NativeModules, Platform } from 'react-native'
@@ -77,6 +78,7 @@ export const buildTracks = (musicInfo: LX.Player.PlayMusic, url?: LX.Player.Trac
       artwork,
       userAgent: defaultUserAgent,
       musicId: mInfo.id,
+      lyric: getCurrentFullLyric(mInfo.id),
       duration,
     })
   }
@@ -89,6 +91,7 @@ export const buildTracks = (musicInfo: LX.Player.PlayMusic, url?: LX.Player.Trac
       album,
       artwork,
       musicId: mInfo.id,
+      lyric: getCurrentFullLyric(mInfo.id),
       duration: 0,
     })
   }
@@ -125,6 +128,7 @@ export const clearTracks = () => {
 }
 
 export const updateCurrentTrackMetadata = async(metadata: {
+  lyric?: string
   title?: string
   artist?: string
   album?: string
