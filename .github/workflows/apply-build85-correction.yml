@@ -1,0 +1,33 @@
+name: Apply reviewed Build 85 correction
+on:
+  push:
+    branches: ['codex/ios-upstream-1.9.0']
+    paths: ['.build85-correction.gz', '.github/workflows/apply-build85-correction.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: "startsWith(github.event.head_commit.message, 'ci: stage Build 85 correction')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Apply verified correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD^)" = dd18ec5ef96def834b64b02a651735683bb45cd8
+          echo 'baa3ce53df8063779024ef18f712c977c8ab6cc57e9852e8d8d11800e15d38d6  .build85-correction.gz' | sha256sum -c -
+          gzip -dc .build85-correction.gz > /tmp/build85-correction.patch
+          if grep -q '^diff --git a/.github/' /tmp/build85-correction.patch; then exit 1; fi
+          git apply --check /tmp/build85-correction.patch
+          git apply --index /tmp/build85-correction.patch
+          git diff --cached --check
+          test "$(git diff --cached --name-only | wc -l)" -eq 4
+          git config user.name skyhc
+          git config user.email 61585718+skyhc@users.noreply.github.com
+          git commit -m 'fix(theme): emphasize neutral-theme playing text and align screenshot regression count'
+          git push origin HEAD:codex/ios-upstream-1.9.0
