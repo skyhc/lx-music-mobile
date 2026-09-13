@@ -1,7 +1,7 @@
 name: Build iOS IPA + Xcode Archive
 on:
   push:
-    branches: [ios-adaptation, ipad-landscape, codex/ipad-player-layout-cache-review]
+    branches: [ios-adaptation, ipad-landscape, codex/ipad-player-layout-cache-review, codex/ios-upstream-1.9.0]
     tags: ['v*']
   workflow_dispatch:
 permissions:
@@ -77,6 +77,7 @@ jobs:
           node scripts/check-build80-regressions.js 2>&1 | tee build/checks/build80-regressions.log
           node scripts/check-build81-regressions.js 2>&1 | tee build/checks/build81-regressions.log
           node scripts/check-build82-regressions.js 2>&1 | tee build/checks/build82-regressions.log
+          node scripts/check-upstream190.js 2>&1 | tee build/checks/upstream190.log
           npx tsc --strict --noEmit --skipLibCheck --moduleResolution node --target ES2020 src/plugins/player/cache/DiskAudioCache.ts
       - name: Check full-project TypeScript regressions
         run: node scripts/check-type-regressions.js
