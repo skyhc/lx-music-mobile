@@ -1,3 +1,4 @@
+import { OVERLAY_BACKDROP, overlaySurface } from '@/utils/overlaySurface'
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import { View, Animated, TouchableOpacity, Platform, useWindowDimensions } from 'react-native'
 import Modal, { type ModalType } from './Modal'
@@ -40,7 +41,7 @@ export default forwardRef<PopupType, PopupProps>(({
     },
   }))
   const side = actualPosition == 'left' || actualPosition == 'right'
-  return <Modal ref={modalRef} onHide={onHide} keyHide={keyHide} bgHide={bgHide} bgColor="rgba(0,0,0,.28)"
+  return <Modal ref={modalRef} onHide={onHide} keyHide={keyHide} bgHide={bgHide} bgColor={OVERLAY_BACKDROP}
     animationType={actualPosition == 'left' ? 'none' : 'fade'} onShow={() => {
       if (actualPosition == 'left') Animated.timing(entrance, { toValue: 1, duration: 220, useNativeDriver: true }).start()
     }}>
@@ -49,7 +50,7 @@ export default forwardRef<PopupType, PopupProps>(({
         alignItems: side ? actualPosition == 'left' ? 'flex-start' : 'flex-end' : 'center',
         justifyContent: actualPosition == 'top' ? 'flex-start' : actualPosition == 'bottom' ? 'flex-end' : 'center' }}>
         <Animated.View onStartShouldSetResponder={() => true} style={{ width: bounds.width, height: bounds.height, minHeight: 0,
-          borderRadius: 12, overflow: 'hidden', elevation: 6, backgroundColor: theme['c-content-background'],
+          ...overlaySurface(theme),
           transform: actualPosition == 'left' ? [{ translateX: entrance.interpolate({ inputRange: [0, 1], outputRange: [-bounds.width - 12, 0] }) }] : undefined }}>
           <View style={{ minHeight: 48, flexShrink: 0, justifyContent: 'center', borderBottomWidth: .5, borderBottomColor: theme['c-border-background'] }}>
             <Text size={15} numberOfLines={1} style={{ paddingLeft: 16, paddingRight: 52, fontWeight: '600' }}>{title}</Text>

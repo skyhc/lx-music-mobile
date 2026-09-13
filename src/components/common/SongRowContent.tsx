@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { View, StyleSheet } from 'react-native'
 import Text from './Text'
 import { useTheme } from '@/store/theme/hook'
+import { useHorizontalMode } from '@/utils/hooks'
+import { songColumns, SONG_COLUMN_GAP, SONG_TIME_WIDTH } from '@/utils/songLayout'
 
 export interface SongRowProps {
   name: string
@@ -14,24 +16,33 @@ export interface SongRowProps {
   showInterval?: boolean
   header?: boolean
 }
-// Shared by the header and each song: breakpoints measure the row, not the screen.
 export default ({ name, singer, album, source, interval, active = false, showAlbum = true, showInterval = true, header = false }: SongRowProps) => {
   const theme = useTheme()
+  const horizontal = useHorizontalMode()
   const [width, setWidth] = useState(0)
+  const columns = songColumns(width, horizontal, showAlbum, showInterval)
   const color = active ? theme['c-primary-font'] : theme['c-font']
   const secondary = header ? color : active ? theme['c-primary-font'] : theme['c-font-label']
   const weight = header ? '600' : '400'
+  if (header && columns.compact) return null
   return <View style={styles.row} onLayout={e => setWidth(e.nativeEvent.layout.width)}>
-    <Text size={14} numberOfLines={1} color={color} style={[styles.name, { fontWeight: weight }]}>
-      {name}{source && width >= 480 ? <Text size={10} color={secondary}>  {source}</Text> : null}
-    </Text>
-    <Text size={13} numberOfLines={1} color={secondary} style={[styles.singer, { fontWeight: weight }]}>{singer}</Text>
-    {showAlbum && width >= 540 ? <Text size={13} numberOfLines={1} color={secondary} style={[styles.album, { fontWeight: weight }]}>{album ?? ''}</Text> : null}
-    {showInterval && width >= 320 ? <Text size={13} numberOfLines={1} color={secondary} style={[styles.time, { fontWeight: weight }]}>{interval ?? ''}</Text> : null}
+    {columns.compact ? <View style={styles.metadata}>
+      <Text size={16} numberOfLines={1} color={color}>{name}</Text>
+      <Text size={12} numberOfLines={1} color={secondary} style={styles.subtitle}>
+        {source ? <Text size={12} color={theme['c-primary-font']}>{source.toUpperCase()}  </Text> : null}{singer}
+      </Text>
+    </View> : <>
+      <Text size={14} numberOfLines={1} color={color} style={[styles.column, { fontWeight: weight }]}>{name}</Text>
+      <Text size={13} numberOfLines={1} color={secondary} style={[styles.column, { fontWeight: weight }]}>{singer}</Text>
+      {columns.album ? <Text size={13} numberOfLines={1} color={secondary} style={[styles.column, { fontWeight: weight }]}>{album ?? ''}</Text> : null}
+    </>}
+    {columns.time ? <Text size={13} numberOfLines={1} color={secondary} style={[styles.time, { fontWeight: weight }]}>{interval ?? ''}</Text> : null}
   </View>
 }
 const styles = StyleSheet.create({
-  row: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  name: { flex: 1.5, minWidth: 0 }, singer: { flex: 1, minWidth: 0 }, album: { flex: 1, minWidth: 0 },
-  time: { width: 52, textAlign: 'right', fontVariant: ['tabular-nums'] },
+  row: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: SONG_COLUMN_GAP, paddingRight: 14 },
+  column: { flex: 1, minWidth: 0 },
+  metadata: { flex: 1, minWidth: 0, justifyContent: 'center' },
+  subtitle: { paddingTop: 3 },
+  time: { width: SONG_TIME_WIDTH, flexShrink: 0, textAlign: 'right', fontVariant: ['tabular-nums'] },
 })

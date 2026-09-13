@@ -1,3 +1,8 @@
+import Menu, { type MenuType } from '@/components/common/Menu'
+import ListActionBar from '@/components/common/ListActionBar'
+import NavigationTabs from '@/screens/Home/Vertical/NavigationTabs'
+import { updateSetting } from '@/core/common'
+import { SONG_ROW_HEIGHT } from '@/utils/songLayout'
 // Deterministic, simulator-only rendering evidence. Uses real production views;
 // fixture content is synthetic and does not contact music services.
 import React, { useEffect, useRef } from 'react'
@@ -30,6 +35,7 @@ const Fixture = () => {
   const wide = useHorizontalMode()
   const theme = useTheme()
   const list = useRef<OnlineListType>(null)
+  const menu = useRef<MenuType>(null)
   const favorite = useRef<MusicAddModalType>(null)
   const popup = useRef<PopupType>(null)
   const settings = useRef<SettingPopupType>(null)
@@ -37,6 +43,7 @@ const Fixture = () => {
     list.current?.setList(songs, false, true)
     list.current?.setStatus('end')
     const timer = setTimeout(() => {
+      if (support.uiPhase == 'menu') menu.current?.show({ x: Dimensions.get('window').width - 50, y: 210, w: 44, h: 44 })
       if (support.uiPhase == 'favorites') favorite.current?.show({ musicInfo: songs[0], listId: '', isMove: false })
       if (support.uiPhase == 'list') popup.current?.setVisible(true)
       if (support.uiPhase == 'settings') settings.current?.show()
@@ -57,16 +64,18 @@ const Fixture = () => {
       <View style={{ flex: 1, minWidth: 0 }}>
         <View style={{ minHeight: 76, padding: 16, flexDirection: 'row', alignItems: 'center' }}>
           <Text size={18} style={{ flex: 1, fontWeight: '600' }}>热歌榜 · 单行歌曲列表</Text>
-          {wide ? <Text size={14} color={theme['c-primary-font']}>播放　 收藏　 返回</Text> : null}
+          {wide ? <View style={{ width: 250, maxWidth: '65%' }}><ListActionBar actions={[{ label: '播放全部', onPress: () => {} }, { label: '收藏歌单', onPress: () => {} }]} /></View> : null}
         </View>
         <OnlineList ref={list} onRefresh={() => {}} onLoadMore={() => {}} />
       </View>
     </View>
+    {!wide ? <NavigationTabs /> : null}
+    <Menu ref={menu} menus={[{ action: 'play', label: '播放' }, { action: 'add', label: '添加到列表' }, { action: 'remove', label: '移除' }]} onPress={() => {}} />
     <MusicAddModal ref={favorite} />
     <Popup ref={popup} kind="list" title="播放列表">
       <SongTableHeader numbered={false} actions={false} />
-      <ScrollView>{songs.map(song => <View key={song.id} style={{ height: 54, paddingHorizontal: 16 }}>
-        <SongRowContent name={song.name} singer={song.singer} album={song.meta.albumName} interval={song.interval} />
+      <ScrollView>{songs.map(song => <View key={song.id} style={{ height: SONG_ROW_HEIGHT, paddingHorizontal: 16 }}>
+        <SongRowContent name={song.name} singer={song.singer} album={song.meta.albumName} interval={song.interval} source={song.source} />
       </View>)}</ScrollView>
     </Popup>
     <SettingPopup ref={settings} direction={wide ? 'horizontal' : 'vertical'} />
@@ -76,6 +85,7 @@ const Fixture = () => {
 export const runUI = async() => {
   global.i18n = createI18n('zh_cn')
   await windowSizeTools.init()
+  updateSetting({ 'common.hidePortraitNavigation': support.uiPhase == 'navhidden' })
   setUserList(await getUserLists())
   await createList({ id: 'ci-ui-favorite-a', name: '本地音乐' })
   await createList({ id: 'ci-ui-favorite-b', name: '通勤音乐' })

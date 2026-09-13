@@ -1,3 +1,4 @@
+import { SONG_ROW_HEIGHT } from '@/utils/songLayout'
 import SongTableHeader from '@/components/common/SongTableHeader'
 import { useEffect, useRef, useState } from 'react'
 import { FlatList, TouchableOpacity } from 'react-native'
@@ -55,8 +56,8 @@ export default () => {
             const info = 'progress' in item ? item.metadata.musicInfo : item
             const active = item.id == current.musicInfo?.id
             return (
-              <TouchableOpacity accessibilityRole="button" onPress={() => { select(item) }} style={{ height: 54, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' }}>
-                <SongRowContent name={info.name} singer={info.singer} album={info.meta.albumName} interval={info.interval} active={active} />
+              <TouchableOpacity accessibilityRole="button" onPress={() => { select(item) }} style={{ height: SONG_ROW_HEIGHT, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' }}>
+                <SongRowContent name={info.name} singer={info.singer} album={info.meta.albumName} interval={info.interval} source={info.source} active={active} />
               </TouchableOpacity>
             )
           }}

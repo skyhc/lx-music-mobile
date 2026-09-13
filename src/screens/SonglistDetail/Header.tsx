@@ -96,7 +96,7 @@ export default forwardRef<HeaderType, HeaderProps>(({ componentId }: { component
           </View>
         </View>
       </View>
-      <View style={wide ? { width: 240, paddingRight: 12 } : undefined}><ButtonBar /></View>
+      <View style={wide ? { width: 310, maxWidth: '52%', paddingRight: 12 } : undefined}><ButtonBar /></View>
       {/* <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <View style={{ flexGrow: 0, flexShrink: 1, paddingTop: 5, paddingRight: 5 }}>
               <Text style={{ fontSize: 12, color: AppColors.normal20 }} numberOfLines={ 1 }>{playCount || '-'}</Text>

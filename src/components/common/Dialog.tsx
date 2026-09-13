@@ -1,3 +1,4 @@
+import { OVERLAY_BACKDROP, overlaySurface } from '@/utils/overlaySurface'
 import { useImperativeHandle, forwardRef, useRef, useState } from 'react'
 import { View, TouchableOpacity, useWindowDimensions } from 'react-native'
 import Popup from './Popup'
@@ -31,12 +32,11 @@ export default forwardRef<DialogType, DialogProps>(({
   if (position == 'left') return <Popup ref={modalRef} onHide={onHide} keyHide={keyHide} bgHide={bgHide} closeBtn={closeBtn} title={title} kind="list" position="left">{children}</Popup>
   const availableWidth = frame.width || window.width
   const availableHeight = frame.height || Math.max(0, window.height - 80 - (keyboardShown ? keyboardHeight : 0))
-  return <Modal ref={modalRef} onHide={onHide} keyHide={keyHide} bgHide={bgHide} bgColor="rgba(0,0,0,.28)">
+  return <Modal ref={modalRef} onHide={onHide} keyHide={keyHide} bgHide={bgHide} bgColor={OVERLAY_BACKDROP}>
     <View style={{ flex: 1, paddingBottom: keyboardShown ? keyboardHeight : 0 }}>
       <View onLayout={e => setFrame(e.nativeEvent.layout)} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 0 }}>
         <View onStartShouldSetResponder={() => true} style={{ width: Math.max(0, Math.min(maxWidth, availableWidth - 24)),
-          maxHeight: Math.max(0, availableHeight - 24), height, flexShrink: 1, borderRadius: 12, overflow: 'hidden',
-          elevation: 6, backgroundColor: theme['c-content-background'] }}>
+          maxHeight: Math.max(0, availableHeight - 24), height, flexShrink: 1, ...overlaySurface(theme) }}>
           <View style={{ minHeight: 44, flexShrink: 0, justifyContent: 'center', borderTopWidth: 3, borderTopColor: theme['c-primary-font'] }}>
             <Text size={15} numberOfLines={1} style={{ paddingLeft: 16, paddingRight: 50, fontWeight: '600' }}>{title}</Text>
             {closeBtn ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="关闭" onPress={() => modalRef.current?.setVisible(false)}

@@ -1,3 +1,4 @@
+import { Platform } from 'react-native'
 import { View } from 'react-native'
 // import Button from '@/components/common/Button'
 // import { navigations } from '@/navigation'
@@ -29,7 +30,8 @@ const HEADER_HEIGHT = _HEADER_HEIGHT * 0.8
 const LeftHeader = () => {
   const id = useNavActiveId()
   const t = useI18n()
-  const statusBarHeight = useStatusbarHeight()
+  const reportedStatusBarHeight = useStatusbarHeight()
+  const statusBarHeight = Platform.OS == 'ios' ? 0 : reportedStatusBarHeight
 
   return (
     <View style={{
@@ -59,7 +61,8 @@ const LeftHeader = () => {
 const RightHeader = () => {
   const t = useI18n()
   const id = useNavActiveId()
-  const statusBarHeight = useStatusbarHeight()
+  const reportedStatusBarHeight = useStatusbarHeight()
+  const statusBarHeight = Platform.OS == 'ios' ? 0 : reportedStatusBarHeight
 
   return (
     <View style={{

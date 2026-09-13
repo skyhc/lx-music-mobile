@@ -1,3 +1,4 @@
+import { SONG_ROW_HEIGHT, SONG_ACTION_WIDTH, SONG_NUMBER_WIDTH } from '@/utils/songLayout'
 import SongRowContent from '@/components/common/SongRowContent'
 import { memo, useRef } from 'react'
 import { View, TouchableOpacity, Platform } from 'react-native'
@@ -11,7 +12,7 @@ import { scaleSizeH } from '@/utils/pixelRatio'
 import { LIST_ITEM_HEIGHT } from '@/config/constant'
 import { createStyle } from '@/utils/tools'
 
-export const ITEM_HEIGHT = Platform.OS == 'ios' ? 54 : scaleSizeH(LIST_ITEM_HEIGHT)
+export const ITEM_HEIGHT = Platform.OS == 'ios' ? SONG_ROW_HEIGHT : scaleSizeH(LIST_ITEM_HEIGHT)
 
 const useQualityTag = (musicInfo: LX.Music.MusicInfoOnline) => {
   const t = useI18n()
@@ -80,7 +81,7 @@ export default memo(({ item, index, showSource, onPress, onLongPress, onShowMenu
         }
         </>}
       </TouchableOpacity>
-     <TouchableOpacity onPress={handleShowMenu} ref={moreButtonRef} style={[styles.moreButton, Platform.OS == 'ios' ? { width: 44, paddingLeft: 0, paddingRight: 0, alignItems: 'center' } : null]}>
+     <TouchableOpacity onPress={handleShowMenu} ref={moreButtonRef} style={[styles.moreButton, Platform.OS == 'ios' ? { width: SONG_ACTION_WIDTH, paddingLeft: 0, paddingRight: 0, alignItems: 'center' } : null]}>
         <Icon name="dots-vertical" style={{ color: theme['c-font-label'] }} size={12} />
       </TouchableOpacity>
     </View>
@@ -113,7 +114,7 @@ const styles = createStyle({
     alignItems: 'center',
   },
   sn: {
-    width: 38,
+    width: SONG_NUMBER_WIDTH,
     // fontSize: 12,
     textAlign: 'center',
     // backgroundColor: 'rgba(0,0,0,0.2)',

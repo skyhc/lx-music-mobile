@@ -1,3 +1,4 @@
+import { Platform } from 'react-native'
 import { View, TouchableOpacity } from 'react-native'
 // import Button from '@/components/common/Button'
 // import { navigations } from '@/navigation'
@@ -34,7 +35,8 @@ const LeftHeader = () => {
   const theme = useTheme()
   const id = useNavActiveId()
   const t = useI18n()
-  const statusBarHeight = useStatusbarHeight()
+  const reportedStatusBarHeight = useStatusbarHeight()
+  const statusBarHeight = Platform.OS == 'ios' ? 0 : reportedStatusBarHeight
 
   return (
     <View style={{
@@ -70,7 +72,8 @@ const RightHeader = () => {
   const theme = useTheme()
   const t = useI18n()
   const id = useNavActiveId()
-  const statusBarHeight = useStatusbarHeight()
+  const reportedStatusBarHeight = useStatusbarHeight()
+  const statusBarHeight = Platform.OS == 'ios' ? 0 : reportedStatusBarHeight
 
   return (
     <View style={{

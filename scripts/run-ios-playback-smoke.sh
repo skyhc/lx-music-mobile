@@ -45,7 +45,7 @@ for PHASE in online offline; do
 done
 # Capture real production component rendering at tablet and phone window sizes.
 # This is visual evidence, not an automated touch-interaction test.
-for FORM in tablet phone; do
+for FORM in tablet tabletportrait phone; do
   if [ "$FORM" = phone ]; then
     xcrun simctl shutdown "$SIM"; xcrun simctl delete "$SIM"
     PHONE_TYPE=$(xcrun simctl list devicetypes | grep -E 'iPhone (17|16|15) Pro \(' | head -1 | sed -E 's/.*\(([^)]+)\)$/\1/')
@@ -54,7 +54,7 @@ for FORM in tablet phone; do
     xcrun simctl install "$SIM" "$APP"
     DATA=$(xcrun simctl get_app_container "$SIM" com.skyhc.lxmusic data)
   fi
-  for UI in table favorites list settings; do
+  for UI in table favorites list settings menu navhidden; do
     xcrun simctl terminate "$SIM" com.skyhc.lxmusic || true
     rm -f "$DATA/Documents/playback-smoke.json"
     EXTRA=(); if [ "$FORM" = tablet ]; then EXTRA=(--lx-ui-landscape); fi
@@ -73,3 +73,19 @@ for FORM in tablet phone; do
     xcrun simctl io "$SIM" screenshot "build/checks/ui-$FORM-$UI.png"
   done
 done
+
+# Require the individual runtime records and screenshots, not just an exit code.
+python3 - <<'PYTHON'
+import json, pathlib
+p = pathlib.Path('build/checks')
+for phase in ['online', 'offline']:
+    report = json.loads((p / ('playback-' + phase + '.json')).read_text())
+    assert report.get('success') and report.get('done'), report
+for form in ['tablet', 'tabletportrait', 'phone']:
+    for ui in ['table', 'favorites', 'list', 'settings', 'menu', 'navhidden']:
+        name = 'ui-' + form + '-' + ui
+        report = json.loads((p / (name + '.json')).read_text())
+        assert report.get('success'), report
+        assert (p / (name + '.png')).stat().st_size > 1024, name
+print('Native playback records and 18 production-view screenshots are present.')
+PYTHON

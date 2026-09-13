@@ -1,10 +1,10 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { Platform, SafeAreaView, StyleSheet, View, UIManager, requireNativeComponent, type ViewProps, type NativeSyntheticEvent, type LayoutChangeEvent } from 'react-native'
 
-export const IPAD_CONTROL_STRIP_HEIGHT = 36
-export const IPAD_CONTROL_STRIP_GAP = 4
+// Complete native clearance, not a second 36/40-point title strip.
+// System window controls stay in their UIKit-owned top-leading position.
 export const getWindowControlTopPadding = (safeTop: number): number => (
-  Math.max(0, IPAD_CONTROL_STRIP_HEIGHT - Math.max(0, safeTop)) + IPAD_CONTROL_STRIP_GAP
+  Number.isFinite(safeTop) ? Math.max(0, safeTop) : 0
 )
 const ConsumedInsets = createContext(false)
 // A React Native Modal has its own native root; never inherit the parent's
@@ -32,7 +32,7 @@ export default ({ children }: { children: ReactNode }) => {
       ? previous : { y: nextTop, height })
   }
   const safeTop = nativeInsets?.top ?? safeFrame.y
-  const top = safeTop + getWindowControlTopPadding(safeTop)
+  const top = getWindowControlTopPadding(safeTop)
   const bottom = nativeInsets?.bottom ?? (safeFrame.height > 0 ? Math.max(0, outerHeight - safeFrame.y - safeFrame.height) : 0)
   return (
     <View style={styles.fill} onLayout={event => setOuterHeight(event.nativeEvent.layout.height)}>

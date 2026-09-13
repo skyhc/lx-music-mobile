@@ -27,13 +27,13 @@ for (const name of sourcePaths) {
     assert.equal(errors.length, 0, errors.map(d => ts.flattenDiagnosticMessageText(d.messageText, '\n')).join('\n'))
   })
 }
-check('vertical strip supplements native top padding and preserves a small gap', () => {
+check('native top clearance is consumed without another app title strip', () => {
   const code = ts.transpileModule(read('src/components/WindowContent.tsx'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText
   const exports = {}
   vm.runInNewContext(code, { exports, require: () => ({ createContext: value => ({ Provider: () => null }), Platform: { OS: 'test' }, StyleSheet: { create: value => value, absoluteFillObject: {} } }) })
-  for (const [top, expected] of [[0, 40], [24, 16], [36, 4], [48, 4], [-4, 40]]) {
+  for (const [top, expected] of [[0, 0], [24, 24], [36, 36], [48, 48], [-4, 0]]) {
     assert.equal(exports.getWindowControlTopPadding(top), expected)
   }
 })

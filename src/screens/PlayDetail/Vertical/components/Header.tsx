@@ -1,3 +1,4 @@
+import { Platform } from 'react-native'
 import { memo, useRef } from 'react'
 
 import { View, StyleSheet } from 'react-native'
@@ -37,7 +38,8 @@ const Title = () => {
 export default memo(() => {
   const popupRef = useRef<SettingPopupType>(null)
   const soundEffectPopupRef = useRef<SoundEffectPopupType>(null)
-  const statusBarHeight = useStatusbarHeight()
+  const reportedStatusBarHeight = useStatusbarHeight()
+  const statusBarHeight = Platform.OS == 'ios' ? 0 : reportedStatusBarHeight
   const theme = useTheme()
   const setting = useSetting()
 

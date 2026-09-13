@@ -9,7 +9,7 @@ import DrawerLayoutFixed, { type DrawerLayoutFixedType } from '@/components/comm
 import { COMPONENT_IDS } from '@/config/constant'
 import { scaleSizeW } from '@/utils/pixelRatio'
 import type { InitState as CommonState } from '@/store/common/state'
-import { useWindowSize } from '@/utils/hooks'
+import { useHorizontalMode, useWindowSize } from '@/utils/hooks'
 
 const MAX_WIDTH = scaleSizeW(400)
 
@@ -63,16 +63,17 @@ const LegacyDrawer = () => {
 const IOSLibrary = () => {
   const theme = useTheme()
   const [width, setWidth] = useState(0)
-  const sidebar = width >= 700
+  const horizontal = useHorizontalMode()
+  const sidebar = horizontal && width >= 700
   return <View style={{ flex: 1, minHeight: 0 }} onLayout={event => setWidth(event.nativeEvent.layout.width)}>
     <View style={{ flex: 1, minHeight: 0, flexDirection: sidebar ? 'row' : 'column' }}>
-      <View style={sidebar
-        ? { width: 208, borderRightWidth: 0.5, borderRightColor: theme['c-border-background'] }
-        : { borderBottomWidth: 0.5, borderBottomColor: theme['c-border-background'] }}>
-        {sidebar ? <Text size={13} style={{ paddingHorizontal: 14, paddingVertical: 10 }}>我的列表</Text> : null}
-        <MyList compact={!sidebar} />
+      {sidebar ? <View style={{ width: 208, borderRightWidth: 0.5, borderRightColor: theme['c-border-background'] }}>
+        <Text size={13} style={{ paddingHorizontal: 14, paddingVertical: 10 }}>我的列表</Text>
+        <MyList />
+      </View> : null}
+      <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+        <MusicList listSelector={sidebar ? undefined : <MyList compact />} />
       </View>
-      <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}><MusicList /></View>
     </View>
   </View>
 }

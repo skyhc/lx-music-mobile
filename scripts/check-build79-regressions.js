@@ -98,7 +98,7 @@ const check = async(name, fn) => { await fn(); n++; console.log('PASS', name) }
   })
   await check('iOS library and primary navigation are visible without drawer-open events',()=>{
     assert.ok(source('src/screens/Home/Views/Mylist/MyList/index.tsx').includes("useState(Platform.OS == 'ios')"))
-    assert.ok(source('src/screens/Home/Views/Mylist/index.tsx').includes('<MyList compact={!sidebar} />'))
+    assert.ok(source('src/screens/Home/Views/Mylist/index.tsx').includes('listSelector={sidebar ? undefined : <MyList compact />}'))
     assert.ok(source('src/screens/Home/Vertical/index.tsx').includes('<NavigationTabs />'))
     assert.ok(source('src/utils/tools.ts').includes("Platform.OS == 'ios') return { rowNum: 1, rowWidth: '100%' }"))
     assert.ok(source('src/components/OnlineList/List.tsx').includes("Platform.OS == 'ios' ? { rowNum: 1, rowWidth: '100%'"))

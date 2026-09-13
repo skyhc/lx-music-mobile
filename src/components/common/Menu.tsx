@@ -1,3 +1,4 @@
+import { overlaySurface, anchoredMenuBounds } from '@/utils/overlaySurface'
 import { useImperativeHandle, forwardRef, useMemo, useRef, useState, type Ref } from 'react'
 import { View, Animated, TouchableHighlight } from 'react-native'
 import { useWindowSize } from '@/utils/hooks'
@@ -76,6 +77,8 @@ const Menu = ({
 }: Props) => {
   const theme = useTheme()
   const windowSize = useWindowSize()
+  const viewportRef = useRef<View>(null)
+  const [viewport, setViewport] = useState({ x: 0, y: 0, width: windowSize.width, height: windowSize.height })
   // const fadeAnim = useRef(new Animated.Value(0)).current
   // console.log(buttonPosition)
 
@@ -86,35 +89,10 @@ const Menu = ({
     }
   }, [menuSize, width, height])
 
-  const menuStyle = useMemo(() => {
-    let menuHeight = menus.length * menuItemStyle.height
-    const topHeight = buttonPosition.y - 20
-    const bottomHeight = windowSize.height - buttonPosition.y - buttonPosition.h - 20
-    if (menuHeight > topHeight && menuHeight > bottomHeight) menuHeight = Math.max(topHeight, bottomHeight)
+  const menuStyle = useMemo(() => anchoredMenuBounds(viewport.width, viewport.height,
+    buttonPosition, menuItemStyle.width, menus.length * menuItemStyle.height, viewport),
+  [viewport, buttonPosition, menuItemStyle, menus.length])
 
-    const menuWidth = menuItemStyle.width
-    const bottomSpace = windowSize.height - buttonPosition.y - buttonPosition.h - 20
-    const rightSpace = windowSize.width - buttonPosition.x - menuWidth
-    const showInBottom = bottomSpace >= menuHeight
-    const showInRight = rightSpace >= menuWidth
-    const frameStyle: {
-      height: number
-      width: number
-      top: number
-      left?: number
-      right?: number
-    } = {
-      height: menuHeight,
-      top: showInBottom ? buttonPosition.y + buttonPosition.h : buttonPosition.y - menuHeight,
-      width: menuWidth,
-    }
-    if (showInRight) {
-      frameStyle.left = buttonPosition.x
-    } else {
-      frameStyle.right = windowSize.width - buttonPosition.x - buttonPosition.w
-    }
-    return frameStyle
-  }, [menus.length, menuItemStyle, buttonPosition, windowSize])
 
   const menuPress = (menu: Menus[number]) => {
     // if (menu.disabled) return
@@ -129,15 +107,22 @@ const Menu = ({
   // console.log(menuStyle)
   // console.log(menuItemStyle)
   return (
-    <View style={{ ...styles.menu, ...menuStyle, backgroundColor: theme['c-content-background'] }} onStartShouldSetResponder={() => true}>
-      <Animated.ScrollView keyboardShouldPersistTaps={'always'}>
+    <View ref={viewportRef} style={{ flex: 1 }} pointerEvents="box-none" onLayout={() => {
+      viewportRef.current?.measureInWindow((x, y, width, height) => {
+        if (width <= 0 || height <= 0) return
+        setViewport(previous => previous.x == x && previous.y == y && previous.width == width && previous.height == height
+          ? previous : { x, y, width, height })
+      })
+    }}>
+    <View testID="operation-menu-surface" style={{ ...styles.menu, ...menuStyle, ...overlaySurface(theme) }} onStartShouldSetResponder={() => true}>
+      <Animated.ScrollView style={{ borderRadius: 11, overflow: 'hidden' }} keyboardShouldPersistTaps={'always'}>
         {
           menus.map((menu, index) => (
             menu.disabled
               ? (
                   <View
                     key={menu.action}
-                    style={{ ...styles.menuItem, width: menuItemStyle.width, height: menuItemStyle.height, opacity: 0.4 }}
+                    style={{ ...styles.menuItem, width: menuStyle.width, height: menuItemStyle.height, opacity: 0.4 }}
                   >
                     <Text style={{ textAlign: center ? 'center' : 'left' }} size={fontSize} numberOfLines={1}>{menu.label}</Text>
                   </View>
@@ -146,7 +131,7 @@ const Menu = ({
                 ? (
                     <View
                       key={menu.action}
-                      style={{ ...styles.menuItem, width: menuItemStyle.width, height: menuItemStyle.height }}
+                      style={{ ...styles.menuItem, width: menuStyle.width, height: menuItemStyle.height }}
                     >
                       <Text style={{ textAlign: center ? 'center' : 'left' }} color={theme['c-primary-font-active']} size={fontSize} numberOfLines={1}>{menu.label}</Text>
                     </View>
@@ -154,7 +139,7 @@ const Menu = ({
                 : (
                     <TouchableHighlight
                       key={menu.action}
-                      style={{ ...styles.menuItem, width: menuItemStyle.width, height: menuItemStyle.height }}
+                      style={{ ...styles.menuItem, width: menuStyle.width, height: menuItemStyle.height }}
                       underlayColor={theme['c-primary-background-active']}
                       onPress={() => { menuPress(menu) }}
                     >
@@ -165,6 +150,7 @@ const Menu = ({
           ))
         }
       </Animated.ScrollView>
+    </View>
     </View>
   )
 }

@@ -1,3 +1,4 @@
+import { OVERLAY_BACKDROP } from '@/utils/overlaySurface'
 // import { createStyle } from '@/utils/tools'
 import { useImperativeHandle, forwardRef, useState, useMemo } from 'react'
 import { Modal, Platform, TouchableWithoutFeedback, View, type ModalProps as _ModalProps } from 'react-native'
@@ -49,7 +50,7 @@ export default forwardRef<ModalType, ModalProps>(({
   onHide = () => {},
   keyHide = true,
   bgHide = true,
-  bgColor = 'rgba(0,0,0,0)',
+  bgColor = OVERLAY_BACKDROP,
   statusBarPadding = true,
   children,
   ...props

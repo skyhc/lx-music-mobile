@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react'
-import { TouchableOpacity, Platform } from 'react-native'
+import { TouchableOpacity, Platform, View } from 'react-native'
 
 import { Icon } from '@/components/common/Icon'
 import { BorderWidths } from '@/theme'
@@ -14,6 +14,7 @@ import Loading from '@/components/common/Loading'
 import { useSettingValue } from '@/store/setting/hook'
 
 export interface ActiveListProps {
+  listSelector?: React.ReactNode
   onShowSearchBar: () => void
   onScrollToTop: () => void
 }
@@ -21,7 +22,7 @@ export interface ActiveListType {
   setVisibleBar: (visible: boolean) => void
 }
 
-export default forwardRef<ActiveListType, ActiveListProps>(({ onShowSearchBar, onScrollToTop }, ref) => {
+export default forwardRef<ActiveListType, ActiveListProps>(({ onShowSearchBar, onScrollToTop, listSelector }, ref) => {
   const theme = useTheme()
   const currentListId = useActiveListId()
   const allList = useMyList()
@@ -58,6 +59,15 @@ export default forwardRef<ActiveListType, ActiveListProps>(({ onShowSearchBar, o
       setActiveList(id)
     })
   }, [])
+
+  if (listSelector) return <View testID="compact-library-toolbar" pointerEvents={visibleBar ? 'auto' : 'none'}
+    style={{ ...styles.currentList, height: 48, opacity: visibleBar ? 1 : 0, borderBottomColor: theme['c-border-background'] }}>
+    <View style={{ flex: 1, minWidth: 0 }}>{listSelector}</View>
+    {fetching ? <Loading color={theme['c-button-font']} /> : null}
+    <TouchableOpacity accessibilityRole="button" accessibilityLabel="搜索当前列表" style={styles.currentListBtns} onPress={onShowSearchBar}>
+      <Icon color={theme['c-button-font']} name="search-2" />
+    </TouchableOpacity>
+  </View>
 
   return (
     <TouchableOpacity onPress={showList} onLongPress={onScrollToTop} style={{ ...styles.currentList, opacity: visibleBar ? 1 : 0, borderBottomColor: theme['c-border-background'] }}>

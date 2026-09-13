@@ -19,11 +19,11 @@ for (const file of [windowPath, popupPath, layoutPath, playerPath]) {
     assert.equal((result.diagnostics || []).filter(d => d.category === ts.DiagnosticCategory.Error).length, 0)
   })
 }
-check('vertical inset preserves a four-point gap without double-counting native inset', () => {
+check('native clearance is not padded by another 36/40-point strip', () => {
   const exports = {}
   const code = ts.transpileModule(read(windowPath), { compilerOptions: options }).outputText
   vm.runInNewContext(code, { exports, require: () => ({ createContext: value => ({ Provider: () => null }), Platform: { OS: 'test' }, StyleSheet: { create: value => value, absoluteFillObject: {} } }) })
-  for (const [top, expected] of [[0, 40], [24, 16], [36, 4], [48, 4], [-4, 40]]) {
+  for (const [top, expected] of [[0, 0], [24, 24], [36, 36], [48, 48], [-4, 0]]) {
     assert.equal(exports.getWindowControlTopPadding(top), expected)
   }
 })
