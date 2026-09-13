@@ -72,14 +72,15 @@ let count=0;const check=async(name,fn)=>{await fn();count++;console.log('PASS '+
   assert.equal(Buffer.from(captured,'base64').toString('utf8'),'lx-music auth::\n测试的iPad 🌸')
  })
  await check('mode overlay uses a real id before show and ignores wrong module selections',async()=>{
-  const {EventEmitter}=require('node:events');const e=new EventEmitter(),state={},shown=[],closed=[]
-  const mod=load('src/core/sync.ts',{'@/navigation':{dismissOverlay:async id=>closed.push(id),onModalDismissed:()=>()=>{},showSyncModeModal:async id=>shown.push(id)},
+  const {EventEmitter}=require('node:events');const e=new EventEmitter(),state={},shown=[],closed=[],router=new KeyboardRouter()
+  const mod=load('src/core/sync.ts',{'@/core/keyboardRouter':{keyboardRouter:router},'@/navigation':{dismissOverlay:async id=>closed.push(id),onModalDismissed:()=>()=>{},showSyncModeModal:async id=>shown.push(id)},
     '@/store/sync/state':{default:state},'@/store/sync/action':{default:{setStatus:()=>{},setMessage:()=>{},setServerInfo:()=>{},setSyncModeComponentId:id=>state.syncModeComponentId=id}}},{global:{app_event:e}})
-  let settled=false;const first=mod.selectSyncMode('PC','list').then(v=>{settled=true;return v});const id=state.syncModeComponentId;assert.ok(id);assert.equal(shown[0],id)
+  let settled=false;const first=mod.selectSyncMode('PC','list').then(v=>{settled=true;return v});const id=state.syncModeComponentId;assert.ok(id);assert.equal(shown[0],id);assert.ok(router.blocked);assert.ok(!router.dispatch('select_enter'))
   e.emit('selectSyncMode',{type:'dislike',mode:'cancel'});await sleep(0);assert.ok(!settled)
-  e.emit('selectSyncMode',{type:'list',mode:'merge_local_remote'});assert.equal(await first,'merge_local_remote');assert.equal(e.listenerCount('selectSyncMode'),0)
+  e.emit('selectSyncMode',{type:'list',mode:'merge_local_remote'});assert.equal(await first,'merge_local_remote');assert.equal(e.listenerCount('selectSyncMode'),0);assert.ok(!router.blocked)
   const second=mod.selectSyncMode('PC','list').catch(e=>String(e));const next=state.syncModeComponentId
-  mod.cancelSyncModeForId(id);assert.equal(state.syncModeComponentId,next);mod.cancelSyncModeForId(next);assert.match(await second,/cancel/)
+  mod.cancelSyncModeForId(id);assert.equal(state.syncModeComponentId,next);mod.cancelSyncModeForId(next);assert.match(await second,/cancel/);assert.ok(!router.blocked)
+  const third=mod.selectSyncMode('PC','list').catch(e=>String(e));assert.ok(router.dispatch('escape'));assert.match(await third,/cancel/);assert.ok(!router.blocked)
  })
  await check('new connection cancels stale authentication completion without changing current socket',async()=>{
   let resolve;const calls=[],status=[]

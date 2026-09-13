@@ -102,15 +102,26 @@ const clone=x=>JSON.parse(JSON.stringify(x))
       assert.equal(source(p),original,p)
     }
   })
-  await check('tested native engines, scene management and common UI are unchanged',()=>{
-    const original=cp.execFileSync('git',['diff','--name-only','3f008d3599f29ceeaf7925e5935882a78a3052ff','--','ios','src/components/WindowContent.tsx','src/components/common/Menu.tsx','src/components/common/SongRowContent.tsx','src/plugins/player/nativeFlac.ts','src/plugins/player/soundEffect'],{cwd:root,encoding:'utf8'})
-    assert.equal(original.trim(),'')
+  await check('tested audio engines and scene lifecycle survive the keyboard/UI extension',()=>{
+    // Build84 intentionally adds keyboard commands, local-network permission and
+    // selected-row UI. Protect the actual audio/scene implementation instead of
+    // assuming that a later repair can never modify any UIKit bridge file.
+    const baseline='22270f3c02d7ff7c47406ec7bd0410ac1be39371'
+    const unchanged=cp.execFileSync('git',['diff','--name-only',baseline,'--','src/components/WindowContent.tsx','src/plugins/player/nativeFlac.ts','src/plugins/player/soundEffect','ios/LxMusicMobile/LXWindowInsets.swift'],{cwd:root,encoding:'utf8'})
+    assert.equal(unchanged.trim(),'')
+    const p='ios/LxMusicMobile/AppDelegate.mm'
+    const original=cp.execFileSync('git',['show',baseline+':'+p],{cwd:root,encoding:'utf8'}),current=source(p)
+    const prefix='@interface UtilsModule',crypto='@interface CryptoModule',test='#if TARGET_OS_SIMULATOR',scene='@implementation AppDelegate'
+    assert.ok(current.includes(prefix)&&current.includes(crypto)&&current.includes(scene))
+    assert.equal(current.slice(0,current.indexOf(prefix)),original.slice(0,original.indexOf(prefix)),'audio/cache/native metadata changed')
+    assert.equal(current.slice(current.indexOf(crypto),current.indexOf(test,current.indexOf(crypto))),original.slice(original.indexOf(crypto),original.indexOf(test,original.indexOf(crypto))),'production crypto changed')
+    assert.equal(current.slice(current.indexOf(scene)),original.slice(original.indexOf(scene)),'scene lifecycle changed')
   })
   await check('upstream dependency lock, monotonic iOS build and changelog are consistent',()=>{
     const pkg=JSON.parse(source('package.json')),lock=JSON.parse(source('package-lock.json'))
-    assert.equal(pkg.version,'1.9.0');assert.equal(pkg.versionCode,83);assert.equal(lock.version,'1.9.0')
+    assert.equal(pkg.version,'1.9.0');assert.equal(pkg.versionCode,84);assert.equal(lock.version,'1.9.0')
     assert.deepEqual(pkg.dependencies,lock.packages[''].dependencies);assert.deepEqual(pkg.devDependencies,lock.packages[''].devDependencies)
-    assert.equal(pkg.scripts.postinstall,'node dependencies-patch.js');assert.ok(source('CHANGELOG.md').includes('iOS / iPadOS 1.9.0 Build 83'))
+    assert.equal(pkg.scripts.postinstall,'node dependencies-patch.js');assert.ok(source('CHANGELOG.md').includes('iOS / iPadOS 1.9.0 Build 84'))
   })
   console.log(`${checks} upstream 1.9.0 behavioral/integration checks passed. External live APIs require separate device validation.`)
 })().catch(e=>{console.error(e);process.exitCode=1})
