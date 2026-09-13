@@ -1,100 +1,32 @@
-// import { generateKeyPair } from 'crypto'
-import { gzipString, unGzipString } from '@/utils/fs'
-import BackgroundTimer from 'react-native-background-timer'
+import { Buffer } from 'buffer'
+import { gzip, ungzip } from 'pako'
+import { assertSyncActive, syncCancelled } from '../diagnostics'
 
-export const request = async(url: string, { timeout = 10000, ...options }: RequestInit & { timeout?: number } = {}) => {
+// Auth requests use RN's standard timer/AbortController; no optional background
+// timer native method or file-system compression method is needed to connect.
+export const request = async(url: string, { timeout = 10000, signal, ...options }: RequestInit & { timeout?: number } = {}) => {
+  assertSyncActive(signal ?? undefined)
   const controller = new AbortController()
-  let id: number | null = BackgroundTimer.setTimeout(() => {
-    id = null
-    controller.abort()
-  }, timeout)
-  return fetch(url, {
-    ...options,
-    signal: controller.signal,
-  // eslint-disable-next-line @typescript-eslint/promise-function-async
-  }).then(async(response) => {
+  let expired = false
+  const cancel = () => controller.abort()
+  signal?.addEventListener('abort', cancel)
+  const timer = setTimeout(() => { expired = true; controller.abort() }, timeout)
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal })
     const text = await response.text()
-    return {
-      text,
-      code: response.status,
-    }
-  }).catch(err => {
-    // console.log(err, err.code, err.message)
-    throw err
-  }).finally(() => {
-    if (id == null) return
-    BackgroundTimer.clearTimeout(id)
-  })
+    assertSyncActive(signal ?? undefined)
+    return { text, code: response.status }
+  } catch (error) {
+    if (signal?.aborted) throw syncCancelled()
+    if (expired) throw new Error('请求超时，请检查同步服务与本地网络权限')
+    throw error
+  } finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel) }
 }
-
-
-// export const aesEncrypt = (text: string, key: string, iv: string) => {
-//   const cipher = createCipheriv('aes-128-cbc', Buffer.from(key, 'base64'), Buffer.from(iv, 'base64'))
-//   return Buffer.concat([cipher.update(Buffer.from(text)), cipher.final()]).toString('base64')
-// }
-
-// export const aesDecrypt = (text: string, key: string, iv: string) => {
-//   const decipher = createDecipheriv('aes-128-cbc', Buffer.from(key, 'base64'), Buffer.from(iv, 'base64'))
-//   return Buffer.concat([decipher.update(Buffer.from(text, 'base64')), decipher.final()]).toString()
-// }
-
 export { generateRsaKey } from '@/utils/nativeModules/crypto'
-// export const generateRsaKey = async() => new Promise<{ publicKey: string, privateKey: string }>((resolve, reject) => {
-//   generateKeyPair(
-//     'rsa',
-//     {
-//       modulusLength: 2048, // It holds a number. It is the key size in bits and is applicable for RSA, and DSA algorithm only.
-//       publicKeyEncoding: {
-//         type: 'spki', // Note the type is pkcs1 not spki
-//         format: 'pem',
-//       },
-//       privateKeyEncoding: {
-//         type: 'pkcs8', // Note again the type is set to pkcs1
-//         format: 'pem',
-//         // cipher: "aes-256-cbc", //Optional
-//         // passphrase: "", //Optional
-//       },
-//     },
-//     (err, publicKey, privateKey) => {
-//       if (err) {
-//         reject(err)
-//         return
-//       }
-//       resolve({
-//         publicKey,
-//         privateKey,
-//       })
-//     },
-//   )
-// })
-
-
-export const encryptMsg = async(keyInfo: LX.Sync.KeyInfo, msg: string): Promise<string> => {
-  return msg.length > 1024
-    ? 'cg_' + await gzipString(msg)
-    : msg
-  // if (!keyInfo) return ''
-  // return aesEncrypt(msg, keyInfo.key, keyInfo.iv)
-}
-
-export const decryptMsg = async(keyInfo: LX.Sync.KeyInfo, enMsg: string): Promise<string> => {
-  return enMsg.substring(0, 3) == 'cg_'
-    ? unGzipString(enMsg.replace('cg_', ''))
-    : enMsg
-  // if (!keyInfo) return ''
-  // let msg = ''
-  // try {
-  //   msg = aesDecrypt(enMsg, keyInfo.key, keyInfo.iv)
-  // } catch (err) {
-  //   console.log(err)
-  // }
-  // return msg
-}
-
-
+// v4's cg_ is gzip + standard Base64, not AES. Preserve the Android wire format.
+export const encryptMsg = async(_keyInfo: LX.Sync.KeyInfo, msg: string): Promise<string> =>
+  msg.length > 1024 ? 'cg_' + Buffer.from(gzip(msg)).toString('base64') : msg
+export const decryptMsg = async(_keyInfo: LX.Sync.KeyInfo, msg: string): Promise<string> =>
+  msg.startsWith('cg_') ? ungzip(Buffer.from(msg.slice(3), 'base64'), { to: 'string' }) : msg
 export { parseSyncAddress as parseUrl } from '../address'
-
-
-export const sendStatus = (status: LX.Sync.Status) => {
-  // syncLog.log(JSON.stringify(status))
-}
+export const sendStatus = (_status: LX.Sync.Status) => {}

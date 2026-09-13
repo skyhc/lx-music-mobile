@@ -2,10 +2,11 @@
 export const readableTextSize = (size: number) => size <= 0 ? size : Math.max(13, size + 2)
 type RGB = [number, number, number]
 const parse = (color: string, fallback: RGB): RGB => {
-  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color)
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(color)
   if (hex) {
-    const h = hex[1].length == 3 ? hex[1].split('').map(c => c + c).join('') : hex[1]
-    return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)) as RGB
+    const h = hex[1].length <= 4 ? hex[1].split('').map(c => c + c).join('') : hex[1]
+    const alpha = h.length == 8 ? parseInt(h.slice(6), 16) / 255 : 1
+    return [0, 2, 4].map((i, n) => Math.round(parseInt(h.slice(i, i + 2), 16) * alpha + fallback[n] * (1 - alpha))) as RGB
   }
   const rgb = /^rgba?\(\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\s*\)$/.exec(color)
   if (!rgb) return fallback

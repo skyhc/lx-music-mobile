@@ -1,25 +1,15 @@
-// import { createCipheriv, createDecipheriv, publicEncrypt, privateDecrypt, constants } from 'crypto'
-import { aesEncryptSync, aesDecryptSync, rsaEncryptSync, rsaDecryptSync, AES_MODE, RSA_PADDING } from '@/utils/nativeModules/crypto'
-import { Buffer } from '@craftzdog/react-native-buffer'
+// Wire-compatible with Android v1.9.0: UTF-8 -> Base64 -> AES/ECB/PKCS7;
+// RSA responses use OAEP SHA-1, SPKI public keys and PKCS8 private keys.
+// Async bridge methods work without JSI or blocking native exports.
+import { aesEncrypt as nativeAESEncrypt, aesDecrypt as nativeAESDecrypt,
+  rsaEncrypt as nativeRSAEncrypt, rsaDecrypt as nativeRSADecrypt, AES_MODE, RSA_PADDING } from '@/utils/nativeModules/crypto'
+import { Buffer } from 'buffer'
 
-
-export const aesEncrypt = (text: string, b64Key: string) => {
-  // const cipher = createCipheriv('aes-128-ecb', Buffer.from(key, 'base64'), '')
-  // return Buffer.concat([cipher.update(Buffer.from(text)), cipher.final()]).toString('base64')
-  return aesEncryptSync(Buffer.from(text, 'utf8').toString('base64'), b64Key, '', AES_MODE.ECB_128_NoPadding)
-}
-
-export const aesDecrypt = (text: string, b64Key: string) => {
-  // const decipher = createDecipheriv('aes-128-ecb', Buffer.from(key, 'base64'), '')
-  // return Buffer.concat([decipher.update(Buffer.from(text, 'base64')), decipher.final()]).toString()
-  return aesDecryptSync(text, b64Key, '', AES_MODE.ECB_128_NoPadding)
-}
-
-export const rsaEncrypt = (buffer: Buffer, key: string): string => {
-  // return publicEncrypt({ key, padding: constants.RSA_PKCS1_OAEP_PADDING }, buffer).toString('base64')
-  return rsaEncryptSync(buffer.toString('base64'), key, RSA_PADDING.OAEPWithSHA1AndMGF1Padding)
-}
-export const rsaDecrypt = (buffer: Buffer, key: string): string => {
-  // return privateDecrypt({ key, padding: constants.RSA_PKCS1_OAEP_PADDING }, buffer)
-  return rsaDecryptSync(buffer.toString('base64'), key, RSA_PADDING.OAEPWithSHA1AndMGF1Padding)
-}
+export const aesEncrypt = async(text: string, b64Key: string): Promise<string> =>
+  nativeAESEncrypt(Buffer.from(text, 'utf8').toString('base64'), b64Key, '', AES_MODE.ECB_128_NoPadding)
+export const aesDecrypt = async(text: string, b64Key: string): Promise<string> =>
+  nativeAESDecrypt(text, b64Key, '', AES_MODE.ECB_128_NoPadding)
+export const rsaEncrypt = async(buffer: Buffer, key: string): Promise<string> =>
+  nativeRSAEncrypt(buffer.toString('base64'), key, RSA_PADDING.OAEPWithSHA1AndMGF1Padding)
+export const rsaDecrypt = async(buffer: Buffer, key: string): Promise<string> =>
+  nativeRSADecrypt(buffer.toString('base64'), key, RSA_PADDING.OAEPWithSHA1AndMGF1Padding)

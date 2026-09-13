@@ -34,7 +34,7 @@ const theme = () => ({ isDark: dark, 'c-font': dark ? '#ddd' : '#222', 'c-font-l
   'c-primary-font': '#347fad', 'c-content-background': dark ? '#141414' : '#fff', 'c-border-background': '#666' })
 const rowMocks = { 'react/jsx-runtime': runtime, react: { useState: () => [measured, () => {}] },
   'react-native': native, './Text': { default: 'Text' }, '@/utils/hooks': { useHorizontalMode: () => wide },
-  '@/store/theme/hook': { useTheme: theme }, '@/utils/songLayout': layout, '@/utils/selectionColors': load('src/utils/selectionColors.ts') }
+  '@/store/theme/hook': { useTheme: theme }, '@/utils/songLayout': layout, '@/utils/selectionColors': load('src/utils/selectionColors.ts'), '@/utils/playingColor': load('src/utils/playingColor.ts', { './readability': load('src/utils/readability.ts') }) }
 const Row = load('src/components/common/SongRowContent.tsx', rowMocks).default
 const Header = load('src/components/common/SongTableHeader.tsx', { ...rowMocks, './SongRowContent': { default: Row } }).default
 check('source is a nonshrinking badge next to song title in both layouts/themes', () => {
@@ -99,7 +99,7 @@ check('full menu labels remain rendered without ellipsis at constrained widths',
     'react/jsx-runtime': runtime, react: { forwardRef: f => f, useRef: () => ({ current: null }),
       useState: x => [x, () => {}], useImperativeHandle: () => {} }, 'react-native': native,
     '@/utils/overlaySurface': overlay, '@/utils/menuLayout': menus,
-    '@/utils/selectionColors': load('src/utils/selectionColors.ts'), '@/utils/hooks/useSongKeyboard': { default: () => null },
+    '@/utils/selectionColors': load('src/utils/selectionColors.ts'), '@/utils/playingColor': load('src/utils/playingColor.ts', { './readability': load('src/utils/readability.ts') }), '@/utils/hooks/useSongKeyboard': { default: () => null },
     '@/utils/hooks': { useWindowSize: () => ({ width: 320, height: 400 }) },
     '@/store/theme/hook': { useTheme: theme }, './Text': { default: 'Text' }, './Modal': { default: 'Modal' },
     '@/utils/pixelRatio': { setSpText: n => n + 2 },

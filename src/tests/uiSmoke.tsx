@@ -1,3 +1,5 @@
+import { KeyboardConfigurationDialog } from '@/screens/Home/Views/Setting/settings/Basic/KeyboardShortcuts'
+import type { DialogType } from '@/components/common/Dialog'
 import { PlaylistContents } from '@/screens/PlayDetail/Horizontal/components/PlaylistBtn'
 import playerActions from '@/store/player/action'
 import { applyTheme } from '@/core/theme'
@@ -53,6 +55,7 @@ const Fixture = () => {
   const favorite = useRef<MusicAddModalType>(null)
   const popup = useRef<PopupType>(null)
   const settings = useRef<SettingPopupType>(null)
+  const keyboard = useRef<DialogType>(null)
   useEffect(() => {
     list.current?.setList(songs, false, true)
     list.current?.setStatus('end')
@@ -61,6 +64,7 @@ const Fixture = () => {
       if (phase == 'favorites') favorite.current?.show({ musicInfo: songs[0], listId: '', isMove: false })
       if (phase == 'list') popup.current?.setVisible(true)
       if (phase == 'settings') settings.current?.show()
+      if (phase == 'keyboard') keyboard.current?.setVisible(true)
     }, 600)
     const switchTimer = setTimeout(() => {
       if (phase == 'themeswitch') selectTheme(true)
@@ -97,9 +101,10 @@ const Fixture = () => {
     {!wide ? <NavigationTabs /> : null}
     <Menu ref={menu} menus={[{ action: 'play', label: '播放' }, { action: 'add', label: '添加到列表' }, { action: 'detail', label: '歌曲详细信息' }, { action: 'long', label: '将歌曲添加到其他收藏列表' }, { action: 'remove', label: '移除' }]} onPress={() => {}} />
     <MusicAddModal ref={favorite} />
-    <Popup ref={popup} kind="list" title="播放列表">
+    <Popup ref={popup} kind="player-playlist" title="播放列表">
       <PlaylistContents list={songs} visible={phase == 'list'} onSelect={song => { playerActions.setPlayMusicInfo('default', song); playerActions.setIsPlay(true) }} />
     </Popup>
+    <KeyboardConfigurationDialog ref={keyboard} />
     <SettingPopup ref={settings} direction={wide ? 'horizontal' : 'vertical'} />
   </PageContent>
 }

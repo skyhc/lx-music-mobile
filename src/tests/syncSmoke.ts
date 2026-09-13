@@ -1,3 +1,8 @@
+import { Buffer as PortableBuffer } from 'buffer'
+import { Buffer as AppBuffer } from '@craftzdog/react-native-buffer'
+import { NativeModules } from 'react-native'
+import { aesEncrypt, aesDecrypt } from '@/plugins/sync/utils'
+import { encryptMsg, decryptMsg } from '@/plugins/sync/client/utils'
 // Loaded only by the simulator test harness. Uses real RN HTTP/WebSocket,
 // CryptoModule, persistent storage and the unchanged official sync server.
 import { connectServer, disconnectServer, getStatus } from '@/plugins/sync'
@@ -35,6 +40,19 @@ export const runSyncSmoke = async(check: Check, offline: boolean) => {
     if(syncState.syncModeComponentId) global.app_event.selectSyncMode({type:syncState.type,mode:'merge_local_remote'} as LX.Sync.ModeType)
   }, 350)
   try {
+    await check('sync: installed codec and async native bridge contract', async() => {
+      const methods = ['generateRsaKey', 'aesEncrypt', 'aesDecrypt', 'rsaDecrypt']
+      for (const method of methods) assert(typeof NativeModules.CryptoModule?.[method] == 'function', `CryptoModule.${method} is missing`)
+      const unicode = 'LX Unicode 中文 🌸', encoded = PortableBuffer.from(unicode, 'utf8').toString('base64')
+      assert(AppBuffer.from(encoded, 'base64').toString('utf8') == unicode, 'App Buffer/Base64 native package mismatch')
+      const key = PortableBuffer.from('0123456789abcdef').toString('base64')
+      const ciphertext = await aesEncrypt(unicode, key)
+      assert(await aesDecrypt(ciphertext, key) == unicode, 'Async native AES encoding mismatch')
+      const text = JSON.stringify({ songs: Array.from({ length: 100 }, (_, i) => ({ name: '中文歌曲🌸' + i })) })
+      const msg = await encryptMsg({} as LX.Sync.KeyInfo, text)
+      assert(msg.startsWith('cg_') && await decryptMsg({} as LX.Sync.KeyInfo, msg) == text, 'Compressed sync message failed')
+      return { nativeMethods: methods, unicodeRoundtrip: true, compressedRoundtrip: true }
+    })
     if(!offline){
       await check('sync: unpaired client asks for code and wrong code fails explicitly', async()=>{
         let missing=false, wrong=false

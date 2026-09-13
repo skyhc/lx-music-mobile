@@ -66,13 +66,13 @@ check('transport row order', () => {
   const positions = ['<PlayModeBtn', 'name="prevMusic"', "name={isPlay ? 'pause'", 'name="nextMusic"', '<PlaylistBtn'].map(s => content.indexOf(s))
   assert.ok(positions.every((p, i) => p >= 0 && (i === 0 || p > positions[i - 1])))
 })
-check('utility order and centered settings/effects', () => {
+check('utility order and caller-positioned settings/effects', () => {
   const content = read(`${horizontal}components/ActionBar.tsx`)
   const positions = ['<CommentBtn', 'icon="slider"', '<MusicAddBtn', '<TimeoutExitBtn', 'icon="setting"'].map(s => content.indexOf(s))
   assert.ok(positions.every((p, i) => p >= 0 && (i === 0 || p > positions[i - 1])))
-  assert.ok(content.includes('position="center" layoutMode="stacked"'))
-  assert.ok(content.includes('position="center" direction="horizontal"'))
-  assert.ok(!content.includes('position="bottom"'))
+  assert.ok(content.includes('position="bottom" layoutMode="stacked"'))
+  assert.ok(content.includes('position="bottom" direction="horizontal"'))
+  assert.ok(!content.includes('position="left"'))
 })
 check('cover uses actual body layout; progress cannot cover time text', () => {
   assert.ok(read(`${horizontal}Pic.tsx`).includes('nativeEvent.layout'))

@@ -32,10 +32,11 @@ const clone = obj => JSON.parse(JSON.stringify(obj))
     console.log(`  checked ${themes.length} shipped palettes`)
   })
   const panel=load('src/utils/panelLayout.ts')
-  await check('only list panels slide left; non-list panels center regardless of old caller position',()=>{
+  await check('only the player playlist overrides position; all other callers retain their design',()=>{
     for(const pos of ['top','bottom','right','left','center']){
-      assert.equal(panel.panelPosition(true,'list',pos),'left')
-      assert.equal(panel.panelPosition(true,'panel',pos),'center')
+      assert.equal(panel.panelPosition(true,'player-playlist',pos),'left')
+      assert.equal(panel.panelPosition(true,'list',pos),pos)
+      assert.equal(panel.panelPosition(true,'panel',pos),pos)
       assert.equal(panel.panelPosition(false,'panel',pos),pos)
     }
   })

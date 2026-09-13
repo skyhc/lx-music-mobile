@@ -1,3 +1,5 @@
+import Clipboard from '@react-native-clipboard/clipboard'
+import { getSyncDiagnostic } from '@/plugins/sync/diagnostics'
 import { useCallback, useState, useEffect, useRef } from 'react'
 import { View, Linking } from 'react-native'
 import CheckBoxItem from '../../components/CheckBoxItem'
@@ -78,8 +80,8 @@ export default ({ host, setHost }: { host: string, setHost: (host: string) => vo
       {enabled || busy ? <Button onPress={disconnect}>断开 / 取消</Button> : null}
       <Button onPress={() => { void Linking.openSettings().catch(() => toast('无法打开系统设置')) }}>本地网络权限设置</Button>
     </View>
-    <Text accessibilityLiveRegion="polite">{status.status ? '已连接，列表更改会双向同步' : busy ? '正在连接…' : status.message || '未连接'}</Text>
-    {error ? <Text color={theme['c-font']}>{error}</Text> : null}
+    <Text accessibilityLiveRegion="polite">{status.status ? '已连接，列表更改会双向同步' : busy ? '正在连接…' : error || status.message || '未连接'}</Text>
+    {!status.status && (error || status.message) ? <Button onPress={() => { Clipboard.setString(getSyncDiagnostic() || error || status.message); toast('已复制同步诊断，不包含配对码或密钥') }}>复制同步诊断</Button> : null}
     <Text size={12}>连接失败时检查：iOS 本地网络权限、电脑防火墙、地址及端口、两端同步协议版本。同步不会自动传输音频文件；首次覆盖前请导出备份。</Text>
     <ConfirmAlert ref={alert} onCancel={disconnect} onConfirm={submitCode}>
       <View style={{ minWidth: 0, flexShrink: 1, gap: 10 }}>

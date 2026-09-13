@@ -257,7 +257,6 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
   const keyboardId = useSongKeyboard(currentList, handlePress, index => {
     flatListRef.current?.scrollToIndex({ index: Math.floor(index / (rowInfo.current.rowNum ?? 1)), viewPosition: 0.4, animated: false })
   }, playerState.playMusicInfo.musicInfo?.id)
-  const visualSelection = keyboardId ? [...selectedList, ...currentList.filter(item => item.id == keyboardId)] : selectedList
 
   const renderItem: FlatListType['renderItem'] = ({ item, index }) => (
     <ListItem
@@ -267,7 +266,8 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
       onPress={handlePress}
       onLongPress={handleLongPress}
       onShowMenu={onShowMenu}
-      selectedList={visualSelection}
+      selectedList={selectedList}
+      focused={item.id == keyboardId}
       rowInfo={rowInfo.current}
       isShowAlbumName={isShowAlbumName}
       isShowInterval={isShowInterval}

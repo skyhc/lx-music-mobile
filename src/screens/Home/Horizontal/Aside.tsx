@@ -130,7 +130,7 @@ export default memo(({ onNavigate }: { onNavigate?: () => void } = {}) => {
         Platform.OS != 'ios' && showBackBtn ? <MenuItem id="back_home" icon="home" onPress={handlePress} /> : null
       }
       {
-        Platform.OS != 'ios' && showExitBtn ? <MenuItem id="nav_exit" icon="exit2" onPress={handlePress} /> : null
+        showExitBtn ? <MenuItem id="nav_exit" icon="exit2" onPress={handlePress} /> : null
       }
     </View>
   )

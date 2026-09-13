@@ -10,7 +10,8 @@ import { playListById, togglePlay } from '@/core/player/player'
 import { markTimeoutExitInteraction } from '@/core/player/timeoutExit'
 import { usePlayInfo, usePlayMusicInfo, useIsPlay } from '@/store/player/hook'
 import { useTheme } from '@/store/theme/hook'
-import { selectionColors } from '@/utils/selectionColors'
+import { playingColor } from '@/utils/playingColor'
+import { overlaySurface } from '@/utils/overlaySurface'
 import { toast } from '@/utils/tools'
 import { LIST_IDS } from '@/config/constant'
 import useSongKeyboard from '@/utils/hooks/useSongKeyboard'
@@ -23,7 +24,8 @@ export const PlaylistContents = ({ list, visible, onSelect }: { list: Music[], v
   const current = usePlayMusicInfo()
   const playing = useIsPlay()
   const theme = useTheme()
-  const selection = selectionColors(theme)
+  const surface = String(overlaySurface(theme).backgroundColor)
+  const playingForeground = playingColor(theme, surface)
   const ref = useRef<FlatList<Music>>(null)
   const currentIndex = list.findIndex(item => item.id == current.musicInfo?.id)
   const scroll = (index: number) => {
@@ -59,11 +61,11 @@ export const PlaylistContents = ({ list, visible, onSelect }: { list: Music[], v
         return <TouchableOpacity accessibilityRole="button" accessibilityState={{ selected: active }}
           accessibilityLabel={`${active ? playing ? '正在播放' : '当前歌曲已暂停' : ''} ${info.name} ${info.singer}`}
           onPress={() => onSelect(item)} style={{ height: SONG_ROW_HEIGHT, paddingHorizontal: 12, gap: 8, flexDirection: 'row', alignItems: 'center',
-            backgroundColor: active || focused ? selection.background : 'transparent' }}>
-          {active || focused ? <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 7, bottom: 7, width: 3, backgroundColor: selection.indicator }} /> : null}
-          <View style={{ width: 22, alignItems: 'center' }}>{active ? <Icon name={playing ? 'play' : 'pause'} size={14} color={selection.indicator} />
-            : <Text size={11} color={focused ? selection.text : theme['c-font-label']}>{index + 1}</Text>}</View>
-          <SongRowContent name={info.name} singer={info.singer} album={info.meta.albumName} interval={info.interval} source={info.source} active={active || focused} showAlbum={false} />
+            backgroundColor: 'transparent' }}>
+          {focused ? <View pointerEvents="none" style={{ position: 'absolute', left: 1, right: 1, top: 1, bottom: 1, borderWidth: 1, borderRadius: 4, borderColor: playingForeground }} /> : null}
+          <View style={{ width: 22, alignItems: 'center' }}>{active ? <Icon name="play-outline" size={14} color={playingForeground} />
+            : <Text size={11} color={theme['c-font-label']}>{index + 1}</Text>}</View>
+          <SongRowContent name={info.name} singer={info.singer} album={info.meta.albumName} interval={info.interval} source={info.source} active={active} surface={surface} showAlbum={false} />
         </TouchableOpacity>
       }} />
   </View>
@@ -112,7 +114,7 @@ export default () => {
   }
   return <>
     <Btn label="播放列表" onPress={show}><PlaylistIcon /></Btn>
-    <Popup ref={popupRef} position="left" kind="list" title="播放列表" onHide={() => { ++sequence.current; setVisible(false) }}>
+    <Popup ref={popupRef} position="left" kind="player-playlist" title="播放列表" onHide={() => { ++sequence.current; setVisible(false) }}>
       <PlaylistContents list={list} visible={visible} onSelect={select} />
     </Popup>
   </>

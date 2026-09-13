@@ -1,3 +1,4 @@
+import { playingColor } from '@/utils/playingColor'
 import { SONG_ROW_HEIGHT, SONG_ACTION_WIDTH, SONG_NUMBER_WIDTH } from '@/utils/songLayout'
 import SongRowContent from '@/components/common/SongRowContent'
 import { memo, useRef } from 'react'
@@ -33,13 +34,14 @@ const useQualityTag = (musicInfo: LX.Music.MusicInfoOnline) => {
   return info
 }
 
-export default memo(({ item, index, showSource, onPress, onLongPress, onShowMenu, selectedList, rowInfo, isShowAlbumName, isShowInterval }: {
+export default memo(({ item, index, showSource, onPress, onLongPress, onShowMenu, selectedList, focused = false, rowInfo, isShowAlbumName, isShowInterval }: {
   item: LX.Music.MusicInfoOnline
   index: number
   showSource?: boolean
   onPress: (item: LX.Music.MusicInfoOnline, index: number) => void
   onLongPress: (item: LX.Music.MusicInfoOnline, index: number) => void
   onShowMenu: (item: LX.Music.MusicInfoOnline, index: number, position: { x: number, y: number, w: number, h: number }) => void
+  focused?: boolean
   selectedList: LX.Music.MusicInfoOnline[]
   rowInfo: { rowNum?: number, rowWidth: `${number}%` }
   isShowAlbumName: boolean
@@ -47,6 +49,8 @@ export default memo(({ item, index, showSource, onPress, onLongPress, onShowMenu
 }) => {
   const theme = useTheme()
   const selection = selectionColors(theme)
+  const multiSelected = selectedList.includes(item)
+  const playing = playingColor(theme, multiSelected ? selection.background : undefined)
 
   const current = usePlayMusicInfo()
   const active = current.musicInfo?.id == item.id
@@ -66,12 +70,12 @@ export default memo(({ item, index, showSource, onPress, onLongPress, onShowMenu
   const singer = `${item.singer}${isShowAlbumName && item.meta.albumName ? ` · ${item.meta.albumName}` : ''}`
 
   return (
-    <View style={{ ...styles.listItem, width: rowInfo.rowWidth, height: ITEM_HEIGHT, backgroundColor: active || isSelected ? selection.background : 'transparent' }}>
-      {active || isSelected ? <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 7, bottom: 7, width: 3, borderRadius: 2, backgroundColor: selection.indicator }} /> : null}
+    <View style={{ ...styles.listItem, width: rowInfo.rowWidth, height: ITEM_HEIGHT, backgroundColor: isSelected ? selection.background : 'transparent' }}>
+      {focused ? <View pointerEvents="none" style={{ position: 'absolute', left: 1, right: 1, top: 1, bottom: 1, borderWidth: 1, borderRadius: 4, borderColor: playing }} /> : null}
       <TouchableOpacity style={styles.listItemLeft} onPress={() => { onPress(item, index) }} onLongPress={() => { onLongPress(item, index) }}>
-        {active ? <Icon name="play-outline" style={styles.sn} size={16} color={selection.indicator} /> : <Text style={styles.sn} size={13} color={isSelected ? selection.text : theme['c-font-label']}>{index + 1}</Text>}
+        {active ? <Icon name="play-outline" style={styles.sn} size={16} color={playing} /> : <Text style={styles.sn} size={13} color={isSelected ? selection.text : theme['c-font-label']}>{index + 1}</Text>}
         {Platform.OS == 'ios' ? <SongRowContent name={item.name} singer={item.singer} album={item.meta.albumName}
-          interval={item.interval} showAlbum={isShowAlbumName} showInterval={isShowInterval} source={item.source} active={active || isSelected} /> : <>
+          interval={item.interval} showAlbum={isShowAlbumName} showInterval={isShowInterval} source={item.source} active={active} selected={isSelected} surface={isSelected ? selection.background : undefined} /> : <>
         <View style={styles.itemInfo}>
           <Text numberOfLines={1}>{item.name}</Text>
           <View style={styles.listItemSingle}>
@@ -88,12 +92,12 @@ export default memo(({ item, index, showSource, onPress, onLongPress, onShowMenu
         </>}
       </TouchableOpacity>
      <TouchableOpacity onPress={handleShowMenu} ref={moreButtonRef} style={[styles.moreButton, Platform.OS == 'ios' ? { width: SONG_ACTION_WIDTH, paddingLeft: 0, paddingRight: 0, alignItems: 'center' } : null]}>
-        <Icon name="dots-vertical" style={{ color: active || isSelected ? selection.text : theme['c-font-label'] }} size={12} />
+        <Icon name="dots-vertical" style={{ color: active ? playing : isSelected ? selection.text : theme['c-font-label'] }} size={12} />
       </TouchableOpacity>
     </View>
   )
 }, (prevProps, nextProps) => {
-  return !!(prevProps.rowInfo.rowWidth === nextProps.rowInfo.rowWidth && prevProps.item === nextProps.item &&
+  return !!(prevProps.focused === nextProps.focused && prevProps.rowInfo.rowWidth === nextProps.rowInfo.rowWidth && prevProps.item === nextProps.item &&
     prevProps.index === nextProps.index && prevProps.showSource === nextProps.showSource &&
     prevProps.isShowAlbumName === nextProps.isShowAlbumName &&
     prevProps.isShowInterval === nextProps.isShowInterval &&

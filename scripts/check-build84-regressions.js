@@ -4,7 +4,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const root=path.resolve(__dirname,'..'), read=f=>fs.readFileSync(path.join(root,f),'utf8')
 function load(file,mocks={},extras={}){
  const code=ts.transpileModule(read(file),{fileName:file,compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText
- const exports={};vm.runInNewContext(code,{exports,console,setTimeout,clearTimeout,Promise,Buffer,Set,Map,...extras,require:n=>{assert.ok(n in mocks,'mock missing '+n+' in '+file);return mocks[n]}});return exports
+ const exports={};vm.runInNewContext(code,{exports,console,setTimeout,clearTimeout,Promise,Buffer,Set,Map,AbortController,...extras,require:n=>{assert.ok(n in mocks,'mock missing '+n+' in '+file);return mocks[n]}});return exports
 }
 const plain=x=>JSON.parse(JSON.stringify(x));const sleep=ms=>new Promise(r=>setTimeout(r,ms))
 let count=0;const check=async(name,fn)=>{await fn();count++;console.log('PASS '+name)}
@@ -65,10 +65,10 @@ let count=0;const check=async(name,fn)=>{await fn();count++;console.log('PASS '+
  await check('invalid sync credentials/URL syntax fail explicitly instead of silently not connecting',()=>{
   for(const value of ['', 'ftp://host/path','http://name:password@host','http://host:0','http://host:65536','http://host?x=1','http://host/#fragment','hello world']) assert.throws(()=>addresses.normalizeSyncAddress(value),undefined,value)
  })
- await check('native AES authentication receives UTF8 bytes for Chinese/non-ASCII device names',()=>{
+ await check('async native AES authentication receives UTF8 bytes for Chinese/non-ASCII device names',async()=>{
   let captured=''
-  const aes=load('src/plugins/sync/utils.ts',{'@craftzdog/react-native-buffer':{Buffer},'@/utils/nativeModules/crypto':{AES_MODE:{ECB_128_NoPadding:'AES'},RSA_PADDING:{},aesEncryptSync:text=>(captured=text,'encrypted')}})
-  assert.equal(aes.aesEncrypt('lx-music auth::\n测试的iPad 🌸','a2V5'),'encrypted')
+  const aes=load('src/plugins/sync/utils.ts',{buffer:{Buffer},'@/utils/nativeModules/crypto':{AES_MODE:{ECB_128_NoPadding:'AES'},RSA_PADDING:{},aesEncrypt:async text=>(captured=text,'encrypted')}})
+  assert.equal(await aes.aesEncrypt('lx-music auth::\n测试的iPad 🌸','a2V5'),'encrypted')
   assert.equal(Buffer.from(captured,'base64').toString('utf8'),'lx-music auth::\n测试的iPad 🌸')
  })
  await check('mode overlay uses a real id before show and ignores wrong module selections',async()=>{
@@ -84,7 +84,7 @@ let count=0;const check=async(name,fn)=>{await fn();count++;console.log('PASS '+
  })
  await check('new connection cancels stale authentication completion without changing current socket',async()=>{
   let resolve;const calls=[],status=[]
-  const mod=load('src/plugins/sync/client/index.ts',{'./auth':{default:url=>url.hostPath==='old'?new Promise(r=>resolve=r):Promise.resolve({key:'new'})},
+  const mod=load('src/plugins/sync/client/index.ts',{'../diagnostics':{resetSyncDiagnostic:()=>{},atSyncStage:async(_s,fn)=>fn()},'./auth':{default:url=>url.hostPath==='old'?new Promise(r=>resolve=r):Promise.resolve({key:'new'})},
     './client':{connect:(url,key)=>calls.push([url.hostPath,key.key]),disconnect:async()=>{},sendSyncStatus:x=>status.push(x)},
     './utils':{parseUrl:addresses.parseSyncAddress},'../constants':{SYNC_CODE:{connecting:'Connecting...',connectServiceFailed:'failed'}},'@/core/sync':{removeSyncModeEvent:()=>{}}})
   const old=mod.connectServer('old');await sleep(0);await mod.connectServer('new');resolve({key:'old'});await old
@@ -95,11 +95,11 @@ let count=0;const check=async(name,fn)=>{await fn();count++;console.log('PASS '+
   const mod=load('src/plugins/sync/client/client.ts',{'./utils':{encryptMsg:async(_k,msg)=>{if(msg.includes('one'))await sleep(10);return msg},decryptMsg:async(_k,msg)=>{if(msg==='1')await sleep(10);return msg}},
     './sync':{callObj:{}},'../log':{default:{error:()=>{},r_error:()=>{}}},'../utils':{aesEncrypt:()=>''},'@/core/sync':{setSyncStatus:s=>statuses.push(s),removeSyncModeEvent:()=>{}},
     message2call:{createMsg2call:o=>{options.push(o);return {remote:{},createQueueRemote:()=>({}),destroy:()=>{},message:m=>received.push(m)}}},
-    '../constants':{SYNC_CLOSE_CODE:{normal:1000,failed:4100},SYNC_CODE:{msgConnect:'connect'}},
+    '../diagnostics':{atSyncStage:async(_s,fn)=>fn()},'../constants':{SYNC_CLOSE_CODE:{normal:1000,failed:4100},SYNC_CODE:{msgConnect:'connect'}},
   },{WebSocket:Socket});const received=[]
-  mod.connect(addresses.parseSyncAddress('old'),{clientId:'a',key:'key'});const a=instances[0];a.readyState=1;a.event('open');options[0].sendMessage('one');options[0].sendMessage('two');a.event('message',{data:'1'});a.event('message',{data:'2'});await sleep(30)
+  await mod.connect(addresses.parseSyncAddress('old'),{clientId:'a',key:'key'});const a=instances[0];a.readyState=1;a.event('open');options[0].sendMessage('one');options[0].sendMessage('two');a.event('message',{data:'1'});a.event('message',{data:'2'});await sleep(30)
   assert.deepEqual(a.sent,['"one"','"two"']);assert.deepEqual(received,[1,2])
-  mod.connect(addresses.parseSyncAddress('new'),{clientId:'b',key:'key'});const b=instances[1];b.readyState=1;b.event('open');options[1].funcsObj.finished();const before=statuses.length;a.event('close',{code:1006});assert.equal(statuses.length,before);assert.equal(mod.getStatus().status,true)
+  await mod.connect(addresses.parseSyncAddress('new'),{clientId:'b',key:'key'});const b=instances[1];b.readyState=1;b.event('open');options[1].funcsObj.finished();const before=statuses.length;a.event('close',{code:1006});assert.equal(statuses.length,before);assert.equal(mod.getStatus().status,true)
   await mod.disconnect();assert.ok(!mod.hasClientConnection())
  })
  await check('per-socket list subscription disposal cannot unregister a replacement',()=>{
@@ -111,7 +111,7 @@ let count=0;const check=async(name,fn)=>{await fn();count++;console.log('PASS '+
   let checked=0;function walk(n){if(ts.isJsxSelfClosingElement(n)&&n.tagName.getText(ast)==='PlayerBar'){const parent=n.parent;assert.ok(ts.isJsxElement(parent));assert.ok(parent.openingElement.getText(ast).includes('flex: 1'));assert.ok(!parent.openingElement.getText(ast).includes("flexDirection: 'row'"));checked++}ts.forEachChild(n,walk)}walk(ast);assert.equal(checked,1)
  })
  await check('playlist uses live current state, stable item geometry and post-load current-song scroll',()=>{
-  const s=read('src/screens/PlayDetail/Horizontal/components/PlaylistBtn.tsx');for(const token of ['usePlayMusicInfo()', 'getListMusics(id)','getItemLayout=', 'viewPosition: 0.35','onScrollToIndexFailed=', '定位正在播放', 'selection.background','accessibilityState={{ selected: active }}'])assert.ok(s.includes(token),token)
+  const s=read('src/screens/PlayDetail/Horizontal/components/PlaylistBtn.tsx');for(const token of ['usePlayMusicInfo()', 'getListMusics(id)','getItemLayout=', 'viewPosition: 0.35','onScrollToIndexFailed=', '定位正在播放', "backgroundColor: 'transparent'",'accessibilityState={{ selected: active }}'])assert.ok(s.includes(token),token)
   assert.ok(s.includes('[visible, currentIndex, list]'));assert.ok(!s.includes('<SongTableHeader'))
  })
  await check('settings expose granular shortcut controls and native input focus blocks shortcut interception',()=>{

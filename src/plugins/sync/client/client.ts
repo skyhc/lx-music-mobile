@@ -5,6 +5,7 @@ import { aesEncrypt } from '../utils'
 import { setSyncStatus, removeSyncModeEvent } from '@/core/sync'
 import { createMsg2call } from 'message2call'
 import { SYNC_CLOSE_CODE, SYNC_CODE } from '../constants'
+import { atSyncStage } from '../diagnostics'
 
 let status: LX.Sync.Status = { status: false, message: '' }
 export const sendSyncStatus = (value: LX.Sync.Status) => { status = { ...value }; setSyncStatus(status) }
@@ -12,13 +13,19 @@ export const sendSyncMessage = (message: string) => sendSyncStatus({ ...status, 
 let client: LX.Sync.Socket | null = null
 let retry: ReturnType<typeof setTimeout> | null = null
 let retryCount = 0
+let connectionGeneration = 0
 let disposeCurrent: (() => void) | null = null
 const clearRetry = () => { if (retry) clearTimeout(retry); retry = null }
 
-export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
+export const connect = async(urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
+  const generation = ++connectionGeneration
   clearRetry()
   disposeCurrent?.()
-  const socket = new WebSocket(`${urlInfo.wsProtocol}//${urlInfo.hostPath}/socket?i=${encodeURIComponent(keyInfo.clientId)}&t=${encodeURIComponent(aesEncrypt(SYNC_CODE.msgConnect, keyInfo.key))}`) as LX.Sync.Socket
+  client = null
+  const token = await atSyncStage('原生 AES WebSocket 凭据', () => aesEncrypt(SYNC_CODE.msgConnect, keyInfo.key))
+  if (generation != connectionGeneration) return
+  if (typeof createMsg2call != 'function') throw new Error('message2call v0.1.3 API is unavailable')
+  const socket = new WebSocket(`${urlInfo.wsProtocol}//${urlInfo.hostPath}/socket?i=${encodeURIComponent(keyInfo.clientId)}&t=${encodeURIComponent(token)}`) as LX.Sync.Socket
   client = socket
   socket.data = { keyInfo, urlInfo }
   socket.isReady = false
@@ -57,7 +64,7 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
       if (!current() || socket.readyState != 1) throw new Error('disconnected')
       // Compression is async. Serialize encoding and transmission together.
       sending = sending.then(async() => {
-        const encoded = await encryptMsg(keyInfo, JSON.stringify(data))
+        const encoded = await atSyncStage('同步消息压缩', () => encryptMsg(keyInfo, JSON.stringify(data)))
         if (current() && socket.readyState == 1) socket.send(encoded)
       }).catch(protocolError)
     },
@@ -97,7 +104,7 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
     if (data == 'ping') { beat(); return }
     if (typeof data != 'string') { protocolError(new Error('non-text sync message')); return }
     receiving = receiving.then(async() => {
-      const decoded = await decryptMsg(keyInfo, data)
+      const decoded = await atSyncStage('同步消息解压', () => decryptMsg(keyInfo, data))
       if (current()) rpc.message(JSON.parse(decoded))
     }).catch(protocolError)
   })
@@ -116,11 +123,12 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
     sendSyncStatus({ status: false, message: '连接中断，正在重连…' })
     retry = setTimeout(() => {
       retry = null
-      if (client === socket) connect(urlInfo, keyInfo)
+      if (client === socket) void connect(urlInfo, keyInfo).catch((error: Error) => sendSyncStatus({ status: false, message: error.message }))
     }, Math.min(2000 * ++retryCount, 30000))
   })
 }
 export const disconnect = async() => {
+  ++connectionGeneration
   clearRetry()
   // Invalidate before close: an old close/message callback must not touch a new connection.
   client = null

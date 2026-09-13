@@ -1,4 +1,7 @@
-import { Platform, View } from 'react-native'
+import { useRef, forwardRef } from 'react'
+import { Platform, View, ScrollView } from 'react-native'
+import Dialog, { type DialogType } from '@/components/common/Dialog'
+import Button from '../../components/Button'
 import { useSettingValue } from '@/store/setting/hook'
 import { updateSetting } from '@/core/common'
 import CheckBoxItem from '../../components/CheckBoxItem'
@@ -11,8 +14,19 @@ const Option = ({ index }: { index: number }) => {
   const value = useSettingValue(key)
   return <CheckBoxItem disabled={index > 0 && !enabled} check={value} label={LABELS[index]} onChange={value => updateSetting({ [key]: value })} />
 }
-export default () => Platform.OS != 'ios' ? null : <View style={{ paddingVertical: 12 }}>
-  <Text size={16} style={{ paddingLeft: 14, fontWeight: '600' }}>键盘控制</Text>
+export const KeyboardOptions = () => <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ padding: 12 }}>
   {KEYS.map((key, index) => <Option key={key} index={index} />)}
-  <Text size={12} style={{ paddingHorizontal: 14 }}>输入文字时不拦截空格、方向键和回车。列表方向键只选择，不自动播放；回车确认播放。快捷键设置会保留。</Text>
-</View>
+  <Text size={12} style={{ padding: 14 }}>输入文字时不拦截空格、方向键和回车。列表方向键只选择，不自动播放；回车确认播放。修改即时生效并保存。</Text>
+</ScrollView>
+export const KeyboardConfigurationDialog = forwardRef<DialogType>((_props, ref) =>
+  <Dialog ref={ref} position="center" title="键盘控制配置" maxWidth={600} height="80%">
+    <KeyboardOptions />
+  </Dialog>)
+export default () => {
+  const dialog = useRef<DialogType>(null)
+  if (Platform.OS != 'ios') return null
+  return <View style={{ paddingVertical: 10, paddingHorizontal: 14 }}>
+    <Button onPress={() => dialog.current?.setVisible(true)}>键盘控制配置</Button>
+    <KeyboardConfigurationDialog ref={dialog} />
+  </View>
+}

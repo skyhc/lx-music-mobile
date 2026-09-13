@@ -192,7 +192,6 @@ const List = forwardRef<ListType, ListProps>(({
   const keyboardId = useSongKeyboard(currentList, handlePress, index => {
     flatListRef.current?.scrollToIndex({ index: Math.floor(index / columnCount), viewPosition: 0.4, animated: false })
   }, playing.musicInfo?.id)
-  const visualSelection = keyboardId ? [...selectedList, ...currentList.filter(item => item.id == keyboardId)] : selectedList
 
   const renderItem: FlatListType['renderItem'] = ({ item, index }) => (
     <ListItem
@@ -202,7 +201,8 @@ const List = forwardRef<ListType, ListProps>(({
       onPress={handlePress}
       onLongPress={handleLongPress}
       onShowMenu={onShowMenu}
-      selectedList={visualSelection}
+      selectedList={selectedList}
+      focused={item.id == keyboardId}
       rowInfo={rowInfo}
       isShowAlbumName={isShowAlbumName}
       isShowInterval={isShowInterval}

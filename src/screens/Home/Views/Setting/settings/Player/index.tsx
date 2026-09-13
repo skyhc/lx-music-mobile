@@ -1,5 +1,4 @@
 import { memo } from 'react'
-import { Platform } from 'react-native'
 
 import Section from '../../components/Section'
 import IsSavePlayTime from './IsSavePlayTime'
@@ -25,7 +24,8 @@ export default memo(() => {
     <Section title={t('setting_player')}>
       <IsSavePlayTime />
       <IsAutoCleanPlayedList />
-      {Platform.OS != 'ios' ? <><IsHandleAudioFocus /><IsEnableAudioOffload /></> : null}
+      <IsHandleAudioFocus />
+      <IsEnableAudioOffload />
       {isDesktopLyricSupported ? <><IsShowBluetoothLyric /><IsShowBluetoothFullLyric /></> : null}
       <IsShowNotificationImage />
       <IsShowLyricTranslation />
