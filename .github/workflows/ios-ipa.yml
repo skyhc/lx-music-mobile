@@ -77,6 +77,7 @@ jobs:
           node scripts/check-build80-regressions.js 2>&1 | tee build/checks/build80-regressions.log
           node scripts/check-build81-regressions.js 2>&1 | tee build/checks/build81-regressions.log
           node scripts/check-build82-regressions.js 2>&1 | tee build/checks/build82-regressions.log
+          node scripts/check-build84-regressions.js | tee build/checks/build84.log
           node scripts/check-upstream190.js 2>&1 | tee build/checks/upstream190.log
           npx tsc --strict --noEmit --skipLibCheck --moduleResolution node --target ES2020 src/plugins/player/cache/DiskAudioCache.ts
       - name: Check full-project TypeScript regressions
@@ -90,6 +91,16 @@ jobs:
           if-no-files-found: ignore
       - name: Install CocoaPods dependencies
         run: cd ios && bundle exec pod install --repo-update
+      - name: Prepare pinned official sync server for native interoperability
+        run: |
+          set -euo pipefail
+          git clone https://github.com/lyswhut/lx-music-sync-server.git build/official-sync
+          git -C build/official-sync checkout --detach d47aca4284a7c4d9ef755df1f44fb0b0a5b2af36
+          test "$(git -C build/official-sync rev-parse HEAD)" = d47aca4284a7c4d9ef755df1f44fb0b0a5b2af36
+          cd build/official-sync
+          npm ci --no-audit --no-fund
+          npm run build
+
       - name: Build simulator app for real playback regression
         shell: bash
         run: |
