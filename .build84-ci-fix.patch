@@ -1,0 +1,121 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index d88e3af..0c4918a 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,4 +1,4 @@
+-# iOS / iPadOS 1.9.0 Build 83 · 2026-09-13
++# iOS / iPadOS 移植更新日志
+ 
+ ## iOS / iPadOS 1.9.0 Build 84
+ 
+@@ -18,6 +18,8 @@
+ - 具体构建结果以对应Actions运行与产物为准；本条不预先声明编译或真机测试通过。
+ 
+ 
++## iOS / iPadOS 1.9.0 Build 83 · 2026-09-13
++
+ - 基于用户验收并已合并的 Build 82；固定官方 v1.9.0 提交 cd37a979a5845f1220b306b374285f5d38329e8d，保留上游合并历史。
+ - 移植歌曲菜单“清理缓存”、换源版本匹配、kg/tx 搜索、tx 歌单兼容和翻页、mg 图片/歌词、kw/wy/tx 歌词修正与纯 JS QRC 解码。
+ - 清理单曲缓存同时移除该曲全部音质的 URL 与 iOS 完整音频缓存；保持当前播放副本，不影响其他歌曲，不允许旧观察任务重新落盘。
+diff --git a/scripts/check-build84-regressions.js b/scripts/check-build84-regressions.js
+index ffa325e..6ca22c3 100644
+--- a/scripts/check-build84-regressions.js
++++ b/scripts/check-build84-regressions.js
+@@ -72,14 +72,15 @@ let count=0;const check=async(name,fn)=>{await fn();count++;console.log('PASS '+
+   assert.equal(Buffer.from(captured,'base64').toString('utf8'),'lx-music auth::\n测试的iPad 🌸')
+  })
+  await check('mode overlay uses a real id before show and ignores wrong module selections',async()=>{
+-  const {EventEmitter}=require('node:events');const e=new EventEmitter(),state={},shown=[],closed=[]
+-  const mod=load('src/core/sync.ts',{'@/navigation':{dismissOverlay:async id=>closed.push(id),onModalDismissed:()=>()=>{},showSyncModeModal:async id=>shown.push(id)},
++  const {EventEmitter}=require('node:events');const e=new EventEmitter(),state={},shown=[],closed=[],router=new KeyboardRouter()
++  const mod=load('src/core/sync.ts',{'@/core/keyboardRouter':{keyboardRouter:router},'@/navigation':{dismissOverlay:async id=>closed.push(id),onModalDismissed:()=>()=>{},showSyncModeModal:async id=>shown.push(id)},
+     '@/store/sync/state':{default:state},'@/store/sync/action':{default:{setStatus:()=>{},setMessage:()=>{},setServerInfo:()=>{},setSyncModeComponentId:id=>state.syncModeComponentId=id}}},{global:{app_event:e}})
+-  let settled=false;const first=mod.selectSyncMode('PC','list').then(v=>{settled=true;return v});const id=state.syncModeComponentId;assert.ok(id);assert.equal(shown[0],id)
++  let settled=false;const first=mod.selectSyncMode('PC','list').then(v=>{settled=true;return v});const id=state.syncModeComponentId;assert.ok(id);assert.equal(shown[0],id);assert.ok(router.blocked);assert.ok(!router.dispatch('select_enter'))
+   e.emit('selectSyncMode',{type:'dislike',mode:'cancel'});await sleep(0);assert.ok(!settled)
+-  e.emit('selectSyncMode',{type:'list',mode:'merge_local_remote'});assert.equal(await first,'merge_local_remote');assert.equal(e.listenerCount('selectSyncMode'),0)
++  e.emit('selectSyncMode',{type:'list',mode:'merge_local_remote'});assert.equal(await first,'merge_local_remote');assert.equal(e.listenerCount('selectSyncMode'),0);assert.ok(!router.blocked)
+   const second=mod.selectSyncMode('PC','list').catch(e=>String(e));const next=state.syncModeComponentId
+-  mod.cancelSyncModeForId(id);assert.equal(state.syncModeComponentId,next);mod.cancelSyncModeForId(next);assert.match(await second,/cancel/)
++  mod.cancelSyncModeForId(id);assert.equal(state.syncModeComponentId,next);mod.cancelSyncModeForId(next);assert.match(await second,/cancel/);assert.ok(!router.blocked)
++  const third=mod.selectSyncMode('PC','list').catch(e=>String(e));assert.ok(router.dispatch('escape'));assert.match(await third,/cancel/);assert.ok(!router.blocked)
+  })
+  await check('new connection cancels stale authentication completion without changing current socket',async()=>{
+   let resolve;const calls=[],status=[]
+diff --git a/scripts/check-upstream190.js b/scripts/check-upstream190.js
+index a4b2930..2ffd637 100644
+--- a/scripts/check-upstream190.js
++++ b/scripts/check-upstream190.js
+@@ -102,15 +102,26 @@ const clone=x=>JSON.parse(JSON.stringify(x))
+       assert.equal(source(p),original,p)
+     }
+   })
+-  await check('tested native engines, scene management and common UI are unchanged',()=>{
+-    const original=cp.execFileSync('git',['diff','--name-only','3f008d3599f29ceeaf7925e5935882a78a3052ff','--','ios','src/components/WindowContent.tsx','src/components/common/Menu.tsx','src/components/common/SongRowContent.tsx','src/plugins/player/nativeFlac.ts','src/plugins/player/soundEffect'],{cwd:root,encoding:'utf8'})
+-    assert.equal(original.trim(),'')
++  await check('tested audio engines and scene lifecycle survive the keyboard/UI extension',()=>{
++    // Build84 intentionally adds keyboard commands, local-network permission and
++    // selected-row UI. Protect the actual audio/scene implementation instead of
++    // assuming that a later repair can never modify any UIKit bridge file.
++    const baseline='22270f3c02d7ff7c47406ec7bd0410ac1be39371'
++    const unchanged=cp.execFileSync('git',['diff','--name-only',baseline,'--','src/components/WindowContent.tsx','src/plugins/player/nativeFlac.ts','src/plugins/player/soundEffect','ios/LxMusicMobile/LXWindowInsets.swift'],{cwd:root,encoding:'utf8'})
++    assert.equal(unchanged.trim(),'')
++    const p='ios/LxMusicMobile/AppDelegate.mm'
++    const original=cp.execFileSync('git',['show',baseline+':'+p],{cwd:root,encoding:'utf8'}),current=source(p)
++    const prefix='@interface UtilsModule',crypto='@interface CryptoModule',test='#if TARGET_OS_SIMULATOR',scene='@implementation AppDelegate'
++    assert.ok(current.includes(prefix)&&current.includes(crypto)&&current.includes(scene))
++    assert.equal(current.slice(0,current.indexOf(prefix)),original.slice(0,original.indexOf(prefix)),'audio/cache/native metadata changed')
++    assert.equal(current.slice(current.indexOf(crypto),current.indexOf(test,current.indexOf(crypto))),original.slice(original.indexOf(crypto),original.indexOf(test,original.indexOf(crypto))),'production crypto changed')
++    assert.equal(current.slice(current.indexOf(scene)),original.slice(original.indexOf(scene)),'scene lifecycle changed')
+   })
+   await check('upstream dependency lock, monotonic iOS build and changelog are consistent',()=>{
+     const pkg=JSON.parse(source('package.json')),lock=JSON.parse(source('package-lock.json'))
+-    assert.equal(pkg.version,'1.9.0');assert.equal(pkg.versionCode,83);assert.equal(lock.version,'1.9.0')
++    assert.equal(pkg.version,'1.9.0');assert.equal(pkg.versionCode,84);assert.equal(lock.version,'1.9.0')
+     assert.deepEqual(pkg.dependencies,lock.packages[''].dependencies);assert.deepEqual(pkg.devDependencies,lock.packages[''].devDependencies)
+-    assert.equal(pkg.scripts.postinstall,'node dependencies-patch.js');assert.ok(source('CHANGELOG.md').includes('iOS / iPadOS 1.9.0 Build 83'))
++    assert.equal(pkg.scripts.postinstall,'node dependencies-patch.js');assert.ok(source('CHANGELOG.md').includes('iOS / iPadOS 1.9.0 Build 84'))
+   })
+   console.log(`${checks} upstream 1.9.0 behavioral/integration checks passed. External live APIs require separate device validation.`)
+ })().catch(e=>{console.error(e);process.exitCode=1})
+diff --git a/src/core/sync.ts b/src/core/sync.ts
+index 11c499c..541180b 100644
+--- a/src/core/sync.ts
++++ b/src/core/sync.ts
+@@ -1,6 +1,7 @@
+ import { dismissOverlay, onModalDismissed, showSyncModeModal } from '@/navigation'
+ import syncState from '@/store/sync/state'
+ import syncActions from '@/store/sync/action'
++import { keyboardRouter } from '@/core/keyboardRouter'
+ 
+ let cancelPending: (() => void) | null = null
+ let serial = 0
+@@ -11,10 +12,17 @@ export const removeSyncModeEvent = () => { cancelPending?.() }
+ export const selectSyncMode = async<T extends keyof LX.Sync.ModeTypes>(serverName: string, type: T) => new Promise<LX.Sync.ModeTypes[T]>((resolve, reject) => {
+   removeSyncModeEvent()
+   const id = `lx-sync-mode-${++serial}`
++  // Native RNN overlays are not React Native Modal roots. Reserve an isolated
++  // keyboard layer here so arrows/Enter cannot activate the underlying song list.
++  const layer = -serial
++  keyboardRouter.openLayer(layer)
++  let removeKeyboard: (() => void) | null = null
+   let settled = false
+   let removeDismiss: (() => void) | null = null
+   const close = () => { void dismissOverlay(id).catch(() => {}) }
+   const clean = () => {
++    removeKeyboard?.(); removeKeyboard = null
++    keyboardRouter.closeLayer(layer)
+     removeDismiss?.(); removeDismiss = null
+     global.app_event.off('selectSyncMode', select)
+     if (syncState.syncModeComponentId == id) syncActions.setSyncModeComponentId('')
+@@ -28,6 +36,10 @@ export const selectSyncMode = async<T extends keyof LX.Sync.ModeTypes>(serverNam
+     if (settled || result.type != type) return
+     settled = true; clean(); close(); resolve(result.mode as LX.Sync.ModeTypes[T])
+   }
++  removeKeyboard = keyboardRouter.register({ layer, enabled: () => true, handle: action => {
++    if (action != 'escape') return false
++    cancel(); return true
++  } })
+   cancelPending = cancel
+   syncActions.setServerInfo(serverName, type)
+   syncActions.setSyncModeComponentId(id)

@@ -1,0 +1,30 @@
+name: Apply reviewed Build 84 CI correction
+on:
+  push:
+    branches: ['codex/ios-upstream-1.9.0']
+    paths: ['.build84-ci-fix.patch', '.github/workflows/apply-build84-ci.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: "startsWith(github.event.head_commit.message, 'ci: stage Build 84')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD^)" = '21eebde1e247a6b8ad8ca5159976357daeada570'
+          echo 'b28bade9da9b692ce58ac0e0412be7d65d2940e9c3deb765d5e7bc0aab7eef2e  .build84-ci-fix.patch' | sha256sum -c -
+          git apply --check .build84-ci-fix.patch
+          git apply --index .build84-ci-fix.patch
+          git diff --cached --check
+          test "$(git diff --cached --name-only | wc -l)" -eq 4
+          git config user.name skyhc
+          git config user.email 61585718+skyhc@users.noreply.github.com
+          git commit -m 'fix(sync): isolate mode-overlay keys and preserve audio-specific baseline checks'
+          git push origin HEAD:codex/ios-upstream-1.9.0
