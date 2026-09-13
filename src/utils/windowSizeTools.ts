@@ -1,64 +1,53 @@
-import { Dimensions, StatusBar } from 'react-native'
+import { Dimensions, Platform, StatusBar } from 'react-native'
 import { getWindowSize as getWindowSizeRaw } from './nativeModules/utils'
-// import { log } from './log'
 
 export type SizeHandler = (size: { width: number, height: number }) => void
 export const getWindowSize = async() => {
-  return getWindowSizeRaw().then((size) => {
-    const scale = Dimensions.get('window').scale
-    size.width = size.width / scale
-    size.height = size.height / scale
-    return size
-  })
+  if (Platform.OS == 'ios') {
+    const { width, height } = Dimensions.get('window')
+    return { width, height }
+  }
+  const size = await getWindowSizeRaw()
+  const scale = Dimensions.get('window').scale
+  return { width: size.width / scale, height: size.height / scale }
 }
-
+let initialized = false
+const initial = Dimensions.get('window')
 export const windowSizeTools = {
-  size: {
-    width: 0,
-    height: 0,
-  },
+  size: { width: initial.width, height: initial.height },
   listeners: [] as SizeHandler[],
-  getSize() {
-    return this.size
-  },
+  getSize() { return this.size },
   onSizeChanged(handler: SizeHandler) {
     this.listeners.push(handler)
-
     return () => {
-      this.listeners.splice(this.listeners.indexOf(handler), 1)
+      const index = this.listeners.indexOf(handler)
+      if (index >= 0) this.listeners.splice(index, 1)
     }
   },
   async init() {
-    // Dimensions.addEventListener('change', () => {
-    //   void getWindowSize().then((size) => {
-    //     if (!size.width) return
-    //     const scale = Dimensions.get('screen').scale
-    //     size.width = Math.round(size.width / scale)
-    //     size.height = Math.round(size.height / scale) + (StatusBar.currentHeight ?? 0)
-    //     this.size = size
-    //     for (const handler of this.listeners) handler(size)
-    //   })
-    // })
-    const size = await getWindowSize()
-    // log.info('win size', size)
-    if (size.width) {
-      this.size = size
-    } else {
-      const window = Dimensions.get('window')
-      // log.info('Dimensions window size', window)
-      this.size = {
-        width: Math.round(window.width),
-        height: Math.round(window.height) + (StatusBar.currentHeight ?? 0),
-      }
+    if (!initialized) {
+      initialized = true
+      Dimensions.addEventListener('change', ({ window }) => {
+        this.setWindowSize(window.width, window.height)
+      })
     }
-    // console.log('init windowSizeTools')
-    return size
+    // iOS dimensions are already logical points and update synchronously.
+    // Do not allow an old native query to overwrite a newer layout event.
+    if (Platform.OS == 'ios') {
+      const { width, height } = Dimensions.get('window')
+      this.setWindowSize(width, height)
+    } else {
+      const size = await getWindowSize()
+      const fallback = Dimensions.get('window')
+      this.setWindowSize(size.width || fallback.width, size.height || fallback.height + (StatusBar.currentHeight ?? 0))
+    }
+    return this.size
   },
   setWindowSize(width: number, height: number) {
-    this.size = {
-      width: Math.round(width),
-      height: Math.round(height),
-    }
-    for (const handler of this.listeners) handler(this.size)
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return
+    width = Math.round(width); height = Math.round(height)
+    if (this.size.width == width && this.size.height == height) return
+    this.size = { width, height }
+    for (const handler of [...this.listeners]) handler(this.size)
   },
 }

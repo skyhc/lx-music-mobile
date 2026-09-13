@@ -7,6 +7,9 @@ import { createNativeFlacDriver } from './drivers/nativeFlacDriver'
 import type { UnifiedPlaybackState, UnifiedPlayerEvent } from './types'
 
 const bus = new UnifiedPlayerEventBus()
+export const reportPlaybackLoadError = (error: unknown) => {
+  bus.emit({ type: 'error', driver: isNativeFlacActive() ? 'nativeFlac' : 'trackPlayer', error })
+}
 
 const shouldIgnoreTrackPlayerLifecycle = () => {
   return Platform.OS == 'ios' && (isNativeFlacActive() || global.lx.playerStatus.ignoreTrackPlayerLifecycle)

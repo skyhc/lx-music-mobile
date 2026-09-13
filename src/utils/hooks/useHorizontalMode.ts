@@ -1,9 +1,10 @@
-import { useWindowSize } from '@/utils/hooks'
-import { isHorizontalMode } from '../tools'
-
+import { Platform } from 'react-native'
+import useWindowSize from './useWindowSize'
+import { shouldUseHorizontalLayout, shouldUseIPadLayout } from '../layout'
 
 export default () => {
-  const windowSize = useWindowSize()
-
-  return isHorizontalMode(windowSize.width, windowSize.height)
+  const { width, height } = useWindowSize()
+  return Platform.OS == 'ios' && Platform.isPad
+    ? shouldUseIPadLayout(width, height)
+    : shouldUseHorizontalLayout(width, height)
 }

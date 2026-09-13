@@ -16,6 +16,7 @@ export interface SelectInfo {
 const initSelectInfo = {}
 
 export interface MusicAddModalProps {
+  position?: 'center' | 'left'
   onAdded?: () => void
   // onRename: (listInfo: LX.List.UserListInfo) => void
   // onImport: (listInfo: LX.List.MyListInfo, index: number) => void
@@ -74,7 +75,7 @@ export default forwardRef<MusicAddModalType, MusicAddModalProps>(({ onAdded }, r
   }
 
   return (
-    <Dialog ref={dialogRef} onHide={handleHide}>
+    <Dialog position="center" maxWidth={680} ref={dialogRef} onHide={handleHide}>
       {
         selectInfo.musicInfo
           ? (<>

@@ -66,7 +66,7 @@ export const shouldUseNativeFlacPlayer = async(musicInfo: LX.Player.PlayMusic, _
 
 export const prefetchNativeFlacPlayback = async(musicInfo: LX.Player.PlayMusic, url: string, quality?: LX.Quality | null) => {
   if (!await shouldUseNativeFlacPlayer(musicInfo, url, quality)) return false
-  return isRemoteUrl(url)
+  return isRemoteUrl(url) || /^file:\/\//i.test(url)
 }
 
 export const startNativeFlacPlayback = async(musicInfo: LX.Player.PlayMusic, url: string, position: number, autoplay = true, quality: LX.Quality | null = null) => {
@@ -78,7 +78,7 @@ export const startNativeFlacPlayback = async(musicInfo: LX.Player.PlayMusic, url
     quality: quality ?? null,
   }
 
-  if (isRemoteUrl(url) && isStreamingFlacSupported) {
+  if ((isRemoteUrl(url) || /^file:\/\//i.test(url)) && isStreamingFlacSupported) {
     currentTrackId = nextTrackId
     currentMode = 'stream'
     currentState = 'loading'
@@ -104,7 +104,7 @@ export const startNativeFlacPlayback = async(musicInfo: LX.Player.PlayMusic, url
     }
   }
 
-  throw new Error('Native local FLAC playback is disabled')
+  throw new Error('Unsupported FLAC resource URL')
 }
 
 export const pauseNativeFlacPlayback = async() => {

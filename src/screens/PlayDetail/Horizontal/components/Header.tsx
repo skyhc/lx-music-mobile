@@ -1,96 +1,29 @@
-import { memo, useRef } from 'react'
-
-import { View, StyleSheet, TouchableOpacity } from 'react-native'
-
+import { memo } from 'react'
+import { StyleSheet, TouchableOpacity, View } from 'react-native'
 import { Icon } from '@/components/common/Icon'
 import { pop } from '@/navigation'
-import { useTheme } from '@/store/theme/hook'
-import { usePlayerMusicInfo } from '@/store/player/hook'
-import Text from '@/components/common/Text'
 import { scaleSizeH } from '@/utils/pixelRatio'
 import { HEADER_HEIGHT as _HEADER_HEIGHT, NAV_SHEAR_NATIVE_IDS } from '@/config/constant'
 import commonState from '@/store/common/state'
-import CommentBtn from './CommentBtn'
-import Btn from './Btn'
-import SettingPopup, { type SettingPopupType } from '../../components/SettingPopup'
-import SoundEffectPopup, { type SoundEffectPopupType } from '../../components/SoundEffectPopup'
-import { useSetting } from '@/store/setting/hook'
-import { isSoundEffectActive } from '@/plugins/player/soundEffect'
 
-export const HEADER_HEIGHT = scaleSizeH(_HEADER_HEIGHT)
-
-const Title = () => {
-  const theme = useTheme()
-  const musicInfo = usePlayerMusicInfo()
-
-
-  return (
-    <View style={styles.titleContent}>
-      <Text numberOfLines={1} style={styles.title} size={14}>{musicInfo.name}</Text>
-      <Text numberOfLines={1} style={styles.title} size={12} color={theme['c-font-label']}>{musicInfo.singer}</Text>
-    </View>
-  )
-}
+export const HEADER_HEIGHT = Math.max(44, scaleSizeH(_HEADER_HEIGHT))
 
 export default memo(() => {
-  const popupRef = useRef<SettingPopupType>(null)
-  const soundEffectPopupRef = useRef<SoundEffectPopupType>(null)
-  const theme = useTheme()
-  const setting = useSetting()
-
   const back = () => {
-    void pop(commonState.componentIds.playDetail!)
+    const componentId = commonState.componentIds.playDetail
+    if (componentId) void pop(componentId)
   }
-  const showSetting = () => {
-    popupRef.current?.show()
-  }
-  const showSoundEffect = () => {
-    soundEffectPopupRef.current?.show()
-  }
-
   return (
-    <View style={{ height: HEADER_HEIGHT }} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_header}>
-      <View style={styles.container}>
-        <TouchableOpacity onPress={back} style={{ ...styles.button, width: HEADER_HEIGHT }}>
-          <Icon name="chevron-left" size={18} />
-        </TouchableOpacity>
-        <Title />
-        <CommentBtn />
-        <Btn icon="slider" color={isSoundEffectActive(setting) ? theme['c-primary-font-active'] : undefined} onPress={showSoundEffect} />
-        <Btn icon="setting" size={18} onPress={showSetting} />
-      </View>
-      <SoundEffectPopup ref={soundEffectPopupRef} position="bottom" layoutMode="split" />
-      <SettingPopup ref={popupRef} position="left" direction="horizontal" />
+    <View style={styles.container} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_header}>
+      <TouchableOpacity onPress={back} style={styles.button} activeOpacity={0.55} accessibilityRole="button" accessibilityLabel="收起播放器">
+        <Icon name="chevron-left" size={18} style={styles.collapseIcon} />
+      </TouchableOpacity>
     </View>
   )
 })
 
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 0,
-    // backgroundColor: '#ccc',
-    flexDirection: 'row',
-    // justifyContent: 'center',
-    height: '100%',
-  },
-  button: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: '100%',
-    flex: 0,
-  },
-  titleContent: {
-    flex: 1,
-    // alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    // flex: 1,
-    // textAlign: 'center',
-  },
-  icon: {
-    paddingLeft: 4,
-    paddingRight: 4,
-  },
+  container: { height: HEADER_HEIGHT, flexShrink: 0, flexDirection: 'row', alignItems: 'center' },
+  button: { width: HEADER_HEIGHT, height: HEADER_HEIGHT, justifyContent: 'center', alignItems: 'center' },
+  collapseIcon: { transform: [{ rotate: '-90deg' }] },
 })

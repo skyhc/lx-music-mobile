@@ -508,6 +508,14 @@ export const trasformeStyle = <T extends Style>(styles: T): T => {
         newStyle.marginRight = newStyle.marginLeft = scaleSizeW(v)
         newStyle.marginBottom = newStyle.marginTop = scaleSizeH(v)
         break
+      case 'top':
+      case 'bottom':
+        newStyle[p] = Platform.OS == 'ios' ? scaleSizeH(v) : setSpText(v)
+        break
+      case 'left':
+      case 'right':
+        newStyle[p] = Platform.OS == 'ios' ? scaleSizeW(v) : setSpText(v)
+        break
       default:
         // @ts-expect-error
         if (trasformeProps.includes(p)) newStyle[p] = setSpText(v)
@@ -539,6 +547,7 @@ export interface RowInfo {
 export type RowInfoType = 'full' | 'medium'
 
 export const getRowInfo = (type: RowInfoType = 'full'): RowInfo => {
+  if (Platform.OS == 'ios') return { rowNum: 1, rowWidth: '100%' }
   const win = windowSizeTools.getSize()
   let isMultiRow = isHorizontalMode(win.width, win.height)
   if (type == 'medium' && win.width / win.height < 1.8) isMultiRow = false

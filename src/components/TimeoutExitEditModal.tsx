@@ -156,10 +156,11 @@ export interface TimeoutExitEditModalType {
 }
 
 interface TimeoutExitEditModalProps {
+  position?: 'center' | 'left'
   timeInfo: ReturnType<typeof useTimeInfo>
 }
 
-export default forwardRef<TimeoutExitEditModalType, TimeoutExitEditModalProps>(({ timeInfo }, ref) => {
+export default forwardRef<TimeoutExitEditModalType, TimeoutExitEditModalProps>(({ timeInfo, position }, ref) => {
   const alertRef = useRef<ConfirmAlertType>(null)
   const timeInputRef = useRef<TimeInputType>(null)
   const [visible, setVisible] = useState(false)
@@ -219,6 +220,7 @@ export default forwardRef<TimeoutExitEditModalType, TimeoutExitEditModalProps>((
     visible
       ? (
           <ConfirmAlert
+            position={position}
             ref={alertRef}
             cancelText={timeInfo.cancelText}
             confirmText={timeInfo.confirmText}

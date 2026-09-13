@@ -1,4 +1,5 @@
 #import "AppDelegate.h"
+#import <React/RCTLinkingManager.h>
 #import <CommonCrypto/CommonCryptor.h>
 #import <CommonCrypto/CommonDigest.h>
 #import <React/RCTBridgeModule.h>
@@ -2254,7 +2255,15 @@ RCT_REMAP_METHOD(updateEqualizerConfig, updateEqualizerConfig:(NSDictionary *)co
 
 @end
 
+#if TARGET_OS_SIMULATOR
+static std::atomic<float> LXTestOutputRMS(0.0f);
+static std::atomic<float> LXTestOutputPeak(0.0f);
+static std::atomic<int64_t> LXTestOutputBlocks(0);
+#endif
+
 @interface StreamingFlacPlayerModule : RCTEventEmitter<RCTBridgeModule, NSURLSessionDataDelegate>
+@property (nonatomic, assign) NSUInteger openRequestGeneration;
+@property (nonatomic, assign) BOOL validCompleteResponse;
 @property (nonatomic, strong) NSURLSession *session;
 @property (nonatomic, strong) NSURLSessionDataTask *task;
 @property (nonatomic, strong) NSMutableData *streamData;
@@ -2536,6 +2545,7 @@ RCT_EXPORT_MODULE();
   self.readOffset = 0;
   self.streamError = nil;
   self.downloadCompleted = NO;
+  self.validCompleteResponse = NO;
   self.stopRequested = NO;
   _streamFinished.store(false, std::memory_order_release);
   _stopRequestedFlag.store(false, std::memory_order_release);
@@ -3060,16 +3070,40 @@ RCT_EXPORT_MODULE();
                  fromBus:0
                   format:self.outputFormat];
     [self.engine connect:self.reverbNode to:self.wetMixerNode format:self.outputFormat];
-    [self.engine connect:self.dryMixerNode to:self.soundEffectMixerNode format:self.outputFormat];
-    [self.engine connect:self.wetMixerNode to:self.soundEffectMixerNode format:self.outputFormat];
+    [self.engine connect:self.dryMixerNode to:self.soundEffectMixerNode fromBus:0 toBus:0 format:self.outputFormat];
+    [self.engine connect:self.wetMixerNode to:self.soundEffectMixerNode fromBus:0 toBus:1 format:self.outputFormat];
     [self.engine connect:self.soundEffectMixerNode to:self.engine.mainMixerNode format:self.outputFormat];
     self.timePitchNode.rate = self.currentRate;
     self.reverbNode.wetDryMix = 100.0f;
     self.dryMixerNode.outputVolume = 1.0f;
     self.wetMixerNode.outputVolume = 0.0f;
+    self.engine.mainMixerNode.outputVolume = 1.0f;
+    self.dryMixerNode.pan = 0.0f;
+    self.wetMixerNode.pan = 0.0f;
     self.soundEffectMixerNode.pan = 0.0f;
     self.soundEffectMixerNode.outputVolume = self.currentVolume;
     [self applySoundEffectConfigLocked];
+#if TARGET_OS_SIMULATOR
+    if ([NSProcessInfo.processInfo.arguments containsObject:@"--lx-playback-smoke"]) {
+      LXTestOutputRMS.store(0); LXTestOutputPeak.store(0); LXTestOutputBlocks.store(0);
+      [self.engine.mainMixerNode installTapOnBus:0 bufferSize:1024 format:nil block:^(AVAudioPCMBuffer *buffer, AVAudioTime *when) {
+        (void)when;
+        if (buffer.floatChannelData == nullptr || buffer.frameLength == 0) return;
+        double energy = 0; float peak = 0;
+        const UInt32 channels = buffer.format.channelCount;
+        const BOOL interleaved = buffer.format.interleaved;
+        for (UInt32 channel = 0; channel < channels; channel++) {
+          const float *samples = buffer.floatChannelData[interleaved ? 0 : channel];
+          for (UInt32 frame = 0; frame < buffer.frameLength; frame++) {
+            const float sample = samples[interleaved ? frame * channels + channel : frame];
+            energy += (double)sample * sample; peak = fmaxf(peak, fabsf(sample));
+          }
+        }
+        LXTestOutputRMS.store((float)sqrt(energy / MAX(1, buffer.frameLength * channels)));
+        LXTestOutputPeak.store(peak); LXTestOutputBlocks.fetch_add(1);
+      }];
+    }
+#endif
     [self.engine prepare];
 
     NSError *error = nil;
@@ -3285,6 +3319,7 @@ RCT_EXPORT_MODULE();
 }
 
 - (void)stopStreamingInternal:(BOOL)resetAudio {
+  self.openRequestGeneration += 1;
   self.stopRequested = YES;
   _stopRequestedFlag.store(true, std::memory_order_release);
   [self.streamCondition lock];
@@ -3353,7 +3388,7 @@ RCT_REMAP_METHOD(openStream, openStream:(NSString *)urlString headers:(NSDiction
     [self resetStreamingState];
     self.currentURL = urlString;
     self.currentState = @"loading";
-    self.currentVolume = [volume floatValue];
+    self.currentVolume = LXSoundEffectClampFloatValue(volume, 1.0f, 0.0f, 1.0f);
     self.currentRate = MAX([rate floatValue], 0.5f);
     BOOL shouldAutoplay = autoplay == nil ? YES : [autoplay boolValue];
     self.manualPause = !shouldAutoplay;
@@ -3368,7 +3403,41 @@ RCT_REMAP_METHOD(openStream, openStream:(NSString *)urlString headers:(NSDiction
       return;
     }
 
+    if (url.isFileURL) {
+      // Read off the main thread; the generation guard prevents a slow local
+      // read from resurrecting a track that was stopped or replaced.
+      const NSUInteger openGeneration = self.openRequestGeneration;
+      dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSError *readError = nil;
+        NSMutableData *data = [NSMutableData dataWithContentsOfURL:url options:NSDataReadingMappedIfSafe error:&readError];
+        dispatch_async(dispatch_get_main_queue(), ^{
+          if (openGeneration != self.openRequestGeneration || self.stopRequested) {
+            reject(@"streaming_flac_cancelled", @"Local FLAC load was superseded", nil);
+            return;
+          }
+          if (data.length < 4 || memcmp(data.bytes, "fLaC", 4) != 0) {
+            NSString *message = readError.localizedDescription ?: @"Invalid local FLAC file";
+            [self emitErrorMessage:message];
+            reject(@"streaming_flac_file", message, readError);
+            return;
+          }
+          [self.streamCondition lock];
+          self.streamData = data;
+          self.expectedContentLength = (int64_t)data.length;
+          self.downloadCompleted = YES;
+          _streamFinished.store(true, std::memory_order_release);
+          [self.streamCondition broadcast];
+          [self.streamCondition unlock];
+          self.startThresholdSeconds = 1.5;
+          [self startDecoderLoop];
+          resolve(nil);
+        });
+      });
+      return;
+    }
+
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+    request.timeoutInterval = 20;
     if ([headers isKindOfClass:[NSDictionary class]]) {
       for (NSString *key in headers) {
         NSString *value = [headers[key] isKindOfClass:[NSString class]] ? headers[key] : nil;
@@ -3378,7 +3447,10 @@ RCT_REMAP_METHOD(openStream, openStream:(NSString *)urlString headers:(NSDiction
 
     NSOperationQueue *delegateQueue = [[NSOperationQueue alloc] init];
     delegateQueue.maxConcurrentOperationCount = 1;
-    self.session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:self delegateQueue:delegateQueue];
+    NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration defaultSessionConfiguration];
+    configuration.timeoutIntervalForRequest = 20;
+    configuration.timeoutIntervalForResource = 180;
+    self.session = [NSURLSession sessionWithConfiguration:configuration delegate:self delegateQueue:delegateQueue];
     self.task = [self.session dataTaskWithRequest:request];
     self.startThresholdSeconds = 1.5;
     [self.task resume];
@@ -3493,12 +3565,22 @@ RCT_REMAP_METHOD(seekTo, seekToStream:(nonnull NSNumber *)position resolver:(RCT
 }
 
 RCT_REMAP_METHOD(setVolume, setStreamVolume:(nonnull NSNumber *)volume resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
-  self.currentVolume = [volume floatValue];
+  self.currentVolume = LXSoundEffectClampFloatValue(volume, 1.0f, 0.0f, 1.0f);
   dispatch_sync(self.renderQueue, ^{
     if (self.soundEffectMixerNode != nil) self.soundEffectMixerNode.outputVolume = self.currentVolume;
   });
   resolve(nil);
 }
+
+#if TARGET_OS_SIMULATOR
+RCT_REMAP_METHOD(getOutputMetrics, getOutputMetricsWithResolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_sync(self.renderQueue, ^{
+    resolve(@{ @"rms": @(LXTestOutputRMS.load()), @"peak": @(LXTestOutputPeak.load()), @"blocks": @(LXTestOutputBlocks.load()),
+      @"requestedVolume": @(self.currentVolume), @"appliedVolume": @(self.soundEffectMixerNode.outputVolume),
+      @"masterVolume": @(self.engine.mainMixerNode.outputVolume), @"dryVolume": @(self.dryMixerNode.outputVolume) });
+  });
+}
+#endif
 
 RCT_REMAP_METHOD(setRate, setStreamRate:(nonnull NSNumber *)rate resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
   self.currentRate = MAX([rate floatValue], 0.5f);
@@ -3532,6 +3614,25 @@ RCT_REMAP_METHOD(getState, getStreamStateWithResolver:(RCTPromiseResolveBlock)re
   resolve(self.currentState ?: @"idle");
 }
 
+// Export only the current, fully received FLAC response. This avoids a second
+// request using the same signed URL while playback is starting.
+RCT_REMAP_METHOD(exportCompletedStream, exportCompletedStream:(NSString *)urlString resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  [self.streamCondition lock];
+  BOOL complete = [self.currentURL isEqualToString:urlString] && self.downloadCompleted && self.validCompleteResponse && self.streamError == nil && !self.stopRequested;
+  NSData *data = complete ? self.streamData : nil;
+  if (data.length < 4 || memcmp(data.bytes, "fLaC", 4) != 0 || (self.expectedContentLength > 0 && (int64_t)data.length != self.expectedContentLength)) data = nil;
+  [self.streamCondition unlock];
+  if (data == nil) { resolve((id)kCFNull); return; }
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+    NSString *directory = [NSTemporaryDirectory() stringByAppendingPathComponent:@"LXCompletedAudio"];
+    NSError *error = nil;
+    [[NSFileManager defaultManager] createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:&error];
+    NSString *path = [directory stringByAppendingPathComponent:[NSUUID.UUID.UUIDString stringByAppendingPathExtension:@"flac"]];
+    if (![data writeToFile:path options:NSDataWritingAtomic error:&error]) { reject(@"audio_cache_export", error.localizedDescription, error); return; }
+    resolve(path);
+  });
+}
+
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveResponse:(NSURLResponse *)response completionHandler:(void (^)(NSURLSessionResponseDisposition disposition))completionHandler {
   if (![self isCurrentStreamSession:session task:dataTask]) {
     completionHandler(NSURLSessionResponseCancel);
@@ -3543,6 +3644,26 @@ RCT_REMAP_METHOD(getState, getStreamStateWithResolver:(RCTPromiseResolveBlock)re
     if ([contentLengthValue isKindOfClass:[NSString class]]) expectedContentLength = [contentLengthValue longLongValue];
   }
   self.expectedContentLength = expectedContentLength > 0 ? expectedContentLength : -1;
+  NSInteger status = [response isKindOfClass:[NSHTTPURLResponse class]] ? ((NSHTTPURLResponse *)response).statusCode : 0;
+  self.validCompleteResponse = status == 200;
+  if (status == 206) {
+    NSString *range = [((NSHTTPURLResponse *)response) valueForHTTPHeaderField:@"Content-Range"];
+    long long last = -1, total = -1;
+    if (range && sscanf(range.UTF8String, "bytes 0-%lld/%lld", &last, &total) == 2) {
+      self.validCompleteResponse = total > 0 && last + 1 == total && expectedContentLength == total;
+    }
+  }
+  if (status < 200 || status >= 300 || (status == 206 && !self.validCompleteResponse)) {
+    NSError *error = LXError(@"streaming_flac_http", [NSString stringWithFormat:@"FLAC server returned HTTP %ld or an incomplete byte range", (long)status]);
+    [self.streamCondition lock];
+    self.streamError = error;
+    self.downloadCompleted = YES;
+    [self.streamCondition broadcast];
+    [self.streamCondition unlock];
+    [self emitErrorMessage:error.localizedDescription];
+    completionHandler(NSURLSessionResponseCancel);
+    return;
+  }
   completionHandler(NSURLSessionResponseAllow);
 }
 
@@ -4569,16 +4690,70 @@ RCT_REMAP_METHOD(sha1, sha1:(NSString *)input resolver:(RCTPromiseResolveBlock)r
 
 @end
 
+#if TARGET_OS_SIMULATOR
+@interface LXPlaybackTestSupport : NSObject<RCTBridgeModule>
+@end
+@implementation LXPlaybackTestSupport
+RCT_EXPORT_MODULE();
++ (BOOL)requiresMainQueueSetup { return NO; }
+- (NSDictionary *)constantsToExport {
+  NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
+  NSString *uiPhase = @"";
+  for (NSString *arg in args) if ([arg hasPrefix:@"--lx-ui="]) uiPhase = [arg substringFromIndex:8];
+  return @{ @"enabled": @([args containsObject:@"--lx-playback-smoke"]),
+            @"offline": @([args containsObject:@"--lx-playback-offline"]),
+            @"uiPhase": uiPhase,
+            @"uiOrientation": [args containsObject:@"--lx-ui-landscape"] ? @"landscape" : @"portrait" };
+}
+RCT_REMAP_METHOD(windowSnapshot, windowSnapshotWithResolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    UIWindow *window = ((AppDelegate *)UIApplication.sharedApplication.delegate).window;
+    UIWindowScene *scene = window.windowScene;
+    BOOL minimal = NO;
+    if (@available(iOS 26.0, *)) {
+      id<UIWindowSceneDelegate> delegate = (id<UIWindowSceneDelegate>)scene.delegate;
+      if ([delegate respondsToSelector:@selector(preferredWindowingControlStyleForScene:)]) {
+        minimal = [delegate preferredWindowingControlStyleForScene:scene] == UISceneWindowingControlStyle.minimalStyle;
+      }
+    }
+    resolve(@{ @"sceneAttached": @(scene != nil),
+               @"sceneDelegate": scene.delegate ? NSStringFromClass(scene.delegate.class) : @"",
+               @"minimalWindowControls": @(minimal),
+               @"statusBarStyle": @(scene.statusBarManager.statusBarStyle),
+               @"interfaceStyle": @(window.traitCollection.userInterfaceStyle),
+               @"safeTop": @(window.safeAreaInsets.top),
+               @"windowWidth": @(window.bounds.size.width), @"windowHeight": @(window.bounds.size.height) });
+  });
+}
+RCT_REMAP_METHOD(record, record:(NSDictionary *)report resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  NSError *error = nil;
+  NSData *data = [NSJSONSerialization dataWithJSONObject:report options:NSJSONWritingPrettyPrinted error:&error];
+  NSString *folder = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+  NSString *path = [folder stringByAppendingPathComponent:@"playback-smoke.json"];
+  if (!data || ![data writeToFile:path options:NSDataWritingAtomic error:&error]) {
+    reject(@"smoke_report", error.localizedDescription, error); return;
+  }
+  resolve(path);
+}
+@end
+#endif
+
 @implementation AppDelegate
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
   LXRegisterTrackPlayerLifecycleObserver();
+  self.lxLaunchOptions = launchOptions ?: @{};
+  self.initialProps = @{};
+  // SceneDelegate installs the scene-owned window before RNN captures mainWindow.
+  return YES;
+}
+
+- (void)startReactNativeWithLaunchOptions:(NSDictionary *)launchOptions
+{
+  if ([ReactNativeNavigation getBridge] != nil) return;
   RCTBridge *bridge = [[RCTBridge alloc] initWithDelegate:self launchOptions:launchOptions];
   [ReactNativeNavigation bootstrapWithBridge:bridge];
-  self.initialProps = @{};
-
-  return YES;
 }
 
 - (NSArray<id<RCTBridgeModule>> *)extraModulesForBridge:(RCTBridge *)bridge {
@@ -4599,4 +4774,56 @@ RCT_REMAP_METHOD(sha1, sha1:(NSString *)input resolver:(RCTPromiseResolveBlock)r
 #endif
 }
 
+@end
+
+
+// One RNN root/bridge, one UIWindowScene. Reconnecting a window never resets
+// playback; additional independent scenes are disabled in Info.plist.
+@interface LXSceneDelegate : UIResponder <UIWindowSceneDelegate>
+@property(nonatomic, strong) UIWindow *window;
+@end
+
+@implementation LXSceneDelegate
+- (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session
+      options:(UISceneConnectionOptions *)connectionOptions
+{
+  if (![scene isKindOfClass:UIWindowScene.class]) return;
+  AppDelegate *app = (AppDelegate *)UIApplication.sharedApplication.delegate;
+  self.window = app.window ?: [[UIWindow alloc] initWithWindowScene:(UIWindowScene *)scene];
+  self.window.windowScene = (UIWindowScene *)scene;
+  app.window = self.window;
+  NSMutableDictionary *options = [app.lxLaunchOptions mutableCopy] ?: [NSMutableDictionary dictionary];
+  UIOpenURLContext *url = connectionOptions.URLContexts.anyObject;
+  if (url) options[UIApplicationLaunchOptionsURLKey] = url.URL;
+  NSUserActivity *activity = connectionOptions.userActivities.anyObject;
+  if (activity) options[UIApplicationLaunchOptionsUserActivityDictionaryKey] = @{
+    UIApplicationLaunchOptionsUserActivityTypeKey: activity.activityType,
+    @"UIApplicationLaunchOptionsUserActivityKey": activity
+  };
+  [app startReactNativeWithLaunchOptions:options];
+  [self.window makeKeyAndVisible];
+}
+
+- (UISceneWindowingControlStyle *)preferredWindowingControlStyleForScene:(UIWindowScene *)windowScene API_AVAILABLE(ios(26.0))
+{
+  // Public API: pin the style preference to the compact top-leading system area.
+  // Pixel position remains managed by iPadOS across fullscreen/windowed states.
+  return UISceneWindowingControlStyle.minimalStyle;
+}
+
+- (void)scene:(UIScene *)scene openURLContexts:(NSSet<UIOpenURLContext *> *)URLContexts
+{
+  for (UIOpenURLContext *context in URLContexts) {
+    NSMutableDictionary *options = [NSMutableDictionary dictionary];
+    if (context.options.sourceApplication) options[UIApplicationOpenURLOptionsSourceApplicationKey] = context.options.sourceApplication;
+    if (context.options.annotation) options[UIApplicationOpenURLOptionsAnnotationKey] = context.options.annotation;
+    options[UIApplicationOpenURLOptionsOpenInPlaceKey] = @(context.options.openInPlace);
+    [RCTLinkingManager application:UIApplication.sharedApplication openURL:context.URL options:options];
+  }
+}
+
+- (void)scene:(UIScene *)scene continueUserActivity:(NSUserActivity *)userActivity
+{
+  [RCTLinkingManager application:UIApplication.sharedApplication continueUserActivity:userActivity restorationHandler:^(NSArray *objects) {}];
+}
 @end
