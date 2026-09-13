@@ -78,6 +78,8 @@ jobs:
           node scripts/check-build81-regressions.js 2>&1 | tee build/checks/build81-regressions.log
           node scripts/check-build82-regressions.js 2>&1 | tee build/checks/build82-regressions.log
           node scripts/check-build84-regressions.js | tee build/checks/build84.log
+          node scripts/check-build85-regressions.js | tee build/checks/build85.log
+          node scripts/check-settings-preservation.js | tee build/checks/settings-audit.log
           node scripts/check-upstream190.js 2>&1 | tee build/checks/upstream190.log
           npx tsc --strict --noEmit --skipLibCheck --moduleResolution node --target ES2020 src/plugins/player/cache/DiskAudioCache.ts
       - name: Check full-project TypeScript regressions
@@ -109,7 +111,7 @@ jobs:
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build/Simulator \
             ARCHS=arm64 ONLY_ACTIVE_ARCH=YES PRODUCT_BUNDLE_IDENTIFIER="$IOS_BUNDLE_IDENTIFIER" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee build/checks/simulator-build.log
-      - name: Test real native streaming and offline restart
+      - name: Test native authentication, themes, streaming and offline restart
         run: bash scripts/run-ios-playback-smoke.sh
       - name: Upload simulator and regression evidence
         if: always()
