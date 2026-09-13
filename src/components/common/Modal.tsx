@@ -1,7 +1,9 @@
+import { OVERLAY_BACKDROP } from '@/utils/overlaySurface'
 // import { createStyle } from '@/utils/tools'
 import { useImperativeHandle, forwardRef, useState, useMemo } from 'react'
 import { Modal, Platform, TouchableWithoutFeedback, View, type ModalProps as _ModalProps } from 'react-native'
 import { useStatusbarHeight } from '@/store/common/hook'
+import WindowContent, { WindowInsetsScope } from '@/components/WindowContent'
 // import { useWindowSize } from '@/utils/hooks'
 
 // const styles = createStyle({
@@ -48,7 +50,7 @@ export default forwardRef<ModalType, ModalProps>(({
   onHide = () => {},
   keyHide = true,
   bgHide = true,
-  bgColor = 'rgba(0,0,0,0)',
+  bgColor = OVERLAY_BACKDROP,
   statusBarPadding = true,
   children,
   ...props
@@ -82,8 +84,8 @@ export default forwardRef<ModalType, ModalProps>(({
     ? ['portrait', 'portrait-upside-down', 'landscape', 'landscape-left', 'landscape-right']
     : undefined, [])
   const content = (
-    <View style={{ flex: 1, backgroundColor: bgColor, paddingTop: statusBarPadding ? statusBarHeight : 0 }}>
-      {memoChildren}
+    <View style={{ flex: 1, backgroundColor: bgColor, paddingTop: Platform.OS != 'ios' && statusBarPadding ? statusBarHeight : 0 }}>
+      <WindowInsetsScope><WindowContent>{memoChildren}</WindowContent></WindowInsetsScope>
     </View>
   )
 

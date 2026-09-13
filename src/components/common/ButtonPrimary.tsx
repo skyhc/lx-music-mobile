@@ -14,7 +14,7 @@ export default memo(({ disabled, size = 14, onPress, children }: ButtonProps) =>
 
   return (
     <Button style={{ ...styles.button, backgroundColor: theme['c-button-background'] }} onPress={onPress} disabled={disabled}>
-      <Text size={size} color={theme['c-button-font']}>{children}</Text>
+      <Text numberOfLines={1} size={size} color={theme['c-button-font']}>{children}</Text>
     </Button>
   )
 })

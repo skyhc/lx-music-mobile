@@ -149,6 +149,7 @@ export const createList = async({ name, id = `userlist_${Date.now()}`, list = []
  * @param id
  */
 export const setActiveList = (id: string) => {
+  if (id != LIST_IDS.TEMP && !listState.allList.some(list => list.id == id)) id = LIST_IDS.DEFAULT
   if (listState.activeListId == id) return
   listAction.setActiveList(id)
   saveListPrevSelectId(id)

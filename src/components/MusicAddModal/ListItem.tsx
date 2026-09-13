@@ -26,10 +26,10 @@ export default ({ listInfo, onPress, musicInfo, width }: {
   return (
     <View style={{ ...styles.listItem, width }}>
       <Button
-        style={{ ...styles.button, backgroundColor: theme['c-button-background'], borderColor: theme['c-primary-light-400-alpha-300'], opacity: isExists ? 0.4 : 1 }}
+        style={{ ...styles.button, backgroundColor: theme['c-button-background'], borderColor: theme['c-primary-light-400-alpha-300'] }}
         onPress={handlePress}
       >
-        <Text numberOfLines={1} size={14} color={theme['c-button-font']}>{listInfo.name}</Text>
+        <Text numberOfLines={1} size={14} color={theme['c-button-font']}>{listInfo.name} {isExists ? '✓' : ''}</Text>
       </Button>
     </View>
   )
@@ -38,16 +38,16 @@ export default ({ listInfo, onPress, musicInfo, width }: {
 export const styles = createStyle({
   listItem: {
     // width: '50%',
-    paddingRight: 13,
+    paddingRight: 12,
     // backgroundColor: 'rgba(0,0,0,0.2)',
   },
   button: {
-    height: 36,
+    minHeight: 48,
     paddingLeft: 10,
     paddingRight: 10,
-    marginRight: 10,
-    marginBottom: 10,
-    borderRadius: 4,
+    marginRight: 0,
+    marginBottom: 12,
+    borderRadius: 6,
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',

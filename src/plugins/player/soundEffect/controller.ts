@@ -81,7 +81,7 @@ const buildCurrentEqualizerConfig = (gainsOverride?: Partial<Record<EqualizerFre
   const setting = settingState.setting
   const gains = equalizerFrequencies.map(frequency => normalizeEqualizerGain(gainsOverride?.[frequency] ?? setting[getEqualizerBandSettingKey(frequency)]))
   return {
-    enabled: gains.some(gain => gain != 0),
+    enabled: setting['player.soundEffect.enabled'] && gains.some(gain => gain != 0),
     gains,
   }
 }

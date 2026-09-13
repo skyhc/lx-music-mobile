@@ -1,20 +1,21 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react'
-import { TouchableOpacity } from 'react-native'
+import { TouchableOpacity, Platform, View } from 'react-native'
 
 import { Icon } from '@/components/common/Icon'
 import { BorderWidths } from '@/theme'
 import { useTheme } from '@/store/theme/hook'
-import { useActiveListId, useListFetching } from '@/store/list/hook'
-import listState from '@/store/list/state'
+import { useActiveListId, useListFetching, useMyList } from '@/store/list/hook'
 import { createStyle } from '@/utils/tools'
 import { getListPrevSelectId } from '@/utils/data'
 import { setActiveList } from '@/core/list'
 import Text from '@/components/common/Text'
 import { LIST_IDS } from '@/config/constant'
 import Loading from '@/components/common/Loading'
+import { useHorizontalMode } from '@/utils/hooks'
 import { useSettingValue } from '@/store/setting/hook'
 
 export interface ActiveListProps {
+  listSelector?: React.ReactNode
   onShowSearchBar: () => void
   onScrollToTop: () => void
 }
@@ -22,9 +23,12 @@ export interface ActiveListType {
   setVisibleBar: (visible: boolean) => void
 }
 
-export default forwardRef<ActiveListType, ActiveListProps>(({ onShowSearchBar, onScrollToTop }, ref) => {
+export default forwardRef<ActiveListType, ActiveListProps>(({ onShowSearchBar, onScrollToTop, listSelector }, ref) => {
   const theme = useTheme()
+  const horizontal = useHorizontalMode()
+  const sidebarOwnsTitle = Platform.OS == 'ios' && horizontal
   const currentListId = useActiveListId()
+  const allList = useMyList()
   const fetching = useListFetching(currentListId)
   const langId = useSettingValue('common.langId')
   const currentListName = useMemo(() => {
@@ -36,10 +40,10 @@ export default forwardRef<ActiveListType, ActiveListProps>(({ onShowSearchBar, o
       case LIST_IDS.LOVE:
         return global.i18n.t('list_name_love')
       default:
-        return listState.allList.find(l => l.id === currentListId)?.name ?? ''
+        return allList.find(l => l.id === currentListId)?.name ?? ''
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentListId, langId])
+  }, [currentListId, langId, allList])
   const [visibleBar, setVisibleBar] = useState(true)
 
   useImperativeHandle(ref, () => ({
@@ -49,7 +53,8 @@ export default forwardRef<ActiveListType, ActiveListProps>(({ onShowSearchBar, o
   }))
 
   const showList = () => {
-    global.app_event.changeLoveListVisible(true)
+    if (Platform.OS == 'ios') onScrollToTop()
+    else global.app_event.changeLoveListVisible(true)
   }
 
   useEffect(() => {
@@ -58,11 +63,20 @@ export default forwardRef<ActiveListType, ActiveListProps>(({ onShowSearchBar, o
     })
   }, [])
 
+  if (listSelector) return <View testID="compact-library-toolbar" pointerEvents={visibleBar ? 'auto' : 'none'}
+    style={{ ...styles.currentList, height: 48, opacity: visibleBar ? 1 : 0, borderBottomColor: theme['c-border-background'] }}>
+    <View style={{ flex: 1, minWidth: 0 }}>{listSelector}</View>
+    {fetching ? <Loading color={theme['c-button-font']} /> : null}
+    <TouchableOpacity accessibilityRole="button" accessibilityLabel="搜索当前列表" style={styles.currentListBtns} onPress={onShowSearchBar}>
+      <Icon color={theme['c-button-font']} name="search-2" />
+    </TouchableOpacity>
+  </View>
+
   return (
     <TouchableOpacity onPress={showList} onLongPress={onScrollToTop} style={{ ...styles.currentList, opacity: visibleBar ? 1 : 0, borderBottomColor: theme['c-border-background'] }}>
-      <Icon style={styles.currentListIcon} color={theme['c-button-font']} name="chevron-right" size={12} />
+      <Icon style={styles.currentListIcon} color={theme['c-button-font']} name="list-order" size={14} />
       { fetching ? <Loading color={theme['c-button-font']} style={styles.loading} /> : null }
-      <Text style={styles.currentListText} numberOfLines={1} color={theme['c-button-font']}>{currentListName}</Text>
+      <Text style={styles.currentListText} numberOfLines={1} color={theme['c-button-font']}>{sidebarOwnsTitle ? '回到顶部' : currentListName}</Text>
       <TouchableOpacity style={styles.currentListBtns} onPress={onShowSearchBar}>
         <Icon color={theme['c-button-font']} name="search-2" />
       </TouchableOpacity>
@@ -75,7 +89,7 @@ const styles = createStyle({
   currentList: {
     flexDirection: 'row',
     paddingRight: 2,
-    height: 36,
+    height: 46,
     alignItems: 'center',
     borderBottomWidth: BorderWidths.normal,
     // backgroundColor: 'rgba(0,0,0,0.2)',

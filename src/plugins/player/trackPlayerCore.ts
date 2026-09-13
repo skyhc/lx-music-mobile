@@ -198,7 +198,6 @@ export const initTrackInfo = async(musicInfo: LX.Player.PlayMusic, mInfo: LX.Pla
 }
 
 export const loadTrackPlayerResource = async(musicInfo: LX.Player.PlayMusic, url: string, time: number, shouldAutoStart: boolean) => {
-  const currentTrackIndex = await TrackPlayer.getCurrentTrack()
   const tracks = buildTracks(musicInfo, url)
   const track = tracks[0]
   await TrackPlayer.add(tracks).then(() => list.push(...tracks))
@@ -206,23 +205,14 @@ export const loadTrackPlayerResource = async(musicInfo: LX.Player.PlayMusic, url
   await TrackPlayer.skip(queue.findIndex(t => t.id == track.id))
   global.lx.playerTrackId = track.id
 
-  if (currentTrackIndex == null) {
-    if (!isTempTrack(track.id as string)) {
-      if (time) await seekToTime(time)
-      if (!shouldAutoStart) {
-        await TrackPlayer.pause()
-      } else {
-        await TrackPlayer.play()
-        await applyCurrentVolume()
-      }
-    }
-  } else {
-    await TrackPlayer.pause()
-    if (!isTempTrack(track.id as string)) {
-      await seekToTime(time)
-      await TrackPlayer.play()
+  if (!isTempTrack(track.id as string)) {
+    if (shouldAutoStart) {
       await applyCurrentVolume()
-    }
+      await TrackPlayer.play()
+    } else await TrackPlayer.pause()
+    // New items already start at zero. Seeking to zero before an item is
+    // ready could hold the serialized play promise and prevent every next song.
+    if (time > 0) await seekToTime(time)
   }
 
   if (queue.length > tracks.length) {

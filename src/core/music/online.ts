@@ -1,3 +1,4 @@
+import { lookupAudioCache, queueAudioCache, invalidateAudioCache } from '@/plugins/player/cache'
 import {
   saveLyric,
   saveMusicUrl,
@@ -39,8 +40,9 @@ export const setPic = (datas: {
  */
 
 
-export const getMusicUrlInfo = async({ musicInfo, quality, isRefresh, allowToggleSource = true, onToggleSource = () => {} }: {
+export const getMusicUrlInfo = async({ musicInfo, quality, isRefresh, allowToggleSource = true, cacheAudio = true, onToggleSource = () => {} }: {
   musicInfo: LX.Music.MusicInfoOnline
+  cacheAudio?: boolean
   quality?: LX.Quality
   isRefresh: boolean
   allowToggleSource?: boolean
@@ -53,12 +55,24 @@ export const getMusicUrlInfo = async({ musicInfo, quality, isRefresh, allowToggl
   //   // return Promise.reject(new Error('该歌曲没有可播放的音频'))
   // }
   const targetQuality = quality ?? getPlayQuality(settingState.setting['player.playQuality'], musicInfo)
+  // Complete audio is resolved before URL lookup or source requests, including
+  // after a process restart with no network connection.
+  if (!isRefresh) {
+    const local = await lookupAudioCache(musicInfo, targetQuality)
+    if (local) return { url: local, quality: targetQuality }
+  } else {
+    await invalidateAudioCache(musicInfo, targetQuality).catch(() => {})
+  }
   const cachedUrl = await getStoreMusicUrl(musicInfo, targetQuality)
-  if (cachedUrl && !isRefresh) return { url: cachedUrl, quality: targetQuality }
+  if (cachedUrl && !isRefresh) {
+    if (cacheAudio) queueAudioCache(musicInfo, targetQuality, cachedUrl)
+    return { url: cachedUrl, quality: targetQuality }
+  }
 
   return handleGetOnlineMusicUrl({ musicInfo, quality, onToggleSource, isRefresh, allowToggleSource }).then(({ url, quality: targetQuality, musicInfo: targetMusicInfo, isFromCache }) => {
     if (targetMusicInfo.id != musicInfo.id && !isFromCache) void saveMusicUrl(targetMusicInfo, targetQuality, url)
     void saveMusicUrl(musicInfo, targetQuality, url)
+    if (cacheAudio) queueAudioCache(musicInfo, targetQuality, url)
     return { url, quality: targetQuality }
   })
 }

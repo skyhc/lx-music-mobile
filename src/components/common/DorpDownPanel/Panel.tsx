@@ -1,3 +1,5 @@
+import { overlaySurface } from '@/utils/overlaySurface'
+import { useTheme } from '@/store/theme/hook'
 import { useMemo, useRef, useImperativeHandle, forwardRef, useState } from 'react'
 import { View, TouchableWithoutFeedback } from 'react-native'
 import { useWindowSize } from '@/utils/hooks'
@@ -44,6 +46,7 @@ const Panel = ({
 }) => {
   // const dimensions = useWindowSize()
   const windowSize = useWindowSize()
+  const theme = useTheme()
   // const theme = useGetter('common', 'theme')
   // const fadeAnim = useRef(new Animated.Value(0)).current
   // console.log(buttonPosition)
@@ -77,7 +80,7 @@ const Panel = ({
   return (
     <TouchableWithoutFeedback onPress={onHide}>
       <View style={{ ...styles.menu, ...style }}>
-        <View onStartShouldSetResponder={() => true}>
+        <View style={{ ...overlaySurface(theme), marginHorizontal: 12, maxHeight: '100%', flexShrink: 1 }} onStartShouldSetResponder={() => true}>
           {children}
         </View>
       </View>

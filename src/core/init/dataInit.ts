@@ -1,9 +1,12 @@
 // import { getPlayInfo } from '@/utils/data'
 // import { log } from '@/utils/log'
 import { init as musicSdkInit } from '@/utils/musicSdk'
-import { getUserLists, setUserList } from '@/core/list'
+import { getUserLists, setUserList, createList } from '@/core/list'
 import { setNavActiveId } from '../common'
 import { getViewPrevState } from '@/utils/data'
+import { Platform } from 'react-native'
+import listState from '@/store/list/state'
+import { bootstrapLibrary, LOCAL_LIBRARY_ID } from '@/utils/libraryBootstrap'
 import { bootLog } from '@/utils/bootLog'
 import { getDislikeInfo, setDislikeInfo } from '@/core/dislikeList'
 import { unlink } from '@/utils/fs'
@@ -29,6 +32,10 @@ export default async(appSetting: LX.AppSetting) => {
   void musicSdkInit() // 初始化音乐sdk
   bootLog('User list init...')
   setUserList(await getUserLists()) // 获取用户列表
+  if (Platform.OS == 'ios') await bootstrapLibrary(
+    () => listState.allList.some(list => list.id == LOCAL_LIBRARY_ID || list.name == '本地音乐'),
+    async() => createList({ id: LOCAL_LIBRARY_ID, name: '本地音乐' }),
+  ).catch(error => { console.warn('Optional library initialization failed', error) })
   setDislikeInfo(await getDislikeInfo()) // 获取不喜欢列表
   bootLog('User list inited.')
   setNavActiveId((await getViewPrevState()).id)

@@ -1,3 +1,5 @@
+import { stopAudioCacheObservation } from './cache'
+import { getAudioCacheSize, clearAudioCache } from './cache'
 import TrackPlayer, { Capability, RepeatMode, State } from 'react-native-track-player'
 import BackgroundTimer from 'react-native-background-timer'
 import { playMusic as handlePlayMusic } from './playList'
@@ -211,6 +213,7 @@ export const getDuration = async() => {
   return TrackPlayer.getDuration()
 }
 export const setStop = async() => {
+  stopAudioCacheObservation()
   if (Platform.OS == 'ios' && isNativeFlacActive()) {
     global.lx.playerTrackId = ''
     return stopNativeFlacPlayback()
@@ -245,22 +248,27 @@ export const updateNowPlayingTitles = async(duration: number, title: string, art
 
 export const resetPlay = async() => Promise.all([setPause(), setCurrentTime(0)])
 
-export const isCached = async(url: string) => TrackPlayer.isCached(url)
+export const isCached = async(url: string) => Platform.OS == 'ios'
+  ? /^file:\/\//i.test(url) && await existsFile(decodeURIComponent(url.replace(/^file:\/\//i, '')))
+  : TrackPlayer.isCached(url)
 export const getCacheSize = async() => {
   if (Platform.OS == 'ios') {
-    if (typeof NativeTrackPlayerModule?.getCacheSize != 'function') return 0
-    return NativeTrackPlayerModule.getCacheSize()
+    const legacy = typeof NativeTrackPlayerModule?.getCacheSize == 'function' ? await NativeTrackPlayerModule.getCacheSize() : 0
+    return legacy + await getAudioCacheSize()
   }
   return TrackPlayer.getCacheSize()
 }
 export const clearCache = async() => {
   if (Platform.OS == 'ios') {
-    if (typeof NativeTrackPlayerModule?.clearCache != 'function') return
-    return NativeTrackPlayerModule.clearCache()
+    await clearAudioCache()
+    if (typeof NativeTrackPlayerModule?.clearCache == 'function') await NativeTrackPlayerModule.clearCache()
+    return
   }
   return TrackPlayer.clearCache()
 }
 export const migratePlayerCache = async() => {
+  // Android's TrackPlayer directory migration is not an iOS audio cache.
+  if (Platform.OS == 'ios') return
   const newCachePath = temporaryDirectoryPath + '/TrackPlayer'
   if (await existsFile(newCachePath)) return
   const oldCachePath = privateStorageDirectoryPath + '/TrackPlayer'
@@ -275,10 +283,13 @@ export const migratePlayerCache = async() => {
 }
 
 export const destroy = async() => {
+  stopAudioCacheObservation()
   if (global.lx.playerStatus.isIniting || !global.lx.playerStatus.isInitialized) return
   try {
     if (Platform.OS == 'ios') await resetNativeFlacPlayback().catch(() => {})
     await destroyTrackPlayerCore()
+    // Keep the active cache lease for reloadConfig snapshot/restore.
+    // It is released when the next resource opens or on the next app launch.
   } finally {
     global.lx.playerStatus.isInitialized = false
   }

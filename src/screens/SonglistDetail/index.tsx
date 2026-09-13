@@ -1,3 +1,7 @@
+import { View, Platform } from 'react-native'
+import { useHorizontalMode } from '@/utils/hooks'
+import Aside from '@/screens/Home/Horizontal/Aside'
+import { pop } from '@/navigation'
 import { useEffect, useRef } from 'react'
 
 import MusicList, { type MusicListType } from './MusicList'
@@ -11,6 +15,7 @@ import { ListInfoContext } from './state'
 
 
 export default ({ componentId, info }: { componentId: string, info: ListInfoItem }) => {
+  const wide = useHorizontalMode() && Platform.OS == 'ios'
   const musicListRef = useRef<MusicListType>(null)
   const isUnmountedRef = useRef(false)
 
@@ -32,9 +37,14 @@ export default ({ componentId, info }: { componentId: string, info: ListInfoItem
   return (
     <PageContent>
       <StatusBar />
+      <View style={{ flex: 1, minHeight: 0, flexDirection: 'row' }}>
+      {wide ? <Aside onNavigate={() => { void pop(componentId) }} /> : null}
+      <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
       <ListInfoContext.Provider value={info}>
         <MusicList ref={musicListRef} componentId={componentId} />
       </ListInfoContext.Provider>
+      </View>
+      </View>
       <PlayerBar />
     </PageContent>
   )

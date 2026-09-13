@@ -10,6 +10,7 @@ import ShareType from './ShareType'
 import IsStartupAutoPlay from './IsStartupAutoPlay'
 import IsStartupPushPlayDetailScreen from './IsStartupPushPlayDetailScreen'
 import IsAutoHidePlayBar from './IsAutoHidePlayBar'
+import HidePortraitNavigation from './HidePortraitNavigation'
 import IsHomePageScroll from './IsHomePageScroll'
 import IsAllowProgressBarSeek from './IsAllowProgressBarSeek'
 import IsUseSystemFileSelector from './IsUseSystemFileSelector'
@@ -30,6 +31,7 @@ export default memo(() => {
       <IsShowBackBtn />
       <IsShowExitBtn />
       <IsAutoHidePlayBar />
+      <HidePortraitNavigation />
       <IsHomePageScroll />
       <IsAllowProgressBarSeek />
       <IsUseSystemFileSelector />

@@ -19,11 +19,9 @@ const resetPreloadInfo = () => {
 const warmPreloadUrl = async(musicInfo: LX.Player.PlayMusic, url: string, quality?: LX.Quality | null) => {
   if (await prefetchNativeFlacPlayback(musicInfo, url, quality)) return
 
-  const [cached, available] = await Promise.all([
-    isCached(url),
-    checkUrl(url).then(() => true).catch(() => false),
-  ])
-  if (!cached && !available) throw new Error('preload unavailable')
+  if (await isCached(url)) return
+  const available = await checkUrl(url).then(() => true).catch(() => false)
+  if (!available) throw new Error('preload unavailable')
 }
 const preloadNextMusicUrl = async(curTime: number) => {
   if (preloadMusicInfo.isLoading || curTime - preloadMusicInfo.preProgress < 3) return
@@ -32,13 +30,13 @@ const preloadNextMusicUrl = async(curTime: number) => {
   const info = await getNextPlayMusicInfo()
   if (info) {
     preloadMusicInfo.info = info
-    const urlInfo = await getMusicUrlInfo({ musicInfo: info.musicInfo }).catch(() => null)
+    const urlInfo = await getMusicUrlInfo({ musicInfo: info.musicInfo, cacheAudio: false }).catch(() => null)
     if (urlInfo?.url) {
       console.log('preload url', urlInfo.url)
       try {
         await warmPreloadUrl(info.musicInfo, urlInfo.url, urlInfo.quality)
       } catch {
-        const refreshedUrlInfo = await getMusicUrlInfo({ musicInfo: info.musicInfo, isRefresh: true }).catch(() => null)
+        const refreshedUrlInfo = await getMusicUrlInfo({ musicInfo: info.musicInfo, isRefresh: true, cacheAudio: false }).catch(() => null)
         console.log('preload url refresh', refreshedUrlInfo?.url ?? '')
         if (refreshedUrlInfo?.url) {
           await warmPreloadUrl(info.musicInfo, refreshedUrlInfo.url, refreshedUrlInfo.quality).catch(() => {})

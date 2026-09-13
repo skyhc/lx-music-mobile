@@ -1,4 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { Platform, View } from 'react-native'
+import Text from '@/components/common/Text'
+import { useEffect, useRef, useState } from 'react'
 import settingState from '@/store/setting/state'
 import MusicList from './MusicList'
 import MyList from './MyList'
@@ -7,11 +9,11 @@ import DrawerLayoutFixed, { type DrawerLayoutFixedType } from '@/components/comm
 import { COMPONENT_IDS } from '@/config/constant'
 import { scaleSizeW } from '@/utils/pixelRatio'
 import type { InitState as CommonState } from '@/store/common/state'
-import { useWindowSize } from '@/utils/hooks'
+import { useHorizontalMode, useWindowSize } from '@/utils/hooks'
 
 const MAX_WIDTH = scaleSizeW(400)
 
-export default () => {
+const LegacyDrawer = () => {
   const drawer = useRef<DrawerLayoutFixedType>(null)
   const theme = useTheme()
   const { width: windowWidth } = useWindowSize()
@@ -57,3 +59,22 @@ export default () => {
     </DrawerLayoutFixed>
   )
 }
+
+const IOSLibrary = () => {
+  const theme = useTheme()
+  const [width, setWidth] = useState(0)
+  const horizontal = useHorizontalMode()
+  const sidebar = horizontal && width >= 700
+  return <View style={{ flex: 1, minHeight: 0 }} onLayout={event => setWidth(event.nativeEvent.layout.width)}>
+    <View style={{ flex: 1, minHeight: 0, flexDirection: sidebar ? 'row' : 'column' }}>
+      {sidebar ? <View style={{ width: 208, borderRightWidth: 0.5, borderRightColor: theme['c-border-background'] }}>
+        <Text size={13} style={{ paddingHorizontal: 14, paddingVertical: 10 }}>我的列表</Text>
+        <MyList />
+      </View> : null}
+      <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+        <MusicList listSelector={sidebar ? undefined : <MyList compact />} />
+      </View>
+    </View>
+  </View>
+}
+export default () => Platform.OS == 'ios' ? <IOSLibrary /> : <LegacyDrawer />

@@ -18,6 +18,7 @@ import {
   updateCurrentTrackMetadata,
 } from './trackPlayerCore'
 import { loadPlaybackResource } from './engine/resourceLoader'
+import { reportPlaybackLoadError } from './engine'
 
 export { getCurrentTrack, restoreTrack }
 export { state }
@@ -71,8 +72,7 @@ export const playMusic = (musicInfo: LX.Player.PlayMusic, url: string, time: num
     playPromise = handlePlayMusic(musicInfo, url, time, quality).catch((err: Error & { lxHandled?: boolean }) => {
       console.log(err)
       if (!err?.lxHandled) {
-        global.app_event.error()
-        global.app_event.playerError()
+        reportPlaybackLoadError(err)
       }
     })
   })

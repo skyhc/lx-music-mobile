@@ -1,67 +1,38 @@
 import { memo, useEffect, useState } from 'react'
-import { View } from 'react-native'
+import { View, type LayoutChangeEvent } from 'react-native'
 import { usePlayerMusicInfo } from '@/store/player/hook'
-import { useWindowSize } from '@/utils/hooks'
 import { useNavigationComponentDidAppear } from '@/navigation'
 import { NAV_SHEAR_NATIVE_IDS } from '@/config/constant'
 import { createStyle } from '@/utils/tools'
-import { HEADER_HEIGHT } from './components/Header'
-import { marginLeft } from './constant'
 import Image from '@/components/common/Image'
-import { useStatusbarHeight } from '@/store/common/hook'
 import commonState from '@/store/common/state'
-import { isIPadWindowed } from '@/utils/ipadWindow'
-
-const MAX_IPAD_PIC_WIDTH = 420
 
 export default memo(({ componentId }: { componentId: string }) => {
   const musicInfo = usePlayerMusicInfo()
-  const { width: winWidth, height: winHeight } = useWindowSize()
-  const statusBarHeight = useStatusbarHeight()
-  const effectiveStatusBarHeight = isIPadWindowed(winWidth, winHeight) ? 0 : statusBarHeight
-
   const [animated, setAnimated] = useState(!!commonState.componentIds.playDetail)
   const [pic, setPic] = useState(musicInfo.pic)
-  useEffect(() => {
-    if (animated) setPic(musicInfo.pic)
-  }, [musicInfo.pic, animated])
+  const [size, setSize] = useState(0)
+  useEffect(() => { if (animated) setPic(musicInfo.pic) }, [musicInfo.pic, animated])
+  useNavigationComponentDidAppear(componentId, () => { setAnimated(true) })
 
-  useNavigationComponentDidAppear(componentId, () => {
-    setAnimated(true)
-  })
-
-  let imgWidth = Math.min(
-    (winWidth * 0.45 - marginLeft * 2) * 0.78,
-    (winHeight - effectiveStatusBarHeight - HEADER_HEIGHT) * 0.58,
-    winWidth >= 900 ? MAX_IPAD_PIC_WIDTH : Number.POSITIVE_INFINITY,
-  )
-  imgWidth -= imgWidth * (global.lx.fontSize - 1) * 0.3
-  let contentHeight = (winHeight - effectiveStatusBarHeight - HEADER_HEIGHT) * 0.6
-  contentHeight -= contentHeight * (global.lx.fontSize - 1) * 0.2
+  const handleLayout = ({ nativeEvent }: LayoutChangeEvent) => {
+    const { width, height } = nativeEvent.layout
+    // Fit the actual remaining body space after title and dock have laid out.
+    // Window-size formulas caused clipping in shorter floating windows.
+    const next = Math.max(0, Math.min(width - 20, height - 12, 420))
+    setSize(previous => Math.abs(previous - next) < 0.5 ? previous : next)
+  }
 
   return (
-    <View style={{ ...styles.container, height: contentHeight }}>
-      <View style={{ ...styles.content, elevation: animated ? 3 : 0 }}>
-        <Image url={pic} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_pic} style={{
-          width: imgWidth,
-          height: imgWidth,
-          borderRadius: 2,
-        }} />
+    <View style={styles.container} onLayout={handleLayout}>
+      <View style={{ elevation: animated ? 3 : 0, borderRadius: 4 }}>
+        <Image url={pic} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_pic}
+          style={{ width: size, height: size, borderRadius: 2 }} />
       </View>
     </View>
   )
 })
 
 const styles = createStyle({
-  container: {
-    flexShrink: 1,
-    flexGrow: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  content: {
-    backgroundColor: 'rgba(0,0,0,0)',
-    borderRadius: 4,
-  },
+  container: { flex: 1, minHeight: 0, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
 })
