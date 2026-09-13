@@ -2,25 +2,26 @@ name: Apply verified Build 81 source
 on:
   push:
     branches: [codex/ipad-player-layout-cache-review]
-    paths: [.build81-source.part1, .build81-source.part2, .build81-source.part3, .build81-source.part4]
+    paths: [.build81-source.part1, .build81-source.part2, .build81-source.part3, .build81-source.part4, .github/workflows/apply-build81.yml]
 permissions:
   contents: write
 jobs:
   apply:
-    if: startsWith(github.event.head_commit.message, 'ci: stage Build 81')
+    if: "startsWith(github.event.head_commit.message, 'ci: stage Build 81')"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
           ref: codex/ipad-player-layout-cache-review
-          fetch-depth: 2
-      - name: Check exact base and verified patch, then publish source
+          fetch-depth: 0
+      - name: Check exact source base and verified patch, then publish
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git rev-parse HEAD^)" = "9633120711676848d3cacd01e3e2cc308b2bdfc6"
+          git merge-base --is-ancestor 9633120711676848d3cacd01e3e2cc308b2bdfc6 HEAD
+          git diff --exit-code 9633120711676848d3cacd01e3e2cc308b2bdfc6 HEAD -- src ios scripts package.json CHANGELOG.md docs
           cat .build81-source.part1 .build81-source.part2 .build81-source.part3 .build81-source.part4 > /tmp/build81.patch.gz
           echo '0936689e82ce29719be91ce4e802f5c472a83f8df08d57a39ea7360a70732ae0  /tmp/build81.patch.gz' | sha256sum -c -
           gzip -dc /tmp/build81.patch.gz > /tmp/build81.patch
