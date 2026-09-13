@@ -1,0 +1,34 @@
+name: Apply reviewed Build 84 source
+on:
+  push:
+    branches: ['codex/ios-upstream-1.9.0']
+    paths: ['.build84-source.*', '.github/workflows/apply-build84.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: "startsWith(github.event.head_commit.message, 'ci: stage Build 84')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Apply checksum-verified source to the exact reviewed base
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD^)" = "22270f3c02d7ff7c47406ec7bd0410ac1be39371"
+          cat .build84-source.{01..44} > /tmp/build84.patch.gz
+          echo '72a59daea0e3d56908a3ac126703ae53586a04220e87472bfc6eaab11d202f56  /tmp/build84.patch.gz' | sha256sum -c -
+          gzip -dc /tmp/build84.patch.gz > /tmp/build84.patch
+          if grep -q '^diff --git a/.github/' /tmp/build84.patch; then echo 'Workflow changes require the authorized connector'; exit 1; fi
+          git apply --check --unidiff-zero /tmp/build84.patch
+          git apply --index --unidiff-zero /tmp/build84.patch
+          git diff --cached --check
+          test "$(git diff --cached --name-only | wc -l)" -eq 64
+          git config user.name skyhc
+          git config user.email 61585718+skyhc@users.noreply.github.com
+          git commit -m 'fix(ios): restore sync, visible playback state and keyboard controls in Build 84'
+          git push origin HEAD:codex/ios-upstream-1.9.0
