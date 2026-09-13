@@ -1,3 +1,5 @@
+import { PlaylistContents } from '@/screens/PlayDetail/Horizontal/components/PlaylistBtn'
+import playerActions from '@/store/player/action'
 import { applyTheme } from '@/core/theme'
 import { applyNavigationAppearance, navigationAppearance } from '@/navigation/appearance'
 import themes from '@/theme/themes/themes'
@@ -11,11 +13,10 @@ import Menu, { type MenuType } from '@/components/common/Menu'
 import ListActionBar from '@/components/common/ListActionBar'
 import NavigationTabs from '@/screens/Home/Vertical/NavigationTabs'
 import { updateSetting } from '@/core/common'
-import { SONG_ROW_HEIGHT } from '@/utils/songLayout'
 // Deterministic, simulator-only rendering evidence. Uses real production views;
 // fixture content is synthetic and does not contact music services.
 import React, { useEffect, useRef } from 'react'
-import { Dimensions, NativeModules, ScrollView, View } from 'react-native'
+import { Dimensions, NativeModules, View } from 'react-native'
 import { Navigation } from 'react-native-navigation'
 import { createI18n } from '@/lang'
 import { windowSizeTools } from '@/utils/windowSizeTools'
@@ -24,8 +25,6 @@ import Text from '@/components/common/Text'
 import OnlineList, { type OnlineListType } from '@/components/OnlineList'
 import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
 import Popup, { type PopupType } from '@/components/common/Popup'
-import SongTableHeader from '@/components/common/SongTableHeader'
-import SongRowContent from '@/components/common/SongRowContent'
 import SettingPopup, { type SettingPopupType } from '@/screens/PlayDetail/components/SettingPopup'
 import Aside from '@/screens/Home/Horizontal/Aside'
 import { useHorizontalMode } from '@/utils/hooks'
@@ -40,7 +39,7 @@ const selectTheme = (dark: boolean) => {
   applyTheme(JSON.parse(JSON.stringify(theme)))
   applyNavigationAppearance(dark)
 }
-const songs = Array.from({ length: 14 }, (_, i) => ({
+const songs = Array.from({ length: 100 }, (_, i) => ({
   id: `ci-ui-${i}`, name: ['一路生花', '天空之外', '风吹麦浪', '远方的声音'][i % 4],
   singer: ['测试歌手', '纯音乐作品', '艺术家示例'][i % 3], interval: '04:32', source: 'kw',
   meta: { songId: `ci-ui-${i}`, albumName: '专辑名称 · 阅读与列对齐验证', picUrl: '', qualitys: [], _qualitys: {} },
@@ -99,10 +98,7 @@ const Fixture = () => {
     <Menu ref={menu} menus={[{ action: 'play', label: '播放' }, { action: 'add', label: '添加到列表' }, { action: 'detail', label: '歌曲详细信息' }, { action: 'long', label: '将歌曲添加到其他收藏列表' }, { action: 'remove', label: '移除' }]} onPress={() => {}} />
     <MusicAddModal ref={favorite} />
     <Popup ref={popup} kind="list" title="播放列表">
-      <SongTableHeader numbered={false} actions={false} />
-      <ScrollView>{songs.map(song => <View key={song.id} style={{ height: SONG_ROW_HEIGHT, paddingHorizontal: 16 }}>
-        <SongRowContent name={song.name} singer={song.singer} album={song.meta.albumName} interval={song.interval} source={song.source} />
-      </View>)}</ScrollView>
+      <PlaylistContents list={songs} visible={phase == 'list'} onSelect={song => { playerActions.setPlayMusicInfo('default', song); playerActions.setIsPlay(true) }} />
     </Popup>
     <SettingPopup ref={settings} direction={wide ? 'horizontal' : 'vertical'} />
   </PageContent>
@@ -113,6 +109,8 @@ export const runUI = async() => {
   await windowSizeTools.init()
   updateSetting({ 'common.hidePortraitNavigation': support.uiPhase == 'navhidden' })
   setUserList(await getUserLists())
+  playerActions.setPlayMusicInfo('default', songs[65])
+  playerActions.setIsPlay(true)
   await overwriteListMusics('default', songs)
   commonState.navActiveId = phase == 'library' ? 'nav_love' : 'nav_top'
   selectTheme(support.uiPhase.startsWith('dark') || phase == 'lightagain')

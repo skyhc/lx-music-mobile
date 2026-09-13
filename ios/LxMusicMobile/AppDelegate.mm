@@ -4599,6 +4599,10 @@ RCT_EXPORT_MODULE();
   });
 }
 
+RCT_EXPORT_METHOD(configureKeyboard:(NSDictionary *)settings) {
+  [[NSUserDefaults standardUserDefaults] setObject:settings ?: @{} forKey:@"LXKeyboardShortcuts"];
+}
+
 RCT_EXPORT_METHOD(exitApp) {
   dispatch_async(dispatch_get_main_queue(), ^{
     exit(0);
@@ -4723,6 +4727,38 @@ RCT_REMAP_METHOD(windowSnapshot, windowSnapshotWithResolver:(RCTPromiseResolveBl
                @"interfaceStyle": @(window.traitCollection.userInterfaceStyle),
                @"safeTop": @(window.safeAreaInsets.top),
                @"windowWidth": @(window.bounds.size.width), @"windowHeight": @(window.bounds.size.height) });
+  });
+}
+RCT_REMAP_METHOD(keyboardSnapshot, keyboardSnapshotWithResolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSMutableArray *result = [NSMutableArray new];
+    for (UIKeyCommand *key in UIApplication.sharedApplication.keyCommands)
+      if ([NSStringFromSelector(key.action) isEqualToString:@"lx_keyboard:"] && key.propertyList) [result addObject:key.propertyList];
+    resolve(result);
+  });
+}
+RCT_REMAP_METHOD(keyboardEditingProbe, keyboardEditingProbeWithResolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    UIWindow *window = ((AppDelegate *)UIApplication.sharedApplication.delegate).window;
+    UITextField *field = [[UITextField alloc] initWithFrame:CGRectMake(20, 80, 180, 40)];
+    [window addSubview:field];
+    BOOL focused = [field becomeFirstResponder];
+    NSUInteger appKeys = 0;
+    for (UIKeyCommand *key in UIApplication.sharedApplication.keyCommands)
+      if ([NSStringFromSelector(key.action) isEqualToString:@"lx_keyboard:"]) appKeys++;
+    [field resignFirstResponder]; [field removeFromSuperview];
+    resolve(@{@"focused": @(focused), @"appKeysWhileEditing": @(appKeys)});
+  });
+}
+RCT_REMAP_METHOD(sendKeyboard, sendKeyboard:(NSString *)command resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    UIApplication *app = UIApplication.sharedApplication;
+    for (UIKeyCommand *key in app.keyCommands) {
+      if ([key.propertyList isKindOfClass:NSString.class] && [key.propertyList isEqualToString:command]) {
+        resolve(@([app sendAction:key.action to:app from:key forEvent:nil])); return;
+      }
+    }
+    resolve(@NO);
   });
 }
 RCT_REMAP_METHOD(record, record:(NSDictionary *)report resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {

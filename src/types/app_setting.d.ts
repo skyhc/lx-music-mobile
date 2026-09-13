@@ -22,6 +22,11 @@ declare global {
       | 'loudness'
 
     interface AppSetting {
+      'keyboard.enabled': boolean
+      'keyboard.playback': boolean
+      'keyboard.seek': boolean
+      'keyboard.selection': boolean
+      'keyboard.navigation': boolean
       version: string
       /**
        * 是否跟随系统切换亮暗主题

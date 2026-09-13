@@ -1,4 +1,9 @@
 const defaultSetting: LX.AppSetting = {
+  'keyboard.enabled': true,
+  'keyboard.playback': true,
+  'keyboard.seek': true,
+  'keyboard.selection': true,
+  'keyboard.navigation': true,
   version: '2.0',
   'common.isAutoTheme': false,
   'common.langId': null,

@@ -147,7 +147,8 @@ const clone = obj => JSON.parse(JSON.stringify(obj))
     for(const p of ['src/components/OnlineList/List.tsx','src/screens/Home/Views/Mylist/MusicList/List.tsx']){
       const s=source(p);assert.ok(s.indexOf('<SongTableHeader')<s.indexOf('<FlatList\n'))
     }
-    assert.ok(source('src/screens/PlayDetail/Horizontal/components/PlaylistBtn.tsx').includes('<SongTableHeader'))
+    assert.ok(source('src/screens/PlayDetail/Horizontal/components/PlaylistBtn.tsx').includes('<SongRowContent'))
+    assert.ok(source('src/screens/PlayDetail/Horizontal/components/PlaylistBtn.tsx').includes('getItemLayout='))
   })
   await check('no hidden gain multiplier; explicit unity mixer and real PCM measurement gate',()=>{
     const native=source('ios/LxMusicMobile/AppDelegate.mm')

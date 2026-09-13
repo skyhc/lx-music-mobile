@@ -1,4 +1,5 @@
 import { LIST_IDS } from '@/config/constant'
+import useSongKeyboard from '@/utils/hooks/useSongKeyboard'
 import SongTableHeader from '@/components/common/SongTableHeader'
 import { playList } from '@/core/player/player'
 import { useMemo, useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react'
@@ -253,6 +254,11 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
   }
 
 
+  const keyboardId = useSongKeyboard(currentList, handlePress, index => {
+    flatListRef.current?.scrollToIndex({ index: Math.floor(index / (rowInfo.current.rowNum ?? 1)), viewPosition: 0.4, animated: false })
+  }, playerState.playMusicInfo.musicInfo?.id)
+  const visualSelection = keyboardId ? [...selectedList, ...currentList.filter(item => item.id == keyboardId)] : selectedList
+
   const renderItem: FlatListType['renderItem'] = ({ item, index }) => (
     <ListItem
       item={item}
@@ -261,7 +267,7 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
       onPress={handlePress}
       onLongPress={handleLongPress}
       onShowMenu={onShowMenu}
-      selectedList={selectedList}
+      selectedList={visualSelection}
       rowInfo={rowInfo.current}
       isShowAlbumName={isShowAlbumName}
       isShowInterval={isShowInterval}
@@ -289,7 +295,7 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
       initialNumToRender={12}
       renderItem={renderItem}
       keyExtractor={getkey}
-      extraData={activeIndex}
+      extraData={[activeIndex, keyboardId, selectedList]}
       getItemLayout={getItemLayout}
     />
     </View>

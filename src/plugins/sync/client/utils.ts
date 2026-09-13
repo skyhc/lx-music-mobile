@@ -92,29 +92,7 @@ export const decryptMsg = async(keyInfo: LX.Sync.KeyInfo, enMsg: string): Promis
 }
 
 
-export const parseUrl = (href: string): LX.Sync.UrlInfo => {
-  // const url = new URL(host)
-  // console.log(host)
-  // let hostPath = url.host + url.pathname
-  // let href = url.href
-  if (href.endsWith('/')) href = href.replace(/\/$/, '')
-  // if (href.endsWith('/')) href = href.replace(/\/$/, '')
-  const httpProtocol = /^https:/.test(href) ? 'https:' : 'http:'
-
-  console.log({
-    wsProtocol: httpProtocol == 'https:' ? 'wss:' : 'ws:',
-    httpProtocol,
-    hostPath: href.replace(httpProtocol + '//', ''),
-    href,
-  })
-
-  return {
-    wsProtocol: httpProtocol == 'https:' ? 'wss:' : 'ws:',
-    httpProtocol,
-    hostPath: href.replace(httpProtocol + '//', ''),
-    href,
-  }
-}
+export { parseSyncAddress as parseUrl } from '../address'
 
 
 export const sendStatus = (status: LX.Sync.Status) => {

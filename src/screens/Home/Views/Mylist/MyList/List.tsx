@@ -1,3 +1,4 @@
+import { selectionColors } from '@/utils/selectionColors'
 import { memo, useEffect, useRef } from 'react'
 import { View, TouchableOpacity, FlatList, type NativeScrollEvent, type NativeSyntheticEvent, type FlatListProps } from 'react-native'
 
@@ -27,6 +28,7 @@ const ListItem = memo(({ item, index, activeId, onPress, onShowMenu, compact = f
   onShowMenu: (item: LX.List.MyListInfo, index: number, position: { x: number, y: number, w: number, h: number }) => void
 }) => {
   const theme = useTheme()
+  const selection = selectionColors(theme)
   const moreButtonRef = useRef<TouchableOpacity>(null)
   const fetching = useListFetching(item.id)
 
@@ -46,18 +48,18 @@ const ListItem = memo(({ item, index, activeId, onPress, onShowMenu, compact = f
   }
 
   return (
-    <View style={{ ...styles.listItem, height: ITEM_HEIGHT, ...(compact ? { width: 150 } : {}) }}>
+    <View style={{ ...styles.listItem, backgroundColor: active ? selection.background : 'transparent', height: ITEM_HEIGHT, ...(compact ? { width: 150 } : {}) }}>
       {
         active
-          ? <Icon style={styles.listActiveIcon} name="chevron-right" size={12} color={theme['c-primary-font']} />
+          ? <Icon style={styles.listActiveIcon} name="chevron-right" size={12} color={selection.text} />
           : null
       }
-      { fetching ? <Loading color={active ? theme['c-primary-font'] : theme['c-font']} style={styles.loading} /> : null }
+      { fetching ? <Loading color={active ? selection.text : theme['c-font']} style={styles.loading} /> : null }
       <TouchableOpacity style={styles.listName} onPress={handlePress}>
-        <Text numberOfLines={1} color={active ? theme['c-primary-font'] : theme['c-font']}>{item.name}</Text>
+        <Text numberOfLines={1} color={active ? selection.text : theme['c-font']}>{item.name}</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={handleShowMenu} ref={moreButtonRef} style={styles.listMoreBtn}>
-        <Icon name="dots-vertical" color={theme['c-350']} size={12} />
+        <Icon name="dots-vertical" color={active ? selection.text : theme['c-350']} size={12} />
       </TouchableOpacity>
     </View>
   )

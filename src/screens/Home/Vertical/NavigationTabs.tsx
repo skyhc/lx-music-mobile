@@ -1,3 +1,4 @@
+import { selectionColors } from '@/utils/selectionColors'
 import { useSettingValue } from '@/store/setting/hook'
 import { showBottomNavigation } from '@/utils/songLayout'
 import { View, TouchableOpacity, StyleSheet } from 'react-native'
@@ -11,15 +12,16 @@ import { useI18n } from '@/lang'
 
 export default () => {
   const theme = useTheme()
+  const selection = selectionColors(theme)
   const activeId = useNavActiveId()
   const t = useI18n()
   const hidden = useSettingValue('common.hidePortraitNavigation')
   if (!showBottomNavigation(hidden)) return null
   return <View style={[styles.bar, { borderTopColor: theme['c-border-background'] }]}>
-    {NAV_MENUS.map(({ id, icon }) => <TouchableOpacity key={id} style={styles.tab} accessibilityRole="tab"
+    {NAV_MENUS.map(({ id, icon }) => <TouchableOpacity key={id} style={[styles.tab, activeId == id && { backgroundColor: selection.background, borderTopWidth: 3, borderTopColor: selection.indicator }]} accessibilityRole="tab"
       accessibilityLabel={t(id)} accessibilityState={{ selected: activeId == id }} onPress={() => setNavActiveId(id)}>
-      <Icon name={icon} rawSize={18} color={activeId == id ? theme['c-primary-font-active'] : theme['c-font-label']} />
-      <Text size={10} numberOfLines={1} color={activeId == id ? theme['c-primary-font-active'] : theme['c-font-label']}>{t(id)}</Text>
+      <Icon name={icon} rawSize={18} color={activeId == id ? selection.text : theme['c-font-label']} />
+      <Text size={10} numberOfLines={1} color={activeId == id ? selection.text : theme['c-font-label']}>{t(id)}</Text>
     </TouchableOpacity>)}
   </View>
 }

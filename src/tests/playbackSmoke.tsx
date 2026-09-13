@@ -1,3 +1,5 @@
+import { runSyncSmoke } from './syncSmoke'
+import { runKeyboardSmoke } from './keyboardSmoke'
 import TrackPlayer from 'react-native-track-player'
 import React from 'react'
 import { NativeModules, View, Text } from 'react-native'
@@ -68,6 +70,8 @@ export const run = async() => {
       assert(info.minimalWindowControls, 'The configured scene is not using minimal window controls')
       return info
     })
+    await runKeyboardSmoke(check)
+    await runSyncSmoke(check, !!support.offline)
     initUnifiedPlayerEngine()
     onUnifiedPlayerEvent(event => { events.push(event) })
     settingState.setting['player.cacheSize'] = '32'

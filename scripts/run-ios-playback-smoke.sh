@@ -13,10 +13,20 @@ ffmpeg -v error -y -i build/smoke-http/tone.wav -c:a libmp3lame -b:a 64k build/s
 # Test both genuine NSURLSession and AVURLAsset, not an FS-only substitute.
 python3 -m http.server 18779 --bind 127.0.0.1 --directory build/smoke-http > build/checks/smoke-http.log 2>&1 &
 SERVER_PID=$!
+# The official server and protocol peer remain running during the second app
+# process; only the audio HTTP endpoint is stopped for the offline-audio test.
+node scripts/sync-peer-fixture.cjs build/official-sync > build/checks/sync-peer.log 2>&1 &
+SYNC_PID=$!
+for i in $(seq 1 30); do
+  if curl -fsS http://127.0.0.1:18781/health >/dev/null 2>&1; then break; fi
+  if ! kill -0 "$SYNC_PID" 2>/dev/null; then cat build/checks/sync-peer.log; exit 1; fi
+  sleep 1
+done
+curl -fsS http://127.0.0.1:18781/health
 DEVICE_TYPE=$(xcrun simctl list devicetypes | grep -E 'iPad Pro.*13' | head -1 | sed -E 's/.*\(([^)]+)\)$/\1/')
 RUNTIME=$(xcrun simctl list runtimes -j | python3 -c 'import sys,json; print(next(r["identifier"] for r in json.load(sys.stdin)["runtimes"] if r["isAvailable"] and "iOS" in r["name"]))')
 SIM=$(xcrun simctl create LXPlaybackSmoke "$DEVICE_TYPE" "$RUNTIME")
-trap 'kill "$SERVER_PID" 2>/dev/null || true; xcrun simctl shutdown "$SIM" >/dev/null 2>&1 || true; xcrun simctl delete "$SIM" >/dev/null 2>&1 || true' EXIT
+trap 'kill "$SYNC_PID" 2>/dev/null || true; kill "$SERVER_PID" 2>/dev/null || true; xcrun simctl shutdown "$SIM" >/dev/null 2>&1 || true; xcrun simctl delete "$SIM" >/dev/null 2>&1 || true' EXIT
 xcrun simctl boot "$SIM"
 xcrun simctl bootstatus "$SIM" -b
 APP="build/Simulator/Build/Products/Release-iphonesimulator/LxMusicMobile.app"
@@ -54,7 +64,7 @@ for FORM in tablet tabletportrait phone; do
     xcrun simctl install "$SIM" "$APP"
     DATA=$(xcrun simctl get_app_container "$SIM" com.skyhc.lxmusic data)
   fi
-  for UI in table favorites list settings menu navhidden library darktable darkmenu darklibrary themeswitch lightagain; do
+  for UI in table favorites list settings menu navhidden library darktable darkmenu darklibrary darklist themeswitch lightagain; do
     xcrun simctl terminate "$SIM" com.skyhc.lxmusic || true
     rm -f "$DATA/Documents/playback-smoke.json"
     EXTRA=(); if [ "$FORM" = tablet ]; then EXTRA=(--lx-ui-landscape); fi
@@ -82,10 +92,10 @@ for phase in ['online', 'offline']:
     report = json.loads((p / ('playback-' + phase + '.json')).read_text())
     assert report.get('success') and report.get('done'), report
 for form in ['tablet', 'tabletportrait', 'phone']:
-    for ui in ['table', 'favorites', 'list', 'settings', 'menu', 'navhidden', 'library', 'darktable', 'darkmenu', 'darklibrary', 'themeswitch', 'lightagain']:
+    for ui in ['table', 'favorites', 'list', 'settings', 'menu', 'navhidden', 'library', 'darktable', 'darkmenu', 'darklibrary', 'darklist', 'themeswitch', 'lightagain']:
         name = 'ui-' + form + '-' + ui
         report = json.loads((p / (name + '.json')).read_text())
         assert report.get('success'), report
         assert (p / (name + '.png')).stat().st_size > 1024, name
-print('Native playback records and 36 production-view screenshots are present.')
+print('Native playback records and 39 production-view screenshots are present.')
 PYTHON

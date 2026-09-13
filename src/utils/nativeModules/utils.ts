@@ -136,25 +136,20 @@ export const onHeadphonesDisconnected = (handler: () => void): () => void => {
   }
 }
 
-export const onRemoteCommand = (handler: (event: {
+export interface RemoteCommandEvent {
   command: 'play' | 'pause' | 'toggle' | 'next' | 'previous' | 'seek' |
-    'nav_search' | 'nav_songlist' | 'nav_top' | 'nav_love' | 'nav_setting'
+    'nav_search' | 'nav_songlist' | 'nav_top' | 'nav_love' | 'nav_setting' |
+    'seek_backward' | 'seek_forward' | 'select_up' | 'select_down' | 'select_enter' | 'locate_current' | 'escape'
   position?: number
-}) => void): () => void => {
-  const eventEmitter = createEmitter()
-  if (!eventEmitter) return () => {}
-  const eventListener = eventEmitter.addListener('remote-command', event => {
-    handler(event as {
-      command: 'play' | 'pause' | 'toggle' | 'next' | 'previous' | 'seek' |
-        'nav_search' | 'nav_songlist' | 'nav_top' | 'nav_love' | 'nav_setting'
-      position?: number
-    })
-  })
-
-  return () => {
-    eventListener.remove()
-  }
+  source?: 'keyboard'
 }
+export const onRemoteCommand = (handler: (event: RemoteCommandEvent) => void): (() => void) => {
+  const emitter = createEmitter()
+  if (!emitter) return () => {}
+  const sub = emitter.addListener('remote-command', handler)
+  return () => sub.remove()
+}
+export const configureKeyboard = (settings: Record<string, boolean>) => { UtilsModule?.configureKeyboard?.(settings) }
 
 export const getWindowSize = async(): Promise<{ width: number, height: number }> => {
   if (typeof UtilsModule?.getWindowSize == 'function') return UtilsModule.getWindowSize()

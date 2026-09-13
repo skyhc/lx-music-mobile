@@ -1,3 +1,17 @@
+# LX Music · skyhc iOS / iPadOS 移植版
+
+本仓库由 **skyhc** 维护，在 [lyswhut 官方移动版](https://github.com/lyswhut/lx-music-mobile) 与 [Q-1515 早期 iOS 移植](https://github.com/Q-1515/lx-music-mobile)基础上继续适配。它不是上游官方发布的 iOS 应用。保留原作者署名和 Apache-2.0 许可。
+
+[移植版下载与发布记录](https://github.com/skyhc/lx-music-mobile/releases) · [移植版问题反馈](https://github.com/skyhc/lx-music-mobile/issues) · [更新日志](CHANGELOG.md)
+
+问题反馈请附版本、系统、复现步骤和经过脱敏的日志，不要提交配对密码、音源密钥或个人歌单内容。若 Issues 尚未启用，由维护者在仓库设置启用，不向上游作者转交移植版缺陷。Actions 构建产物不等同于已签名可安装版本。
+
+支持 iPhone / iPad 原生播放、持久音频缓存、横屏与窄窗口、深色模式、键盘控制和与桌面版兼容的数据同步。同步前建议导出备份；首次配对的合并或覆盖方向由用户选择。
+
+## 上游官方项目原始介绍
+
+以下保留原项目资料；其中关于官方发布、Android 分发及原作者的说明属于上游，并非本移植仓库的发布承诺。
+
 <p align="center"><a href="https://github.com/lyswhut/lx-music-mobile"><img width="200" src="https://github.com/lyswhut/lx-music-mobile/blob/master/doc/images/icon.png" alt="lx-music logo"></a></p>
 
 <h1 align="center">LX Music 移动版</h1>

@@ -2,61 +2,41 @@ import { dismissOverlay, onModalDismissed, showSyncModeModal } from '@/navigatio
 import syncState from '@/store/sync/state'
 import syncActions from '@/store/sync/action'
 
-type RemoveListener = (() => void) | null
-let removeEvent: RemoveListener
-
-export const setSyncStatus = (status: LX.Sync.Status) => {
-  syncActions.setStatus(status)
-}
-
-export const setSyncMessage = (message: LX.Sync.Status['message']) => {
-  syncActions.setMessage(message)
-}
-
-export const setSyncModeComponentId = (id: string) => {
-  syncActions.setSyncModeComponentId(id)
-}
-
-const closeSyncModeModal = () => {
-  if (syncState.syncModeComponentId) {
-    void dismissOverlay(syncState.syncModeComponentId)
-    syncActions.setSyncModeComponentId('')
-  }
-}
+let cancelPending: (() => void) | null = null
+let serial = 0
+export const setSyncStatus = (status: LX.Sync.Status) => syncActions.setStatus(status)
+export const setSyncMessage = (message: string) => syncActions.setMessage(message)
+export const setSyncModeComponentId = (id: string) => syncActions.setSyncModeComponentId(id)
+export const removeSyncModeEvent = () => { cancelPending?.() }
 export const selectSyncMode = async<T extends keyof LX.Sync.ModeTypes>(serverName: string, type: T) => new Promise<LX.Sync.ModeTypes[T]>((resolve, reject) => {
   removeSyncModeEvent()
+  const id = `lx-sync-mode-${++serial}`
+  let settled = false
+  let removeDismiss: (() => void) | null = null
+  const close = () => { void dismissOverlay(id).catch(() => {}) }
+  const clean = () => {
+    removeDismiss?.(); removeDismiss = null
+    global.app_event.off('selectSyncMode', select)
+    if (syncState.syncModeComponentId == id) syncActions.setSyncModeComponentId('')
+    if (cancelPending === cancel) cancelPending = null
+  }
+  const cancel = () => {
+    if (settled) return
+    settled = true; clean(); close(); reject(new Error('cancel'))
+  }
+  const select = (result: LX.Sync.ModeType) => {
+    if (settled || result.type != type) return
+    settled = true; clean(); close(); resolve(result.mode as LX.Sync.ModeTypes[T])
+  }
+  cancelPending = cancel
   syncActions.setServerInfo(serverName, type)
-  showSyncModeModal()
-
-  const removeListeners = () => {
-    removeListener!()
-    removeListener = null
-    removeEvent = null
-    global.app_event.off('selectSyncMode', handleSelectMode)
-  }
-
-  const handleSelectMode = ({ mode }: LX.Sync.ModeType) => {
-    removeListeners()
-    closeSyncModeModal()
-    resolve(mode as LX.Sync.ModeTypes[T])
-  }
-
-  removeEvent = () => {
-    removeListeners()
-    reject(new Error('cancel'))
-  }
-
-  global.app_event.on('selectSyncMode', handleSelectMode)
-
-  let removeListener: RemoveListener = onModalDismissed(syncState.syncModeComponentId, () => {
-    syncActions.setSyncModeComponentId('')
-    removeEvent?.()
+  syncActions.setSyncModeComponentId(id)
+  global.app_event.on('selectSyncMode', select)
+  removeDismiss = onModalDismissed(id, cancel)
+  void showSyncModeModal(id).then(() => { if (settled) close() }).catch(error => {
+    if (settled) return
+    settled = true; clean(); reject(error)
   })
 })
 
-export const removeSyncModeEvent = () => {
-  if (!removeEvent) return
-  removeEvent()
-  removeEvent = null
-  closeSyncModeModal()
-}
+export const cancelSyncModeForId = (id: string) => { if (syncState.syncModeComponentId == id) removeSyncModeEvent() }

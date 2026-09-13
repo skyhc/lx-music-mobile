@@ -43,9 +43,9 @@ export default ({ componentId, info }: { componentId: string, info: ListInfoItem
       <ListInfoContext.Provider value={info}>
         <MusicList ref={musicListRef} componentId={componentId} />
       </ListInfoContext.Provider>
-      </View>
-      </View>
       <PlayerBar />
+      </View>
+      </View>
     </PageContent>
   )
 }

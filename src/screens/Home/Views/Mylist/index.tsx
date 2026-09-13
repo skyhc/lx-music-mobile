@@ -1,3 +1,4 @@
+import { KeyboardPage } from '@/components/KeyboardScope'
 import { Platform, View } from 'react-native'
 import Text from '@/components/common/Text'
 import { useEffect, useRef, useState } from 'react'
@@ -77,4 +78,6 @@ const IOSLibrary = () => {
     </View>
   </View>
 }
-export default () => Platform.OS == 'ios' ? <IOSLibrary /> : <LegacyDrawer />
+const Page = () => Platform.OS == 'ios' ? <IOSLibrary /> : <LegacyDrawer />
+
+export default () => <KeyboardPage navId="nav_love"><Page /></KeyboardPage>

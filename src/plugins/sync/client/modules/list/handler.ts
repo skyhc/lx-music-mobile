@@ -46,7 +46,7 @@ const handler: LX.Sync.ClientSyncHandlerListActions<LX.Sync.Socket> = {
     socket.moduleReadys.list = true
     registerEvent(socket)
     socket.onClose(() => {
-      unregisterEvent()
+      unregisterEvent(socket)
     })
   },
 }

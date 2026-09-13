@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { selectionColors } from '@/utils/selectionColors'
 import { ScrollView, TouchableOpacity, View, Platform } from 'react-native'
 import { useNavActiveId, useStatusbarHeight } from '@/store/common/hook'
 import { useTheme } from '@/store/theme/hook'
@@ -77,9 +78,9 @@ const MenuItem = ({ id, icon, onPress }: {
   const theme = useTheme()
 
   return activeId == id
-    ? <TouchableOpacity style={styles.menuItem} onPress={() => { onPress(id) }}>
+    ? <TouchableOpacity accessibilityState={{ selected: true }} style={[styles.menuItem, { backgroundColor: selectionColors(theme).background, borderLeftWidth: 3, borderLeftColor: selectionColors(theme).indicator }]} onPress={() => { onPress(id) }}>
         <View style={styles.iconContent}>
-          <Icon name={icon} size={20} color={theme['c-primary-font-active']} />
+          <Icon name={icon} size={20} color={selectionColors(theme).indicator} />
         </View>
       </TouchableOpacity>
     : <TouchableOpacity style={styles.menuItem} onPress={() => { onPress(id) }}>
@@ -126,10 +127,10 @@ export default memo(({ onNavigate }: { onNavigate?: () => void } = {}) => {
         </View>
       </ScrollView>
       {
-        showBackBtn ? <MenuItem id="back_home" icon="home" onPress={handlePress} /> : null
+        Platform.OS != 'ios' && showBackBtn ? <MenuItem id="back_home" icon="home" onPress={handlePress} /> : null
       }
       {
-        showExitBtn ? <MenuItem id="nav_exit" icon="exit2" onPress={handlePress} /> : null
+        Platform.OS != 'ios' && showExitBtn ? <MenuItem id="nav_exit" icon="exit2" onPress={handlePress} /> : null
       }
     </View>
   )

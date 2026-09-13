@@ -1,6 +1,7 @@
 import { SONG_ROW_HEIGHT, SONG_ACTION_WIDTH, SONG_NUMBER_WIDTH } from '@/utils/songLayout'
 import SongRowContent from '@/components/common/SongRowContent'
 import { memo, useRef } from 'react'
+import { selectionColors } from '@/utils/selectionColors'
 import { View, TouchableOpacity, Platform } from 'react-native'
 import { LIST_ITEM_HEIGHT } from '@/config/constant'
 // import { BorderWidths } from '@/theme'
@@ -28,6 +29,7 @@ export default memo(({ item, index, activeIndex, onPress, onShowMenu, onLongPres
   isShowInterval: boolean
 }) => {
   const theme = useTheme()
+  const selection = selectionColors(theme)
 
   const isSelected = selectedList.includes(item)
   // console.log(item.name, selectedList, selectedList.includes(item))
@@ -46,15 +48,16 @@ export default memo(({ item, index, activeIndex, onPress, onShowMenu, onLongPres
   const singer = `${item.singer}${isShowAlbumName && item.meta.albumName ? ` · ${item.meta.albumName}` : ''}`
 
   return (
-    <View style={{ ...styles.listItem, width: rowInfo.rowWidth, height: ITEM_HEIGHT, backgroundColor: isSelected ? theme['c-primary-background-hover'] : 'rgba(0,0,0,0)', opacity: Platform.OS == 'ios' || isSupported ? 1 : 0.5 }}>
+    <View style={{ ...styles.listItem, width: rowInfo.rowWidth, height: ITEM_HEIGHT, backgroundColor: active || isSelected ? selection.background : 'transparent', opacity: Platform.OS == 'ios' || isSupported ? 1 : 0.5 }}>
+      {active || isSelected ? <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 7, bottom: 7, width: 3, borderRadius: 2, backgroundColor: selection.indicator }} /> : null}
       <TouchableOpacity accessibilityHint={isSupported ? undefined : '当前音源可能不可用'} style={styles.listItemLeft} onPress={() => { onPress(item, index) }} onLongPress={() => { onLongPress(item, index) }}>
         {
           active
-            ? <Icon style={styles.sn} name="play-outline" size={13} color={theme['c-primary-font']} />
-            : <Text style={styles.sn} size={13} color={theme['c-font-label']}>{index + 1}</Text>
+            ? <Icon style={styles.sn} name="play-outline" size={16} color={selection.indicator} />
+            : <Text style={styles.sn} size={13} color={isSelected ? selection.text : theme['c-font-label']}>{index + 1}</Text>
         }
         {Platform.OS == 'ios' ? <SongRowContent name={item.name} singer={item.singer} album={item.meta.albumName}
-          interval={item.interval} showAlbum={isShowAlbumName} showInterval={isShowInterval} source={item.source} active={active} /> : <>
+          interval={item.interval} showAlbum={isShowAlbumName} showInterval={isShowInterval} source={item.source} active={active || isSelected} /> : <>
         <View style={styles.itemInfo}>
           {/* <View style={styles.listItemTitle}> */}
           <Text color={active ? theme['c-primary-font'] : theme['c-font']} numberOfLines={1}>{item.name}</Text>
@@ -75,7 +78,7 @@ export default memo(({ item, index, activeIndex, onPress, onShowMenu, onLongPres
       </TouchableOpacity>
       {/* <View style={styles.listItemRight}> */}
       <TouchableOpacity onPress={handleShowMenu} ref={moreButtonRef} style={[styles.moreButton, Platform.OS == 'ios' ? { width: SONG_ACTION_WIDTH, paddingLeft: 0, paddingRight: 0, alignItems: 'center' } : null]}>
-        <Icon name="dots-vertical" style={{ color: theme['c-font-label'] }} size={12} />
+        <Icon name="dots-vertical" style={{ color: active || isSelected ? selection.text : theme['c-font-label'] }} size={12} />
       </TouchableOpacity>
       {/* </View> */}
     </View>

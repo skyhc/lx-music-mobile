@@ -1,3 +1,4 @@
+import { Buffer } from '@craftzdog/react-native-buffer'
 import { request, generateRsaKey } from './utils'
 import { getSyncAuthKey, setSyncAuthKey } from '../data'
 import log from '../log'
@@ -23,8 +24,7 @@ const hello = async(urlInfo: LX.Sync.UrlInfo) => request(`${urlInfo.httpProtocol
   })
   .catch((err: any) => {
     log.error('[auth] hello', err.message)
-    console.log(err)
-    return false
+    throw err
   })
 
 const getServerId = async(urlInfo: LX.Sync.UrlInfo) => request(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/id`)
@@ -68,7 +68,8 @@ const codeAuth = async(urlInfo: LX.Sync.UrlInfo, serverId: string, authCode: str
     // console.log(msg)
     if (!msg) return Promise.reject(new Error(SYNC_CODE.authFailed))
     const info = JSON.parse(msg) as LX.Sync.KeyInfo
-    void setSyncAuthKey(serverId, info)
+    if (!info.clientId || !info.key) throw new Error(SYNC_CODE.authFailed)
+    await setSyncAuthKey(serverId, info)
     return info
   })
 }
@@ -98,8 +99,6 @@ const auth = async(urlInfo: LX.Sync.UrlInfo, serverId: string, authCode?: string
 }
 
 export default async(urlInfo: LX.Sync.UrlInfo, authCode?: string) => {
-  console.log('connect: ', urlInfo.href, authCode)
-  console.log(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/hello`)
   if (!await hello(urlInfo)) throw new Error(SYNC_CODE.connectServiceFailed)
   const serverId = await getServerId(urlInfo)
   if (!serverId) throw new Error(SYNC_CODE.getServiceIdFailed)

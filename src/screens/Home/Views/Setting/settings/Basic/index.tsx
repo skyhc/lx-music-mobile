@@ -1,4 +1,6 @@
 import { memo } from 'react'
+import { Platform } from 'react-native'
+import KeyboardShortcuts from './KeyboardShortcuts'
 
 import Theme from '../Theme'
 import Section from '../../components/Section'
@@ -28,8 +30,8 @@ export default memo(() => {
     <Section title={t('setting_basic')}>
       <IsStartupAutoPlay />
       <IsStartupPushPlayDetailScreen />
-      <IsShowBackBtn />
-      <IsShowExitBtn />
+      {Platform.OS != 'ios' ? <><IsShowBackBtn /><IsShowExitBtn /></> : null}
+      <KeyboardShortcuts />
       <IsAutoHidePlayBar />
       <HidePortraitNavigation />
       <IsHomePageScroll />
