@@ -1,0 +1,53 @@
+name: Apply reviewed upstream 1.9.0 port
+on:
+  push:
+    branches: ['codex/ios-upstream-1.9.0']
+    paths: ['.upstream190-source.*']
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/ios-upstream-1.9.0
+          fetch-depth: 0
+      - name: Apply reviewed source and preserve upstream ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          cat .upstream190-source.1 .upstream190-source.2 > /tmp/upstream190.json.gz
+          echo '9be8e927d29d4437a73c6004d9ccb8ba44403efd8affb0bd8c3d4fa677aa8b27  /tmp/upstream190.json.gz' | sha256sum -c -
+          git config user.name skyhc
+          git config user.email 61585718+skyhc@users.noreply.github.com
+          git remote add upstream https://github.com/lyswhut/lx-music-mobile.git
+          git fetch upstream refs/tags/v1.9.0
+          test "$(git rev-parse FETCH_HEAD^{commit})" = 'cd37a979a5845f1220b306b374285f5d38329e8d'
+          python3 - <<'PY'
+          import gzip,json,hashlib,pathlib,subprocess
+          recipe=json.loads(gzip.decompress(pathlib.Path('/tmp/upstream190.json.gz').read_bytes()))
+          assert recipe['baseline']=='3f008d3599f29ceeaf7925e5935882a78a3052ff'
+          assert recipe['upstream']=='cd37a979a5845f1220b306b374285f5d38329e8d'
+          assert len(recipe['hashes'])==64
+          paths=list(recipe['hashes'])
+          for p in paths:
+              assert not p.startswith(('/', '.github/')) and '..' not in pathlib.PurePosixPath(p).parts
+          subprocess.run(['git','diff','--exit-code',recipe['baseline'],'HEAD','--',*paths],check=True)
+          # The patch is the locally reviewed conflict resolution, not an
+          # automatic ours-wins upgrade. Its final 64 file hashes are mandatory.
+          subprocess.run(['git','merge','--no-commit','--no-ff','-s','ours',recipe['upstream']],check=True)
+          subprocess.run(['git','checkout',recipe['upstream'],'--',*recipe['upstream_paths']],check=True)
+          assert 'diff --git a/.github/' not in recipe['patch']
+          pathlib.Path('/tmp/port190.patch').write_text(recipe['patch'])
+          subprocess.run(['git','apply','--check','--unidiff-zero','/tmp/port190.patch'],check=True)
+          subprocess.run(['git','apply','--index','--unidiff-zero','/tmp/port190.patch'],check=True)
+          for p,expected in recipe['hashes'].items():
+              assert hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==expected,p
+          subprocess.run(['git','diff','--cached','--check'],check=True)
+          subprocess.run(['git','commit','-m','feat(ios): merge official v1.9.0 with tested iPad UI and persistent-cache adapters (Build 83)'],check=True)
+          subprocess.run(['git','merge-base','--is-ancestor',recipe['upstream'],'HEAD'],check=True)
+          subprocess.run(['git','push','origin','HEAD:codex/ios-upstream-1.9.0'],check=True)
+          PY
