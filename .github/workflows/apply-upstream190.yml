@@ -1,12 +1,13 @@
-name: Apply reviewed upstream 1.9.0 port
+name: Apply reviewed official v1.9.0 migration
 on:
   push:
     branches: ['codex/ios-upstream-1.9.0']
-    paths: ['.upstream190-source.*']
+    paths: ['.upstream190-source.*', '.github/workflows/apply-upstream190.yml']
 permissions:
   contents: write
 jobs:
   apply:
+    if: "startsWith(github.event.head_commit.message, 'ci: stage Build 83')"
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -14,40 +15,63 @@ jobs:
         with:
           ref: codex/ios-upstream-1.9.0
           fetch-depth: 0
-      - name: Apply reviewed source and preserve upstream ancestry
+      - name: Apply checked conflict resolution as a two-parent merge
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          cat .upstream190-source.1 .upstream190-source.2 > /tmp/upstream190.json.gz
-          echo '9be8e927d29d4437a73c6004d9ccb8ba44403efd8affb0bd8c3d4fa677aa8b27  /tmp/upstream190.json.gz' | sha256sum -c -
           git config user.name skyhc
           git config user.email 61585718+skyhc@users.noreply.github.com
           git remote add upstream https://github.com/lyswhut/lx-music-mobile.git
           git fetch upstream refs/tags/v1.9.0
           test "$(git rev-parse FETCH_HEAD^{commit})" = 'cd37a979a5845f1220b306b374285f5d38329e8d'
           python3 - <<'PY'
-          import gzip,json,hashlib,pathlib,subprocess
-          recipe=json.loads(gzip.decompress(pathlib.Path('/tmp/upstream190.json.gz').read_bytes()))
-          assert recipe['baseline']=='3f008d3599f29ceeaf7925e5935882a78a3052ff'
-          assert recipe['upstream']=='cd37a979a5845f1220b306b374285f5d38329e8d'
-          assert len(recipe['hashes'])==64
-          paths=list(recipe['hashes'])
+          import gzip, json, hashlib, pathlib, subprocess, base64
+          def run(*args):
+              return subprocess.run(args, check=True)
+          def out(*args):
+              return subprocess.check_output(args, text=True).strip()
+          parts = sorted(pathlib.Path('.').glob('.upstream190-source.*'))
+          assert len(parts) == 16, len(parts)
+          packed = base64.b64decode(b''.join(p.read_bytes() for p in parts), validate=True)
+          assert hashlib.sha256(packed).hexdigest() == '5ccfb3bbca8e72992b3cc52e9994790e617a76b2f68f24ba4aa49984442f63f9'
+          recipe = json.loads(gzip.decompress(packed))
+          base, upstream = recipe['baseline'], recipe['upstream']
+          assert base == '3f008d3599f29ceeaf7925e5935882a78a3052ff'
+          assert upstream == 'cd37a979a5845f1220b306b374285f5d38329e8d'
+          paths = recipe['paths']
+          assert len(paths) == len(recipe['hashes']) == 66
+          assert set(paths) == set(recipe['hashes'])
+          assert set(recipe['from_upstream']).issubset(paths)
           for p in paths:
               assert not p.startswith(('/', '.github/')) and '..' not in pathlib.PurePosixPath(p).parts
-          subprocess.run(['git','diff','--exit-code',recipe['baseline'],'HEAD','--',*paths],check=True)
-          # The patch is the locally reviewed conflict resolution, not an
-          # automatic ours-wins upgrade. Its final 64 file hashes are mandatory.
-          subprocess.run(['git','merge','--no-commit','--no-ff','-s','ours',recipe['upstream']],check=True)
-          subprocess.run(['git','checkout',recipe['upstream'],'--',*recipe['upstream_paths']],check=True)
+          run('git', 'diff', '--exit-code', base, 'HEAD', '--', *paths)
+          result = subprocess.run(['git', 'merge', '--no-commit', '--no-ff', upstream])
+          assert result.returncode in (0, 1)
+          assert out('git', 'rev-parse', 'MERGE_HEAD') == upstream
+          # Reconstruct the reviewed seed and apply the explicit resolution.
+          # MERGE_HEAD is retained; this is not an ancestry-only ours merge.
+          existing = out('git', 'ls-tree', '-r', '--name-only', base, '--', *paths).splitlines()
+          run('git', 'reset', base, '--', *paths)
+          run('git', 'restore', '--source=' + base, '--worktree', '--', *existing)
+          for p in set(paths) - set(existing):
+              pathlib.Path(p).unlink(missing_ok=True)
+          run('git', 'checkout', upstream, '--', *recipe['from_upstream'])
+          run('git', 'update-index', '--refresh')
           assert 'diff --git a/.github/' not in recipe['patch']
-          pathlib.Path('/tmp/port190.patch').write_text(recipe['patch'])
-          subprocess.run(['git','apply','--check','--unidiff-zero','/tmp/port190.patch'],check=True)
-          subprocess.run(['git','apply','--index','--unidiff-zero','/tmp/port190.patch'],check=True)
-          for p,expected in recipe['hashes'].items():
-              assert hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==expected,p
-          subprocess.run(['git','diff','--cached','--check'],check=True)
-          subprocess.run(['git','commit','-m','feat(ios): merge official v1.9.0 with tested iPad UI and persistent-cache adapters (Build 83)'],check=True)
-          subprocess.run(['git','merge-base','--is-ancestor',recipe['upstream'],'HEAD'],check=True)
-          subprocess.run(['git','push','origin','HEAD:codex/ios-upstream-1.9.0'],check=True)
+          patch = pathlib.Path('/tmp/port190-reviewed.patch')
+          patch.write_text(recipe['patch'])
+          run('git', 'apply', '--check', '--index', str(patch))
+          run('git', 'apply', '--index', str(patch))
+          for p, expected in recipe['hashes'].items():
+              assert hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() == expected, p
+          assert not out('git', 'ls-files', '-u')
+          run('git', 'diff', '--cached', '--check')
+          assert len(out('git', 'diff', '--cached', '--name-only').splitlines()) == 64
+          assert out('git', 'rev-parse', 'MERGE_HEAD') == upstream
+          run('git', 'commit', '-m', 'feat(ios): merge official v1.9.0 with tested iPad UI and per-song persistent-cache clearing (Build 83)')
+          run('git', 'merge-base', '--is-ancestor', upstream, 'HEAD')
+          run('git', 'merge-base', '--is-ancestor', base, 'HEAD')
+          run('git', 'push', 'origin', 'HEAD:codex/ios-upstream-1.9.0')
+          print('PASS: 66 exact file hashes; 64 changes; true upstream merge committed.')
           PY
