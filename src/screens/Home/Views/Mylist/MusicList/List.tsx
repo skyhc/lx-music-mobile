@@ -1,6 +1,8 @@
+import { LIST_IDS } from '@/config/constant'
+import SongTableHeader from '@/components/common/SongTableHeader'
 import { playList } from '@/core/player/player'
 import { useMemo, useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react'
-import { FlatList, type NativeScrollEvent, type NativeSyntheticEvent, type FlatListProps } from 'react-native'
+import { Platform, View, FlatList, type NativeScrollEvent, type NativeSyntheticEvent, type FlatListProps } from 'react-native'
 
 import listState from '@/store/list/state'
 import playerState from '@/store/player/state'
@@ -57,7 +59,8 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
   const currentListIdRef = useRef('')
   const waitJumpListPositionRef = useRef(false)
   const rowInfo = useRef(getRowInfo())
-  const isShowAlbumName = useSettingValue('list.isShowAlbumName')
+  const showAlbumPreference = useSettingValue('list.isShowAlbumName')
+  const isShowAlbumName = Platform.OS == 'ios' || showAlbumPreference
   const isShowInterval = useSettingValue('list.isShowInterval')
   // console.log('render music list')
 
@@ -103,6 +106,7 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
   useEffect(() => {
     let isUpdateingList = true
     const updateList = (id: string) => {
+      if (id != LIST_IDS.TEMP && !listState.allList.some(list => list.id == id)) id = LIST_IDS.DEFAULT
       if (currentListIdRef.current == id) return
       isUpdateingList = true
       setList([])
@@ -269,6 +273,8 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
   }
 
   return (
+    <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+    {Platform.OS == 'ios' ? <SongTableHeader showAlbum={isShowAlbumName} showInterval={isShowInterval} /> : null}
     <FlatList
       ref={flatListRef}
       onScroll={handleScroll}
@@ -286,6 +292,7 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
       extraData={activeIndex}
       getItemLayout={getItemLayout}
     />
+    </View>
   )
 })
 

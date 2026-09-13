@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Platform } from 'react-native'
 
 import ListMenu, { type ListMenuType } from './ListMenu'
 import ListNameEdit, { type ListNameEditType } from './ListNameEdit'
@@ -9,8 +10,8 @@ import ListMusicSort, { type ListMusicSortType } from './ListMusicSort'
 import DuplicateMusic, { type DuplicateMusicType } from './DuplicateMusic'
 
 
-export default () => {
-  const [visible, setVisible] = useState(false)
+export default ({ compact = false }: { compact?: boolean }) => {
+  const [visible, setVisible] = useState(Platform.OS == 'ios')
   const listMenuRef = useRef<ListMenuType>(null)
   const listNameEditRef = useRef<ListNameEditType>(null)
   const listMusicSortRef = useRef<ListMusicSortType>(null)
@@ -37,7 +38,7 @@ export default () => {
   return (
     visible
       ? <>
-          <List onShowMenu={(info, position) => listMenuRef.current?.show(info, position)} />
+          <List compact={compact} onShowMenu={(info, position) => listMenuRef.current?.show(info, position)} />
           <ListNameEdit ref={listNameEditRef} />
           <ListMusicSort ref={listMusicSortRef} />
           <DuplicateMusic ref={duplicateMusicRef} />

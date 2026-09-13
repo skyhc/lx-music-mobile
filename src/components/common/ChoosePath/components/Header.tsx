@@ -1,3 +1,4 @@
+import { Platform } from 'react-native'
 import { memo, useCallback, useEffect, useRef } from 'react'
 import { View, TouchableOpacity } from 'react-native'
 import Text from '@/components/common/Text'
@@ -27,7 +28,8 @@ export default memo(({
   const newFolderTypeRef = useRef<NewFolderType>(null)
   const openDirModalTypeRef = useRef<OpenDirModalType>(null)
   const storagePathsRef = useRef<string[]>([])
-  const statusBarHeight = useStatusbarHeight()
+  const reportedStatusBarHeight = useStatusbarHeight()
+  const statusBarHeight = Platform.OS == 'ios' ? 0 : reportedStatusBarHeight
 
   const checkExternalStoragePath = useCallback(() => {
     storagePathsRef.current = []

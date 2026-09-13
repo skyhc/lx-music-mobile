@@ -1,19 +1,6 @@
-import { useEffect, useState } from 'react'
-import { type SizeHandler, windowSizeTools } from '@/utils/windowSizeTools'
+import { useSyncExternalStore } from 'react'
+import { windowSizeTools } from '@/utils/windowSizeTools'
 
-export default () => {
-  const [size, setSize] = useState(windowSizeTools.getSize())
-
-  useEffect(() => {
-    const onChange: SizeHandler = (size) => {
-      setSize(size)
-    }
-
-    const remove = windowSizeTools.onSizeChanged(onChange)
-    return () => {
-      remove()
-    }
-  }, [])
-
-  return size
-}
+const subscribe = (notify: () => void) => windowSizeTools.onSizeChanged(notify)
+const snapshot = () => windowSizeTools.getSize()
+export default () => useSyncExternalStore(subscribe, snapshot, snapshot)

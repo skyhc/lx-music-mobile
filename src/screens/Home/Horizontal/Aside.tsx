@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { ScrollView, TouchableOpacity, View } from 'react-native'
+import { ScrollView, TouchableOpacity, View, Platform } from 'react-native'
 import { useNavActiveId, useStatusbarHeight } from '@/store/common/hook'
 import { useTheme } from '@/store/theme/hook'
 import { Icon } from '@/components/common/Icon'
@@ -58,7 +58,7 @@ const Header = () => {
   const theme = useTheme()
   const statusBarHeight = useStatusbarHeight()
   return (
-    <View style={{ paddingTop: statusBarHeight }}>
+    <View style={{ paddingTop: Platform.OS == 'ios' ? 0 : statusBarHeight }}>
       <View style={styles.header}>
         <Icon name="logo" color={theme['c-primary-dark-100-alpha-300']} size={22} />
       </View>
@@ -77,11 +77,11 @@ const MenuItem = ({ id, icon, onPress }: {
   const theme = useTheme()
 
   return activeId == id
-    ? <View style={styles.menuItem}>
+    ? <TouchableOpacity style={styles.menuItem} onPress={() => { onPress(id) }}>
         <View style={styles.iconContent}>
           <Icon name={icon} size={20} color={theme['c-primary-font-active']} />
         </View>
-      </View>
+      </TouchableOpacity>
     : <TouchableOpacity style={styles.menuItem} onPress={() => { onPress(id) }}>
         <View style={styles.iconContent}>
           <Icon name={icon} size={20} color={theme['c-font-label']} />
@@ -89,7 +89,7 @@ const MenuItem = ({ id, icon, onPress }: {
       </TouchableOpacity>
 }
 
-export default memo(() => {
+export default memo(({ onNavigate }: { onNavigate?: () => void } = {}) => {
   const theme = useTheme()
   const showBackBtn = useSettingValue('common.showBackBtn')
   const showExitBtn = useSettingValue('common.showExitBtn')
@@ -114,6 +114,7 @@ export default memo(() => {
 
     global.app_event.changeMenuVisible(false)
     setNavActiveId(id)
+    onNavigate?.()
   }
 
   return (

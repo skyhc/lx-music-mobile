@@ -74,7 +74,7 @@ export default forwardRef<MusicMultiAddModalType, MusicMultiAddModalProps>(({ on
   }
 
   return (
-    <Dialog ref={dialogRef} onHide={handleHide}>
+    <Dialog maxWidth={680} ref={dialogRef} onHide={handleHide}>
       {
         selectInfo.selectedList.length
           ? (<>

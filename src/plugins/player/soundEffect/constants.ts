@@ -255,7 +255,7 @@ export const getEqualizerGains = (setting = settingState.setting) => {
 }
 
 export const isSoundEffectActive = (setting = settingState.setting) => {
-  return hasEnabledEqualizerGains(equalizerFrequencies.map(frequency => setting[getEqualizerBandSettingKey(frequency)])) ||
+  return (setting['player.soundEffect.enabled'] && hasEnabledEqualizerGains(equalizerFrequencies.map(frequency => setting[getEqualizerBandSettingKey(frequency)]))) ||
     !!setting['player.soundEffect.convolution.fileName'] ||
     setting['player.soundEffect.panner.enable'] ||
     normalizePitchShifterPlaybackRate(setting['player.soundEffect.pitchShifter.playbackRate']) != 1

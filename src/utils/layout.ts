@@ -26,6 +26,12 @@ export const getLayoutInfo = (width: number, height: number): LayoutInfo => {
   }
 }
 
+// A narrow landscape window is still a phone-sized UI. No per-component
+// hysteresis: Home, Player and popups must agree after every resize.
+export const shouldUseIPadLayout = (width: number, height: number): boolean => (
+  width >= 700 && height > 0 && width > height
+)
+
 export const shouldUseHorizontalLayout = (width: number, height: number): boolean => {
   if (!width || !height) return false
 

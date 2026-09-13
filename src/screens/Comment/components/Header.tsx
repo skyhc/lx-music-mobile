@@ -1,3 +1,4 @@
+import { Platform } from 'react-native'
 import { memo } from 'react'
 import { View, TouchableOpacity } from 'react-native'
 
@@ -19,7 +20,8 @@ export default memo(({ musicInfo }: {
   musicInfo: LX.Music.MusicInfo
 }) => {
   const t = useI18n()
-  const statusBarHeight = useStatusbarHeight()
+  const reportedStatusBarHeight = useStatusbarHeight()
+  const statusBarHeight = Platform.OS == 'ios' ? 0 : reportedStatusBarHeight
 
   const back = () => {
     void pop(commonState.componentIds.comment!)

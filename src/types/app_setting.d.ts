@@ -58,6 +58,9 @@ declare global {
        */
       'common.autoHidePlayBar': boolean
 
+      /** Hide only the compact/portrait bottom tabs, keeping the main menu accessible. */
+      'common.hidePortraitNavigation': boolean
+
       /**
        * 抽屉组件弹出方向
        */

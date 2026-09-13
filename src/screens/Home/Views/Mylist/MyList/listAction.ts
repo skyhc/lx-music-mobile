@@ -15,9 +15,12 @@ export const handleRemove = (listInfo: LX.List.UserListInfo) => {
   void confirmDialog({
     message: global.i18n.t('list_remove_tip', { name: listInfo.name }),
     confirmButtonText: global.i18n.t('list_remove_tip_button'),
-  }).then(isRemove => {
+  }).then(async isRemove => {
     if (!isRemove) return
-    void removeUserList([listInfo.id])
+    await removeUserList([listInfo.id])
+  }).catch(error => {
+    log.error(error)
+    toast('移除失败，请重试')
   })
 }
 

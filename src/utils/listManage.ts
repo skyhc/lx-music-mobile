@@ -13,17 +13,26 @@ import { LIST_IDS } from '@/config/constant'
 
 export const userLists: LX.List.UserListInfo[] = []
 export const allMusicList = new Map<string, LX.Music.MusicInfo[]>()
+const revisions = new Map<string, number>()
+const deletedIds = new Set<string>()
+const bumpRevision = (id: string) => revisions.set(id, (revisions.get(id) ?? 0) + 1)
+export const isListAvailable = (id: string) => !deletedIds.has(id) && (
+  id == LIST_IDS.DEFAULT || id == LIST_IDS.LOVE || id == LIST_IDS.TEMP || userLists.some(list => list.id == id)
+)
 
 export const setUserLists = (lists: LX.List.UserListInfo[]) => {
+  for (const list of lists) deletedIds.delete(list.id)
   userLists.splice(0, userLists.length, ...lists)
   return userLists
 }
 
 export const setMusicList = (listId: string, musicList: LX.Music.MusicInfo[]): LX.Music.MusicInfo[] => {
+  bumpRevision(listId)
   allMusicList.set(listId, musicList)
   return musicList
 }
 export const removeMusicList = (id: string) => {
+  bumpRevision(id)
   allMusicList.delete(id)
 }
 
@@ -108,13 +117,15 @@ export const listDataOverwrite = ({ defaultList, loveList, userList, tempList }:
   const updatedListIds: string[] = []
   const newUserIds: string[] = []
   const newUserListInfos = userList.map(({ list, ...listInfo }) => {
+    deletedIds.delete(listInfo.id)
     if (allMusicList.has(listInfo.id)) updatedListIds.push(listInfo.id)
     newUserIds.push(listInfo.id)
     setMusicList(listInfo.id, list)
     return listInfo
   })
   for (const list of userLists) {
-    if (!allMusicList.has(list.id) || newUserIds.includes(list.id)) continue
+    if (newUserIds.includes(list.id)) continue
+    deletedIds.add(list.id)
     removeMusicList(list.id)
     updatedListIds.push(list.id)
   }
@@ -145,6 +156,8 @@ export const userListCreate = ({ name, id, source, sourceListId, position, locat
   locationUpdateTime: number | null
 }) => {
   if (userLists.some(item => item.id == id)) return
+  deletedIds.delete(id)
+  bumpRevision(id)
   const newList: LX.List.UserListInfo = {
     name,
     id,
@@ -156,16 +169,17 @@ export const userListCreate = ({ name, id, source, sourceListId, position, locat
 }
 
 export const userListsRemove = (ids: string[]) => {
-  const changedIds = []
+  const changedIds: string[] = []
   for (const id of ids) {
+    // Built-in lists cannot be removed; user lists are removable even unopened.
+    if (!userLists.some(list => list.id == id)) continue
     removeUserList(id)
-    if (!allMusicList.has(id)) continue
+    deletedIds.add(id)
     removeMusicList(id)
     void removeListPosition(id)
     void removeListUpdateInfo(id)
     changedIds.push(id)
   }
-
   return changedIds
 }
 
@@ -206,9 +220,12 @@ export const getListMusicSync = (id: string | null) => {
  * @param listId
  */
 export const getListMusics = async(listId: string): Promise<LX.Music.MusicInfo[]> => {
-  if (!listId) return []
+  if (!listId || deletedIds.has(listId)) return []
   if (allMusicList.has(listId)) return allMusicList.get(listId)!
+  const revision = revisions.get(listId) ?? 0
   const list = await getListMusicsFromStore(listId)
+  if (deletedIds.has(listId)) return []
+  if ((revisions.get(listId) ?? 0) != revision) return allMusicList.get(listId) ?? []
   return setMusicList(listId, list)
 }
 

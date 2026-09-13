@@ -1,4 +1,6 @@
 import { useContext, useEffect, useState } from 'react'
+import { Platform } from 'react-native'
+import { readableTheme } from '@/utils/readability'
 import { ThemeContext } from './state'
 import settingState from '@/store/setting/state'
 
@@ -35,7 +37,14 @@ import settingState from '@/store/setting/state'
 //   return value
 // }
 
-export const useTheme = () => useContext(ThemeContext)
+const readableThemes = new WeakMap<LX.ActiveTheme, LX.ActiveTheme>()
+export const useTheme = () => {
+  const theme = useContext(ThemeContext)
+  if (Platform.OS != 'ios') return theme
+  let result = readableThemes.get(theme)
+  if (!result) { result = readableTheme(theme); readableThemes.set(theme, result) }
+  return result
+}
 
 export const useTextShadow = () => {
   const [value, update] = useState(settingState.setting['theme.fontShadow'])
