@@ -75,6 +75,7 @@ jobs:
           node scripts/check-build78-integration.js 2>&1 | tee build/checks/integration.log
           node scripts/check-build79-regressions.js 2>&1 | tee build/checks/build79-regressions.log
           node scripts/check-build80-regressions.js 2>&1 | tee build/checks/build80-regressions.log
+          node scripts/check-build81-regressions.js 2>&1 | tee build/checks/build81-regressions.log
           npx tsc --strict --noEmit --skipLibCheck --moduleResolution node --target ES2020 src/plugins/player/cache/DiskAudioCache.ts
       - name: Check full-project TypeScript regressions
         run: node scripts/check-type-regressions.js
