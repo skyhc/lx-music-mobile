@@ -146,6 +146,6 @@ check('Build81 change log and production screenshot phases are committed', () =>
   const shell = source('scripts/run-ios-playback-smoke.sh')
   assert.ok(shell.includes('tablet tabletportrait phone'))
   assert.ok(shell.includes('table favorites list settings menu navhidden'))
-  assert.ok(shell.includes('Native playback records and 39 production-view screenshots'))
+  assert.ok(shell.includes('Native playback records and 42 production-view screenshots'))
 })
 console.log(`${count} Build 81 regression checks passed; native playback and UI screenshots run separately in Actions.`)

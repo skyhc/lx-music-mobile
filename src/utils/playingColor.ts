@@ -36,16 +36,22 @@ export const playingColor = (theme: Theme, surface?: string): string => {
   // themes remain neutral unless they already provide another coloured accent.
   const saturation = accent.s < 0.12 ? 0 : Math.min(0.64, Math.max(0.38, accent.s * 0.85))
   const darkSurface = contrastRatio('#ffffff', bg) > contrastRatio('#000000', bg)
-  const target = accent.s < 0.12 ? (darkSurface ? 10 : 9) : 6
+  const normalColor = compositeColor(theme['c-font'] || (darkSurface ? '#aaa' : '#444'), bg)
+  const normal = hsl(rgb(normalColor))
+  const normalContrast = contrastRatio(normalColor, bg)
+  const maximumContrast = Math.max(contrastRatio('#ffffff', bg), contrastRatio('#000000', bg))
+  // With a monochrome palette, a generic 6:1 target could make the playing
+  // song DIMMER than ordinary text. Increase its contrast where room permits.
+  const canEmphasizeNeutral = saturation == 0 && maximumContrast > normalContrast + 1
+  const target = saturation == 0 ? Math.min(maximumContrast - 0.2, Math.max(12, normalContrast + 3)) : 6
   let best = '', score = Infinity
   for (let step = 2; step <= 98; step++) {
     const c = fromHSL(accent.h, saturation, step / 100)
     const contrast = contrastRatio(c, bg)
     if (contrast < 4.8) continue
     // Prefer 6:1, not maximum luminosity. Avoid merging with normal text.
-    const normal = hsl(rgb(compositeColor(theme['c-font'] || (darkSurface ? '#aaa' : '#444'), bg)))
     const separation = Math.abs(step / 100 - normal.l) + saturation * 0.3
-    const cost = Math.abs(contrast - target) + (separation < 0.13 ? 1.5 : 0)
+    const cost = Math.abs(contrast - target) + (separation < 0.13 ? 1.5 : 0) + (canEmphasizeNeutral && contrast <= normalContrast ? 20 : 0)
     if (cost < score) { score = cost; best = c }
   }
   const result = best || readableColor(fromHSL(accent.h, saturation, 0.5), bg, 4.8)

@@ -57,6 +57,16 @@ const check = async(name, fn) => { await fn(); checks++; console.log('PASS ' + n
     }
     assert.equal(new Set(results).size, 6)
   })
+  await check('neutral themes emphasize rather than dim playing text when contrast headroom exists', () => {
+    for (const [bg, normal] of [['#151515', '#dbdbdb'], ['#ffffff', '#444444']]) {
+      const t = { isDark: bg !== '#ffffff', 'c-primary': '#888888', 'c-font': normal, 'c-content-background': bg }
+      const c = colors.playingColor(t)
+      assert.ok(readability.contrastRatio(c, bg) > readability.contrastRatio(normal, bg) + 1)
+      const rgb = c.match(/\d+/g).map(Number)
+      assert.equal(rgb[0], rgb[1]); assert.equal(rgb[1], rgb[2])
+      assert.ok(rgb[0] > 0 && rgb[0] < 255, 'Do not force absolute black or white')
+    }
+  })
   await check('alpha backgrounds and theme changes recalculate the playing foreground', () => {
     const t = { isDark: false, 'c-primary': '#bb6655', 'c-font': '#333', 'c-content-background': '#fffc' }
     const first = colors.playingColor(t)

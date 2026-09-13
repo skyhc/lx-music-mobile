@@ -193,7 +193,7 @@ check('release simulator validates scene style, live status colors and productio
   assert.ok(source('src/tests/playbackSmoke.tsx').includes('scene-based window and minimal native window controls'))
   const script = source('scripts/run-ios-playback-smoke.sh')
   for (const phase of ['darktable','darkmenu','darklibrary','themeswitch','lightagain']) assert.ok(script.includes(phase))
-  assert.ok(script.includes('39 production-view screenshots'))
+  assert.ok(script.includes('42 production-view screenshots'))
 })
 check('Build82 version and seven-fix changelog ship with regression gates', () => {
   assert.ok(JSON.parse(source('package.json')).versionCode >= 82)
