@@ -312,6 +312,8 @@ declare global {
        * 升降声调
        */
       'player.soundEffect.pitchShifter.playbackRate': number
+
+      /**
        * 是否启用蓝牙完整歌词
        */
       'player.isShowBluetoothFullLyric': boolean
@@ -473,4 +475,3 @@ declare global {
     }
   }
 }
-

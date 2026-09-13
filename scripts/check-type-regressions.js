@@ -1,5 +1,6 @@
 // Full-project TypeScript comparison against the unchanged build baseline.
 // Existing diagnostics remain visible; any added diagnostic fails the build.
+require('./check-source-syntax')
 const fs = require('node:fs')
 const path = require('node:path')
 const cp = require('node:child_process')
