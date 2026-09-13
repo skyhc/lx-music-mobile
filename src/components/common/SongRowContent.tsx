@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native'
 import Text from './Text'
 import { useTheme } from '@/store/theme/hook'
 import { useHorizontalMode } from '@/utils/hooks'
-import { songColumns, SONG_COLUMN_GAP, SONG_TIME_WIDTH } from '@/utils/songLayout'
+import { songColumns, SONG_COLUMN_GAP, SONG_TIME_WIDTH, SONG_TRAILING_GAP } from '@/utils/songLayout'
 
 export interface SongRowProps {
   name: string
@@ -25,14 +25,18 @@ export default ({ name, singer, album, source, interval, active = false, showAlb
   const secondary = header ? color : active ? theme['c-primary-font'] : theme['c-font-label']
   const weight = header ? '600' : '400'
   if (header && columns.compact) return null
+  const title = <View style={styles.titleRow}>
+    <Text size={columns.compact ? 16 : 14} numberOfLines={1} color={color}
+      style={{ flexShrink: 1, fontWeight: weight }}>{name}</Text>
+    {!header && source ? <Text testID="song-source" size={10} color={theme['c-primary-font']}
+      accessibilityLabel={`音源 ${source}`} style={styles.source}>{source.toLowerCase()}</Text> : null}
+  </View>
   return <View style={styles.row} onLayout={e => setWidth(e.nativeEvent.layout.width)}>
     {columns.compact ? <View style={styles.metadata}>
-      <Text size={16} numberOfLines={1} color={color}>{name}</Text>
-      <Text size={12} numberOfLines={1} color={secondary} style={styles.subtitle}>
-        {source ? <Text size={12} color={theme['c-primary-font']}>{source.toUpperCase()}  </Text> : null}{singer}
-      </Text>
+      {title}
+      <Text size={12} numberOfLines={1} color={secondary} style={styles.subtitle}>{singer}</Text>
     </View> : <>
-      <Text size={14} numberOfLines={1} color={color} style={[styles.column, { fontWeight: weight }]}>{name}</Text>
+      <View style={[styles.column]}>{title}</View>
       <Text size={13} numberOfLines={1} color={secondary} style={[styles.column, { fontWeight: weight }]}>{singer}</Text>
       {columns.album ? <Text size={13} numberOfLines={1} color={secondary} style={[styles.column, { fontWeight: weight }]}>{album ?? ''}</Text> : null}
     </>}
@@ -40,9 +44,11 @@ export default ({ name, singer, album, source, interval, active = false, showAlb
   </View>
 }
 const styles = StyleSheet.create({
-  row: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: SONG_COLUMN_GAP, paddingRight: 14 },
+  row: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: SONG_COLUMN_GAP, paddingRight: SONG_TRAILING_GAP },
   column: { flex: 1, minWidth: 0 },
+  titleRow: { flexDirection: 'row', alignItems: 'baseline', minWidth: 0 },
+  source: { flexShrink: 0, marginLeft: 5 },
   metadata: { flex: 1, minWidth: 0, justifyContent: 'center' },
   subtitle: { paddingTop: 3 },
-  time: { width: SONG_TIME_WIDTH, flexShrink: 0, textAlign: 'right', fontVariant: ['tabular-nums'] },
+  time: { width: SONG_TIME_WIDTH, flexShrink: 0, textAlign: 'center', fontVariant: ['tabular-nums'] },
 })

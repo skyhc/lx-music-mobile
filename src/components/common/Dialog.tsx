@@ -38,7 +38,7 @@ export default forwardRef<DialogType, DialogProps>(({
         <View onStartShouldSetResponder={() => true} style={{ width: Math.max(0, Math.min(maxWidth, availableWidth - 24)),
           maxHeight: Math.max(0, availableHeight - 24), height, flexShrink: 1, ...overlaySurface(theme) }}>
           <View style={{ minHeight: 44, flexShrink: 0, justifyContent: 'center', borderTopWidth: 3, borderTopColor: theme['c-primary-font'] }}>
-            <Text size={15} numberOfLines={1} style={{ paddingLeft: 16, paddingRight: 50, fontWeight: '600' }}>{title}</Text>
+            <Text size={15} style={{ paddingLeft: 16, paddingRight: 50, fontWeight: '600' }}>{title}</Text>
             {closeBtn ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="关闭" onPress={() => modalRef.current?.setVisible(false)}
               style={{ position: 'absolute', right: 0, top: 0, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="close" rawSize={16} color={theme['c-font']} />

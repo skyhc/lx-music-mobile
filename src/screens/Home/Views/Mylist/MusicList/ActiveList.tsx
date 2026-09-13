@@ -11,6 +11,7 @@ import { setActiveList } from '@/core/list'
 import Text from '@/components/common/Text'
 import { LIST_IDS } from '@/config/constant'
 import Loading from '@/components/common/Loading'
+import { useHorizontalMode } from '@/utils/hooks'
 import { useSettingValue } from '@/store/setting/hook'
 
 export interface ActiveListProps {
@@ -24,6 +25,8 @@ export interface ActiveListType {
 
 export default forwardRef<ActiveListType, ActiveListProps>(({ onShowSearchBar, onScrollToTop, listSelector }, ref) => {
   const theme = useTheme()
+  const horizontal = useHorizontalMode()
+  const sidebarOwnsTitle = Platform.OS == 'ios' && horizontal
   const currentListId = useActiveListId()
   const allList = useMyList()
   const fetching = useListFetching(currentListId)
@@ -73,7 +76,7 @@ export default forwardRef<ActiveListType, ActiveListProps>(({ onShowSearchBar, o
     <TouchableOpacity onPress={showList} onLongPress={onScrollToTop} style={{ ...styles.currentList, opacity: visibleBar ? 1 : 0, borderBottomColor: theme['c-border-background'] }}>
       <Icon style={styles.currentListIcon} color={theme['c-button-font']} name="list-order" size={14} />
       { fetching ? <Loading color={theme['c-button-font']} style={styles.loading} /> : null }
-      <Text style={styles.currentListText} numberOfLines={1} color={theme['c-button-font']}>{currentListName}</Text>
+      <Text style={styles.currentListText} numberOfLines={1} color={theme['c-button-font']}>{sidebarOwnsTitle ? '回到顶部' : currentListName}</Text>
       <TouchableOpacity style={styles.currentListBtns} onPress={onShowSearchBar}>
         <Icon color={theme['c-button-font']} name="search-2" />
       </TouchableOpacity>

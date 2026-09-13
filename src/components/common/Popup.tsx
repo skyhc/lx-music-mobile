@@ -53,7 +53,7 @@ export default forwardRef<PopupType, PopupProps>(({
           ...overlaySurface(theme),
           transform: actualPosition == 'left' ? [{ translateX: entrance.interpolate({ inputRange: [0, 1], outputRange: [-bounds.width - 12, 0] }) }] : undefined }}>
           <View style={{ minHeight: 48, flexShrink: 0, justifyContent: 'center', borderBottomWidth: .5, borderBottomColor: theme['c-border-background'] }}>
-            <Text size={15} numberOfLines={1} style={{ paddingLeft: 16, paddingRight: 52, fontWeight: '600' }}>{title}</Text>
+            <Text size={15} style={{ paddingLeft: 16, paddingRight: 52, fontWeight: '600' }}>{title}</Text>
             {closeBtn ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="关闭" onPress={() => modalRef.current?.setVisible(false)}
               style={{ position: 'absolute', right: 0, top: 2, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="close" rawSize={16} color={theme['c-font']} />

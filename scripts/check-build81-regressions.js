@@ -36,8 +36,8 @@ check('native clearance is used once, including zero and already inset content',
   assert.equal(w.getWindowControlTopPadding(-10), 0)
   assert.equal(w.getWindowControlTopPadding(NaN), 0)
   const native = source('ios/LxMusicMobile/LXWindowInsets.swift')
-  assert.ok(native.includes('self.convert(window.bounds.inset(by: insets), from: window)'))
-  assert.ok(native.includes('region.minY - self.bounds.minY'))
+  assert.ok(native.includes('self.edgeInsets(for: .safeArea(cornerAdaptation: .vertical))'))
+  assert.ok(native.includes('max(0, insets.top)'))
   assert.ok(!source('src/components/WindowContent.tsx').includes('safeTop + getWindowControlTopPadding'))
 })
 check('portrait table headers return null, landscape headers remain present', () => {
@@ -45,12 +45,12 @@ check('portrait table headers return null, landscape headers remain present', ()
   horizontal = false; assert.equal(Header({}), null)
   horizontal = true; assert.equal(Header({}).type, 'View')
 })
-check('portrait song renderer uses title plus uppercase source and singer', () => {
+check('portrait song renderer keeps the source beside the title and singer below', () => {
   horizontal = false
   const Row = load('src/components/common/SongRowContent.tsx', mocks).default
   const tree = Row({ name: '蓝莲花', singer: '许巍', source: 'wy', album: '不可显示的专辑列', interval: '04:30' })
   const text = textOf(tree)
-  assert.ok(text.includes('蓝莲花') && text.includes('WY') && text.includes('许巍') && text.includes('04:30'))
+  assert.ok(text.includes('蓝莲花') && text.includes('wy') && text.includes('许巍') && text.includes('04:30'))
   assert.ok(!text.includes('不可显示的专辑列'))
   assert.equal(tree.props.children[0].type, 'View')
 })
@@ -79,7 +79,7 @@ check('compact library selector replaces rather than duplicates the title toolba
   assert.ok(source('src/screens/Home/Views/Mylist/index.tsx').includes('listSelector={sidebar ? undefined : <MyList compact />}'))
   assert.ok(source('src/screens/Home/Views/Mylist/MusicList/index.tsx').includes('<ActiveList listSelector={listSelector}'))
   const active = source('src/screens/Home/Views/Mylist/MusicList/ActiveList.tsx')
-  assert.ok(active.indexOf('if (listSelector) return') < active.indexOf('{currentListName}'))
+  assert.ok(active.indexOf('if (listSelector) return') < active.indexOf("{sidebarOwnsTitle ? '回到顶部' : currentListName}"))
   assert.ok(active.includes('accessibilityLabel="搜索当前列表"'))
 })
 check('online, library and player queue share row geometry and compact renderer', () => {
@@ -90,7 +90,7 @@ check('online, library and player queue share row geometry and compact renderer'
   }
 })
 check('popup cards differ from their backdrop and provide real iOS shadows', () => {
-  assert.notEqual(overlay.OVERLAY_BACKDROP, 'rgba(0,0,0,0)')
+  assert.equal(overlay.OVERLAY_BACKDROP, 'transparent')
   for (const dark of [false,true]) {
     const bg = dark ? '#161616' : '#ffffff'
     const card = overlay.overlaySurface({ isDark: dark, 'c-content-background': bg })
@@ -146,6 +146,6 @@ check('Build81 change log and production screenshot phases are committed', () =>
   const shell = source('scripts/run-ios-playback-smoke.sh')
   assert.ok(shell.includes('tablet tabletportrait phone'))
   assert.ok(shell.includes('table favorites list settings menu navhidden'))
-  assert.ok(shell.includes('Native playback records and 18 production-view screenshots'))
+  assert.ok(shell.includes('Native playback records and 36 production-view screenshots'))
 })
 console.log(`${count} Build 81 regression checks passed; native playback and UI screenshots run separately in Actions.`)

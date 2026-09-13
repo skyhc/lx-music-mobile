@@ -83,6 +83,9 @@ const RightHeader = () => {
 
 const Header = () => {
   const drawerLayoutPosition = useSettingValue('common.drawerLayoutPosition')
+  const id = useNavActiveId()
+  // Library/chart views own their title and toolbar; do not reserve another row.
+  if (Platform.OS == 'ios' && (id == 'nav_love' || id == 'nav_top')) return <StatusBar />
 
   return (
     <>

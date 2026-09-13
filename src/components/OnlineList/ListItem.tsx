@@ -65,7 +65,7 @@ export default memo(({ item, index, showSource, onPress, onLongPress, onShowMenu
       <TouchableOpacity style={styles.listItemLeft} onPress={() => { onPress(item, index) }} onLongPress={() => { onLongPress(item, index) }}>
         <Text style={styles.sn} size={13} color={theme['c-font-label']}>{index + 1}</Text>
         {Platform.OS == 'ios' ? <SongRowContent name={item.name} singer={item.singer} album={item.meta.albumName}
-          interval={item.interval} showAlbum={isShowAlbumName} showInterval={isShowInterval} source={showSource ? item.source : undefined} /> : <>
+          interval={item.interval} showAlbum={isShowAlbumName} showInterval={isShowInterval} source={item.source} /> : <>
         <View style={styles.itemInfo}>
           <Text numberOfLines={1}>{item.name}</Text>
           <View style={styles.listItemSingle}>

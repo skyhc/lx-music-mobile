@@ -1,7 +1,7 @@
 import type { ViewStyle } from 'react-native'
 import { compositeColor } from './readability'
 
-export const OVERLAY_BACKDROP = 'rgba(0,0,0,0.32)'
+export const OVERLAY_BACKDROP = 'transparent'
 // A distinct opaque surface, visible border and an iOS shadow (elevation alone
 // is Android-only). Keep the source palette rather than hard-coding white.
 export const overlaySurface = (theme: { isDark: boolean, 'c-content-background': string }): ViewStyle => ({
@@ -10,7 +10,7 @@ export const overlaySurface = (theme: { isDark: boolean, 'c-content-background':
   borderColor: theme.isDark ? 'rgba(255,255,255,0.24)' : 'rgba(30,50,75,0.22)',
   borderRadius: 12,
   shadowColor: '#000000',
-  shadowOpacity: theme.isDark ? 0.4 : 0.22,
+  shadowOpacity: theme.isDark ? 0.65 : 0.28,
   shadowOffset: { width: 0, height: 5 },
   shadowRadius: 16,
   elevation: 10,

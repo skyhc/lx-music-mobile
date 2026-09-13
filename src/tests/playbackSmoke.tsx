@@ -60,6 +60,12 @@ export const run = async() => {
     setUserList(await getUserLists())
     Navigation.registerComponent('LXPlaybackSmoke', () => () => <View><Text>Native playback regression test</Text></View>)
     await Navigation.setRoot({ root: { component: { name: 'LXPlaybackSmoke' } } })
+    await check('scene-based window and minimal native window controls', async() => {
+      const info = await support.windowSnapshot()
+      assert(info.sceneAttached && info.sceneDelegate == 'LXSceneDelegate', JSON.stringify(info))
+      assert(info.minimalWindowControls, 'The configured scene is not using minimal window controls')
+      return info
+    })
     initUnifiedPlayerEngine()
     onUnifiedPlayerEvent(event => { events.push(event) })
     settingState.setting['player.cacheSize'] = '32'

@@ -1,8 +1,8 @@
 import UIKit
 import React
 
-// Measure in window coordinates and subtract the content root's existing origin.
-// Never reposition system views or add another titlebar to an already-inset root.
+// Measure only this root's uncovered safe region. Ancestor bars are already
+// reflected by UIKit. LXSceneDelegate requests the minimal window-control style.
 @objc(LXWindowInsetsView)
 final class LXWindowInsetsView: UIView {
   @objc var onInsetsChange: RCTDirectEventBlock? { didSet { scheduleInsets() } }
@@ -20,14 +20,13 @@ final class LXWindowInsetsView: UIView {
     DispatchQueue.main.async { [weak self] in
       guard let self = self else { return }
       self.scheduled = false
-      guard let window = self.window, let emit = self.onInsetsChange else { return }
-      var insets = window.safeAreaInsets
+      guard self.window != nil, let emit = self.onInsetsChange else { return }
+      var insets = self.safeAreaInsets
       if #available(iOS 26.0, *) {
-        insets = window.edgeInsets(for: .safeArea(cornerAdaptation: .vertical))
+        insets = self.edgeInsets(for: .safeArea(cornerAdaptation: .vertical))
       }
-      let region = self.convert(window.bounds.inset(by: insets), from: window)
-      let top = max(0, region.minY - self.bounds.minY)
-      let bottom = max(0, self.bounds.maxY - region.maxY)
+      let top = max(0, insets.top)
+      let bottom = max(0, insets.bottom)
       guard abs(top - self.lastTop) > 0.1 || abs(bottom - self.lastBottom) > 0.1 else { return }
       self.lastTop = top
       self.lastBottom = bottom
@@ -45,5 +44,29 @@ final class LXWindowInsetsManager: RCTViewManager {
     view.isUserInteractionEnabled = false
     view.isAccessibilityElement = false
     return view
+  }
+}
+
+// UIKit modal controllers use the window's traits when their own status-bar
+// preference is automatic. RNN controllers are updated by Navigation.mergeOptions.
+@objc(LXWindowAppearance)
+final class LXWindowAppearance: NSObject {
+  @objc static func requiresMainQueueSetup() -> Bool { true }
+  @objc func setDark(_ dark: Bool) {
+    DispatchQueue.main.async {
+      for scene in UIApplication.shared.connectedScenes {
+        guard let scene = scene as? UIWindowScene else { continue }
+        for window in scene.windows {
+          window.overrideUserInterfaceStyle = dark ? .dark : .light
+          self.refresh(window.rootViewController)
+        }
+      }
+    }
+  }
+  private func refresh(_ controller: UIViewController?) {
+    guard let controller = controller else { return }
+    controller.setNeedsStatusBarAppearanceUpdate()
+    for child in controller.children { refresh(child) }
+    refresh(controller.presentedViewController)
   }
 }

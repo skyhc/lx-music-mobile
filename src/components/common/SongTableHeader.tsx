@@ -11,9 +11,9 @@ export default ({ showAlbum = true, showInterval = true, numbered = true, action
   const theme = useTheme()
   const horizontal = useHorizontalMode()
   if (!horizontal) return null
-  return <View accessibilityRole="header" style={{ flexDirection: 'row', alignItems: 'center', minHeight: 46,
+  return <View testID="song-table-header" accessibilityRole="header" style={{ flexDirection: 'row', alignItems: 'center', minHeight: 46,
     paddingRight: actions ? 2 : 16, paddingLeft: numbered ? 0 : 16, flexShrink: 0,
-    borderBottomWidth: 1, borderBottomColor: theme['c-border-background'], backgroundColor: theme['c-content-background'] }}>
+    borderBottomWidth: 1, borderBottomColor: theme['c-border-background'], backgroundColor: 'transparent' }}>
     {numbered ? <Text size={13} color={theme['c-font-label']} style={{ width: SONG_NUMBER_WIDTH, textAlign: 'center' }}>#</Text> : null}
     <SongRowContent header name="歌曲名" singer="艺术家" album="专辑名" interval="时长" showAlbum={showAlbum} showInterval={showInterval} />
     {actions ? <Text size={12} style={{ width: SONG_ACTION_WIDTH, textAlign: 'center', fontWeight: '600' }}>操作</Text> : null}

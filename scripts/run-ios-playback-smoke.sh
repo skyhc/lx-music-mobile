@@ -54,7 +54,7 @@ for FORM in tablet tabletportrait phone; do
     xcrun simctl install "$SIM" "$APP"
     DATA=$(xcrun simctl get_app_container "$SIM" com.skyhc.lxmusic data)
   fi
-  for UI in table favorites list settings menu navhidden; do
+  for UI in table favorites list settings menu navhidden library darktable darkmenu darklibrary themeswitch lightagain; do
     xcrun simctl terminate "$SIM" com.skyhc.lxmusic || true
     rm -f "$DATA/Documents/playback-smoke.json"
     EXTRA=(); if [ "$FORM" = tablet ]; then EXTRA=(--lx-ui-landscape); fi
@@ -82,10 +82,10 @@ for phase in ['online', 'offline']:
     report = json.loads((p / ('playback-' + phase + '.json')).read_text())
     assert report.get('success') and report.get('done'), report
 for form in ['tablet', 'tabletportrait', 'phone']:
-    for ui in ['table', 'favorites', 'list', 'settings', 'menu', 'navhidden']:
+    for ui in ['table', 'favorites', 'list', 'settings', 'menu', 'navhidden', 'library', 'darktable', 'darkmenu', 'darklibrary', 'themeswitch', 'lightagain']:
         name = 'ui-' + form + '-' + ui
         report = json.loads((p / (name + '.json')).read_text())
         assert report.get('success'), report
         assert (p / (name + '.png')).stat().st_size > 1024, name
-print('Native playback records and 18 production-view screenshots are present.')
+print('Native playback records and 36 production-view screenshots are present.')
 PYTHON

@@ -1,4 +1,5 @@
 #import "AppDelegate.h"
+#import <React/RCTLinkingManager.h>
 #import <CommonCrypto/CommonCryptor.h>
 #import <CommonCrypto/CommonDigest.h>
 #import <React/RCTBridgeModule.h>
@@ -4704,6 +4705,26 @@ RCT_EXPORT_MODULE();
             @"uiPhase": uiPhase,
             @"uiOrientation": [args containsObject:@"--lx-ui-landscape"] ? @"landscape" : @"portrait" };
 }
+RCT_REMAP_METHOD(windowSnapshot, windowSnapshotWithResolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    UIWindow *window = ((AppDelegate *)UIApplication.sharedApplication.delegate).window;
+    UIWindowScene *scene = window.windowScene;
+    BOOL minimal = NO;
+    if (@available(iOS 26.0, *)) {
+      id<UIWindowSceneDelegate> delegate = (id<UIWindowSceneDelegate>)scene.delegate;
+      if ([delegate respondsToSelector:@selector(preferredWindowingControlStyleForScene:)]) {
+        minimal = [delegate preferredWindowingControlStyleForScene:scene] == UISceneWindowingControlStyle.minimalStyle;
+      }
+    }
+    resolve(@{ @"sceneAttached": @(scene != nil),
+               @"sceneDelegate": scene.delegate ? NSStringFromClass(scene.delegate.class) : @"",
+               @"minimalWindowControls": @(minimal),
+               @"statusBarStyle": @(scene.statusBarManager.statusBarStyle),
+               @"interfaceStyle": @(window.traitCollection.userInterfaceStyle),
+               @"safeTop": @(window.safeAreaInsets.top),
+               @"windowWidth": @(window.bounds.size.width), @"windowHeight": @(window.bounds.size.height) });
+  });
+}
 RCT_REMAP_METHOD(record, record:(NSDictionary *)report resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
   NSError *error = nil;
   NSData *data = [NSJSONSerialization dataWithJSONObject:report options:NSJSONWritingPrettyPrinted error:&error];
@@ -4722,11 +4743,17 @@ RCT_REMAP_METHOD(record, record:(NSDictionary *)report resolver:(RCTPromiseResol
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
   LXRegisterTrackPlayerLifecycleObserver();
+  self.lxLaunchOptions = launchOptions ?: @{};
+  self.initialProps = @{};
+  // SceneDelegate installs the scene-owned window before RNN captures mainWindow.
+  return YES;
+}
+
+- (void)startReactNativeWithLaunchOptions:(NSDictionary *)launchOptions
+{
+  if ([ReactNativeNavigation getBridge] != nil) return;
   RCTBridge *bridge = [[RCTBridge alloc] initWithDelegate:self launchOptions:launchOptions];
   [ReactNativeNavigation bootstrapWithBridge:bridge];
-  self.initialProps = @{};
-
-  return YES;
 }
 
 - (NSArray<id<RCTBridgeModule>> *)extraModulesForBridge:(RCTBridge *)bridge {
@@ -4747,4 +4774,56 @@ RCT_REMAP_METHOD(record, record:(NSDictionary *)report resolver:(RCTPromiseResol
 #endif
 }
 
+@end
+
+
+// One RNN root/bridge, one UIWindowScene. Reconnecting a window never resets
+// playback; additional independent scenes are disabled in Info.plist.
+@interface LXSceneDelegate : UIResponder <UIWindowSceneDelegate>
+@property(nonatomic, strong) UIWindow *window;
+@end
+
+@implementation LXSceneDelegate
+- (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session
+      options:(UISceneConnectionOptions *)connectionOptions
+{
+  if (![scene isKindOfClass:UIWindowScene.class]) return;
+  AppDelegate *app = (AppDelegate *)UIApplication.sharedApplication.delegate;
+  self.window = app.window ?: [[UIWindow alloc] initWithWindowScene:(UIWindowScene *)scene];
+  self.window.windowScene = (UIWindowScene *)scene;
+  app.window = self.window;
+  NSMutableDictionary *options = [app.lxLaunchOptions mutableCopy] ?: [NSMutableDictionary dictionary];
+  UIOpenURLContext *url = connectionOptions.URLContexts.anyObject;
+  if (url) options[UIApplicationLaunchOptionsURLKey] = url.URL;
+  NSUserActivity *activity = connectionOptions.userActivities.anyObject;
+  if (activity) options[UIApplicationLaunchOptionsUserActivityDictionaryKey] = @{
+    UIApplicationLaunchOptionsUserActivityTypeKey: activity.activityType,
+    @"UIApplicationLaunchOptionsUserActivityKey": activity
+  };
+  [app startReactNativeWithLaunchOptions:options];
+  [self.window makeKeyAndVisible];
+}
+
+- (UISceneWindowingControlStyle *)preferredWindowingControlStyleForScene:(UIWindowScene *)windowScene API_AVAILABLE(ios(26.0))
+{
+  // Public API: pin the style preference to the compact top-leading system area.
+  // Pixel position remains managed by iPadOS across fullscreen/windowed states.
+  return UISceneWindowingControlStyle.minimalStyle;
+}
+
+- (void)scene:(UIScene *)scene openURLContexts:(NSSet<UIOpenURLContext *> *)URLContexts
+{
+  for (UIOpenURLContext *context in URLContexts) {
+    NSMutableDictionary *options = [NSMutableDictionary dictionary];
+    if (context.options.sourceApplication) options[UIApplicationOpenURLOptionsSourceApplicationKey] = context.options.sourceApplication;
+    if (context.options.annotation) options[UIApplicationOpenURLOptionsAnnotationKey] = context.options.annotation;
+    options[UIApplicationOpenURLOptionsOpenInPlaceKey] = @(context.options.openInPlace);
+    [RCTLinkingManager application:UIApplication.sharedApplication openURL:context.URL options:options];
+  }
+}
+
+- (void)scene:(UIScene *)scene continueUserActivity:(NSUserActivity *)userActivity
+{
+  [RCTLinkingManager application:UIApplication.sharedApplication continueUserActivity:userActivity restorationHandler:^(NSArray *objects) {}];
+}
 @end
