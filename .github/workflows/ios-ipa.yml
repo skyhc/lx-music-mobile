@@ -80,6 +80,7 @@ jobs:
           node scripts/check-build84-regressions.js | tee build/checks/build84.log
           node scripts/check-build85-regressions.js | tee build/checks/build85.log
           node scripts/check-build86-regressions.js | tee build/checks/build86.log
+          node scripts/check-track-player-queue.js | tee build/checks/track-player-queue.log
           node scripts/check-sync-catalog-race.js | tee build/checks/sync-catalog-race.log
           node scripts/check-settings-preservation.js | tee build/checks/settings-audit.log
           node scripts/check-upstream190.js 2>&1 | tee build/checks/upstream190.log
@@ -113,6 +114,8 @@ jobs:
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build/Simulator \
             ARCHS=arm64 ONLY_ACTIVE_ARCH=YES PRODUCT_BUNDLE_IDENTIFIER="$IOS_BUNDLE_IDENTIFIER" \
             TARGETED_DEVICE_FAMILY="1,2" IPHONEOS_DEPLOYMENT_TARGET=15.0 \
+            MARKETING_VERSION="$(node -p "require('./package.json').version")" \
+            CURRENT_PROJECT_VERSION="$(node -p "require('./package.json').versionCode")" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee build/checks/simulator-build.log
           python3 - <<'PYTHON'
           import plistlib, pathlib

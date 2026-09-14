@@ -151,6 +151,7 @@ def run() -> None:
                     sample_process(pid.group(1), OUT / (name + '-threads.txt'))
             deadline = time.monotonic() + (90 if phase else 300)
             last = None
+            early_sampled = False
             while time.monotonic() < deadline:
                 try:
                     raw = report_path.read_bytes()
@@ -158,6 +159,17 @@ def run() -> None:
                 except (OSError, ValueError):
                     time.sleep(.5)
                     continue
+                # A blocked native queue cannot publish the JS watchdog result.
+                # Sample our app while it is still alive, rather than waiting
+                # until iOS kills it and a 300-second outer deadline expires.
+                probes = last.get('probes') or []
+                pending = probes[-1] if probes else {}
+                if (phase is None and not early_sampled and pid and not last.get('done')
+                        and pending.get('started') and 'elapsed' not in pending
+                        and time.time() * 1000 - pending['started'] > 8000):
+                    early_sampled = True
+                    save_json(OUT / (name + '-stalled.json'), last)
+                    sample_process(pid.group(1), OUT / (name + '-stalled-threads.txt'))
                 if last.get('done'):
                     if last.get('success') is not True:
                         save_json(OUT / (name + '.json'), last)

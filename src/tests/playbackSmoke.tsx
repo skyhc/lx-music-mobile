@@ -169,6 +169,17 @@ export const run = async() => {
         await loadPlaybackResource({ musicInfo: music('mp3'), url: (await lookupAudioCache(music('mp3'), '128k'))!, time: 0, quality: '128k' })
         return audibleTimeline('switch')
       })
+      // Each replacement has its own timeout; six loads must not share one.
+      for (let pass = 0; pass < 3; pass++) {
+        for (const source of ['remote', 'cache']) {
+          await check(`repeated remote/cache transition ${pass} ${source}`, async() => {
+            const url = source == 'remote' ? 'http://127.0.0.1:18779/tone.mp3' : await lookupAudioCache(music('mp3'), '128k')
+            assert(url, 'Completed MP3 required for transition stress')
+            await loadPlaybackResource({ musicInfo: music('mp3'), url: url!, time: 0, quality: '128k' })
+            return { pass, source, position: await audibleTimeline(`transition ${pass} ${source}`) }
+          })
+        }
+      }
     } else {
       await check('second app process does not restore removed lists or songs', async() => {
         let recreated = false
