@@ -121,7 +121,16 @@ const clone=x=>JSON.parse(JSON.stringify(x))
     const pkg=JSON.parse(source('package.json')),lock=JSON.parse(source('package-lock.json'))
     assert.equal(pkg.version,'1.9.0');assert.equal(pkg.versionCode,86);assert.equal(lock.version,'1.9.0')
     assert.deepEqual(pkg.dependencies,lock.packages[''].dependencies);assert.deepEqual(pkg.devDependencies,lock.packages[''].devDependencies)
-    assert.equal(pkg.scripts.postinstall,'node dependencies-patch.js');assert.ok(source('CHANGELOG.md').includes('iOS / iPadOS 1.9.0 Build 86'))
+    // Keep every mandatory production patch in order. The old literal only
+    // allowed the pre-Build86 hook and rejected the reviewed queue repair.
+    // Exact commands (rather than includes/startsWith) also reject a shell
+    // short-circuit which would hide a failed patch or skip its verification.
+    assert.deepEqual(pkg.scripts.postinstall.split(/\s*&&\s*/), [
+      'node dependencies-patch.js',
+      'node patches/ios/serialize-track-player.cjs',
+      'node scripts/check-track-player-queue.js',
+    ], 'postinstall must apply and verify all production patches in order')
+    assert.ok(source('CHANGELOG.md').includes('iOS / iPadOS 1.9.0 Build 86'))
   })
   console.log(`${checks} upstream 1.9.0 behavioral/integration checks passed. External live APIs require separate device validation.`)
 })().catch(e=>{console.error(e);process.exitCode=1})
