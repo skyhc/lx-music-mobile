@@ -58,11 +58,21 @@ check('native lifecycle consumer requires position only for explicit seek', () =
   assert.ok(!handler.includes('@"state"'))
   assert.ok(!handler.includes('@"error"'))
 })
-check('observer mix refresh is deferred even on main, preserving the same DSP function', () => {
+check('ready-state mix refresh is ordered before play on main with async non-main fallback', () => {
   const result = swift(fixture).split(MIX_MARKER)[1]
-  assert.ok(!result.includes('if Thread.isMainThread'))
+  assert.ok(result.includes('if Thread.isMainThread'))
+  assert.ok(result.includes('refreshSoundEffectAudioMix()'))
+  assert.ok(result.includes('return'))
   assert.ok(result.includes('DispatchQueue.main.async'))
   assert.ok(result.includes('self?.refreshSoundEffectAudioMix()'))
+  assert.ok(result.indexOf('if Thread.isMainThread') < result.indexOf('DispatchQueue.main.async'))
+})
+check('mix ordering relies on the installed KVO callback deferral rather than running inside raw AVFoundation KVO', () => {
+  const podfile = fs.readFileSync(path.join(base, 'ios/Podfile'), 'utf8')
+  assert.ok(podfile.includes("raise 'SwiftAudio KVO regression failed' unless system('node', kvo_test)"))
+  assert.ok(podfile.includes("raise 'SwiftAudio KVO patch failed' unless system('node', kvo_patch, installer.sandbox.root.to_s)"))
+  const kvo = fs.readFileSync(path.join(base, 'patches/ios/defer-swift-audio-kvo.cjs'), 'utf8')
+  assert.ok(kvo.includes('DispatchQueue.main.async { [weak self, weak observed] in'))
 })
 check('Swift patch is idempotent and rejects a missing function', () => {
   assert.equal(swift(swift(fixture)), swift(fixture))

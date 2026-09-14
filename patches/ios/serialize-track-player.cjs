@@ -6,7 +6,7 @@ const path = require('node:path')
 const assert = require('node:assert/strict')
 const QUEUE_MARKER = '// LX_DEFAULT_REACT_NATIVE_PLAYBACK_QUEUE_V2'
 const LIFECYCLE_MARKER = '// LX_DEFER_LIFECYCLE_SNAPSHOT_V1'
-const MIX_MARKER = '// LX_DEFER_AUDIO_MIX_REFRESH_V1'
+const MIX_MARKER = '// LX_ORDER_AUDIO_MIX_BEFORE_PLAY_V2'
 
 function bridge(source) {
   if (source.includes(QUEUE_MARKER)) return source
@@ -54,8 +54,14 @@ function swift(source) {
     assert.equal((result.match(new RegExp(expression.source, 'g')) || []).length, 1, 'Unexpected sound-effect refresh function')
     result = result.replace(expression, `    private func refreshSoundEffectAudioMixOnMainThread() {
         ${MIX_MARKER}
-        // Leave the observer callback before mutating the AVPlayerItem mix,
-        // even when the callback already happens to run on the main thread.
+        // SwiftAudio's ready-state delegate runs before its playWhenReady call.
+        // Once that delegate is already on main, configure the audio mix before
+        // returning so AVPlayer does not start and then get its audioMix changed.
+        // Non-main state callbacks still hop asynchronously to main.
+        if Thread.isMainThread {
+            refreshSoundEffectAudioMix()
+            return
+        }
         DispatchQueue.main.async { [weak self] in
             self?.refreshSoundEffectAudioMix()
         }
