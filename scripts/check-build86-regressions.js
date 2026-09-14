@@ -155,9 +155,11 @@ check('runtime screenshots expose a visible active row on table views, not only 
   assert.ok(s.includes('normalDistance') && s.includes('secondaryDistance') && s.includes('colourOK'))
   assert.ok(read('scripts/run-ios-playback-smoke.sh').includes('54 production-view screenshots'))
 })
-check('build version and changelog identify this visual-only release; native/audio/sync files are untouched', () => {
+check('build identity and unchanged audio/auth/scene fingerprints; catalog repair has its own behavioral gate', () => {
   assert.equal(JSON.parse(read('package.json')).versionCode, 86)
   assert.ok(read('CHANGELOG.md').includes('iOS / iPadOS 1.9.0 Build 86'))
+  assert.ok(read('src/plugins/sync/listEvent.ts').includes('global.list_event.list_data_snapshot()'))
+  assert.ok(read('.github/workflows/ios-ipa.yml').includes('node scripts/check-sync-catalog-race.js'))
   const audit = JSON.parse(read('docs/BUILD86_BASELINE_HASHES.json'))
   const hash = require('node:crypto').createHash
   for (const [file, sha] of Object.entries(audit)) assert.equal(hash('sha256').update(read(file)).digest('hex'), sha, file)

@@ -25,7 +25,6 @@
   "src/plugins/sync/diagnostics.ts": "f70677b04024e0ec21fb95d7f32e341b9bb7be01060a57fe27b4235380f16f17",
   "src/plugins/sync/dislikeEvent.ts": "2b4b2db5d8573266d936d7c5b629f9b83d11db4d6402a9718fcee8f4a5b2b872",
   "src/plugins/sync/index.ts": "ce0daab3968019f8b96f7637afe3c4de268a8ac73a951f0356c84f4f83000e71",
-  "src/plugins/sync/listEvent.ts": "0aec68d420a38f077d2738e544383bf90e6d85218a346b80d3c1246b6b51b38b",
   "src/plugins/sync/log.ts": "7a7b164c809460aa3219590cf6ac2f96547ab88dcaa0fb5dff6074d5f444452e",
   "src/plugins/sync/utils.ts": "1fa5c2ad89d718336263246600f7d13c9f2f479428afff71c8b3e4d08878fc61"
 }

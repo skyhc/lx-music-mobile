@@ -138,12 +138,10 @@ export const runUI = async() => {
   const landscape = support.uiOrientation == 'landscape'
   const options = { ...navigationAppearance(themeState.theme.isDark),
     layout: { orientation: [landscape ? 'landscape' : 'portrait'] as Array<'landscape' | 'portrait'> } }
-  // RNN's allowed-orientation option is not a physical scene geometry request.
-  // Rotate a real scene before mounting/capturing the production fixture; do
-  // not spoof Dimensions or rotate an already-rendered portrait screenshot.
-  Navigation.registerComponent('LXUIRotation', () => () => <View />)
-  await Navigation.setRoot({ root: { component: { name: 'LXUIRotation', options } } })
-  geometry = await NativeModules.LXUITestOrientation.setOrientation(landscape ? 'landscape' : 'portrait')
+  // The external XCTest driver rotates the real simulated device. Windowed
+  // iPad scenes may reject requestGeometryUpdate even when the app supports all
+  // orientations. Keep actual Dimensions and let the runner verify the result.
+  geometry = await support.windowSnapshot()
   Navigation.registerComponent('LXUIReview', () => () => <Provider><Fixture /></Provider>)
   await Navigation.setRoot({ root: { component: { id: 'LXUIReview', name: 'LXUIReview', options } } })
   commonState.componentIds[COMPONENT_IDS.home] = 'LXUIReview'

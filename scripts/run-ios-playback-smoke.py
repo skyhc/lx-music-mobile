@@ -187,9 +187,25 @@ def run() -> None:
         except RuntimeError as error:
             native_failures.append(str(error))
         # Capture UI independently, but do not release if native checks failed.
+        # A separate UI-test bundle performs real simulated hardware rotation.
+        # It does not alter the release app, its Info.plist or reported geometry.
+        command('bundle', 'exec', 'ruby', str(ROOT / 'scripts/create-ui-orientation-driver.rb'))
+        command('/usr/bin/xcodebuild', 'build-for-testing', '-project', str(ROOT / 'build/LXUIDriver.xcodeproj'),
+                '-scheme', 'LXUIDriver', '-configuration', 'Release', '-sdk', 'iphonesimulator',
+                '-destination', 'generic/platform=iOS Simulator', '-derivedDataPath', str(ROOT / 'build/UIDriver'),
+                'ARCHS=arm64', 'ONLY_ACTIVE_ARCH=YES', 'CODE_SIGNING_ALLOWED=NO', timeout=180)
         inventory = []
         for form in FORMS:
             simulator = create(phone_type) if form == 'phone' else tablet
+            # Activate an installed app before XCTest takes control of orientation.
+            simctl('launch', simulator, BUNDLE, '--lx-playback-smoke', '--lx-ui=table')
+            method = 'testLandscape' if form == 'tablet' else 'testPortrait'
+            command('/usr/bin/xcodebuild', 'test-without-building', '-project', str(ROOT / 'build/LXUIDriver.xcodeproj'),
+                    '-scheme', 'LXUIDriver', '-configuration', 'Release', '-destination', 'platform=iOS Simulator,id=' + simulator,
+                    '-derivedDataPath', str(ROOT / 'build/UIDriver'), '-parallel-testing-enabled', 'NO',
+                    '-only-testing:LXUIDriver/OrientationTests/' + method,
+                    '-resultBundlePath', str(OUT / ('orientation-' + form + '.xcresult')),
+                    'CODE_SIGNING_ALLOWED=NO', timeout=180)
             for phase in PHASES:
                 name = f'ui-{form}-{phase}'
                 args = ['--lx-ui=' + phase]
