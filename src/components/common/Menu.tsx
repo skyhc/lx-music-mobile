@@ -1,8 +1,9 @@
+import { playingColor } from '@/utils/playingColor'
 import useSongKeyboard from '@/utils/hooks/useSongKeyboard'
 import { overlaySurface, anchoredMenuBounds } from '@/utils/overlaySurface'
 import { displayMenuLabel, menuMetrics } from '@/utils/menuLayout'
 import { useImperativeHandle, forwardRef, useRef, useState, type Ref } from 'react'
-import { View, ScrollView, TouchableHighlight, PixelRatio } from 'react-native'
+import { View, ScrollView, TouchableHighlight, PixelRatio, Platform } from 'react-native'
 import { useWindowSize } from '@/utils/hooks'
 import Modal, { type ModalType } from './Modal'
 import { useTheme } from '@/store/theme/hook'
@@ -29,7 +30,11 @@ export interface MenuType {
 
 const Menu = ({ buttonPosition, menuSize, menus, width, height, onPress, onHide, activeId, fontSize = 15, center = false }:
   MenuProps & { buttonPosition: Position, menuSize: MenuSize, onHide: () => void }) => {
-  const theme = useTheme()
+  const baseTheme = useTheme()
+  // A popup has its own surface; page contrast is not sufficient here.
+  const theme = Platform.OS == 'ios'
+    ? { ...baseTheme, 'c-primary-font': playingColor(baseTheme, overlaySurface(baseTheme).backgroundColor as string) }
+    : baseTheme
   const window = useWindowSize()
   const viewportRef = useRef<View>(null)
   const scrollRef = useRef<ScrollView>(null)

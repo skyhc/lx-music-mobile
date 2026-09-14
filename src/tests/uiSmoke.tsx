@@ -2,7 +2,9 @@ import { KeyboardConfigurationDialog } from '@/screens/Home/Views/Setting/settin
 import type { DialogType } from '@/components/common/Dialog'
 import { PlaylistContents } from '@/screens/PlayDetail/Horizontal/components/PlaylistBtn'
 import { playingColor, playingColorChroma, playingColorDistance, songSurface } from '@/utils/playingColor'
-import { readableTheme, contrastRatio } from '@/utils/readability'
+import { contrastRatio } from '@/utils/readability'
+import { readableThemeWithAccent } from '@/utils/themeAccent'
+import { overlaySurface } from '@/utils/overlaySurface'
 import playerActions from '@/store/player/action'
 import { applyTheme } from '@/core/theme'
 import { applyNavigationAppearance, navigationAppearance } from '@/navigation/appearance'
@@ -78,14 +80,29 @@ const Fixture = () => {
       void support.windowSnapshot().then((native: { sceneAttached: boolean, minimalWindowControls: boolean, statusBarStyle: number, deviceIdiom: number }) => {
         const expectedDark = themeState.theme.isDark
         const styleOK = expectedDark ? native.statusBarStyle == 1 : [0, 3].includes(native.statusBarStyle)
-        const actualTheme = readableTheme(themeState.theme)
+        const actualTheme = readableThemeWithAccent(themeState.theme)
         const background = songSurface(actualTheme), foreground = playingColor(actualTheme)
         const colour = { background, foreground, normal: actualTheme['c-font'], secondary: actualTheme['c-font-label'],
           contrast: contrastRatio(foreground, background), chroma: playingColorChroma(foreground, background),
           normalDistance: playingColorDistance(foreground, actualTheme['c-font'], background),
           secondaryDistance: playingColorDistance(foreground, actualTheme['c-font-label'], background) }
         const colourOK = colour.contrast >= 4.8 && colour.chroma >= .085 && colour.chroma <= .18 && colour.normalDistance >= .16 && colour.secondaryDistance >= .10
-        return support.record({ done: true, success: native.sceneAttached && native.minimalWindowControls && styleOK && colourOK, colour,
+        const accents = (['c-primary-font', 'c-primary-font-active', 'c-primary-font-hover'] as const).map(role => {
+          const value = actualTheme[role]
+          return { role, foreground: value, contrast: contrastRatio(value, background),
+            chroma: playingColorChroma(value, background),
+            normalDistance: playingColorDistance(value, actualTheme['c-font'], background),
+            secondaryDistance: playingColorDistance(value, actualTheme['c-font-label'], background) }
+        })
+        const accentsOK = accents.every(c => c.contrast >= 4.8 && c.chroma >= .085 && c.chroma <= .18 && c.normalDistance >= .16 && c.secondaryDistance >= .10)
+        const menuBackground = overlaySurface(actualTheme).backgroundColor as string
+        const menuForeground = playingColor(actualTheme, menuBackground)
+        const menuAccent = { background: menuBackground, foreground: menuForeground,
+          contrast: contrastRatio(menuForeground, menuBackground), chroma: playingColorChroma(menuForeground, menuBackground),
+          normalDistance: playingColorDistance(menuForeground, actualTheme['c-font'], menuBackground),
+          secondaryDistance: playingColorDistance(menuForeground, actualTheme['c-font-label'], menuBackground) }
+        const menuAccentOK = menuAccent.contrast >= 4.8 && menuAccent.chroma >= .085 && menuAccent.chroma <= .18 && menuAccent.normalDistance >= .16 && menuAccent.secondaryDistance >= .10
+        return support.record({ done: true, success: native.sceneAttached && native.minimalWindowControls && styleOK && colourOK && accentsOK && menuAccentOK, colour, accents, menuAccent,
           phase: support.uiPhase, expectedDark, native, geometry, width: Dimensions.get('window').width,
           height: Dimensions.get('window').height, fixture: 'production views with synthetic data', wide })
       })
@@ -110,7 +127,7 @@ const Fixture = () => {
       </View>
     </View>
     {!wide ? <NavigationTabs /> : null}
-    <Menu ref={menu} menus={[{ action: 'play', label: '播放' }, { action: 'add', label: '添加到列表' }, { action: 'detail', label: '歌曲详细信息' }, { action: 'long', label: '将歌曲添加到其他收藏列表' }, { action: 'remove', label: '移除' }]} onPress={() => {}} />
+    <Menu ref={menu} activeId="add" menus={[{ action: 'play', label: '播放' }, { action: 'add', label: '添加到列表' }, { action: 'detail', label: '歌曲详细信息' }, { action: 'long', label: '将歌曲添加到其他收藏列表' }, { action: 'remove', label: '移除' }]} onPress={() => {}} />
     <MusicAddModal ref={favorite} />
     <Popup ref={popup} kind="player-playlist" title="播放列表">
       <PlaylistContents list={songs} visible={phase == 'list'} onSelect={song => { playerActions.setPlayMusicInfo('default', song); playerActions.setIsPlay(true) }} />

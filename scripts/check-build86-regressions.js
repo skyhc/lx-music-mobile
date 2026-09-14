@@ -15,12 +15,13 @@ const load = (file, mocks = {}) => {
 const plain = v => JSON.parse(JSON.stringify(v))
 const readability = load('src/utils/readability.ts')
 const colours = load('src/utils/playingColor.ts', { './readability': readability })
+const themeAccent = load('src/utils/themeAccent.ts', { './readability': readability, './playingColor': colours })
 const overlay = load('src/utils/overlaySurface.ts', { './readability': readability })
 const themes = load('src/theme/themes/themes.ts').default
 const palette = item => {
   const t = { isDark: item.isDark, ...item.config.themeColors }
   for (const [k, v] of Object.entries(item.config.extInfo)) t[k] = typeof v === 'string' && v.startsWith('var(') ? t[v.slice(4, -1)] : v
-  return readability.readableTheme({ ...t, 'c-content-background': t['c-primary-light-1000'],
+  return themeAccent.readableThemeWithAccent({ ...t, 'c-content-background': t['c-primary-light-1000'],
     'c-primary-font': t['c-primary'], 'c-font': t['c-850'], 'c-font-label': t['c-450'],
     'c-button-font': t['c-primary'], 'c-button-background': t['c-primary-light-400-alpha-700'] })
 }
@@ -167,3 +168,7 @@ check('build identity and unchanged audio/auth/scene fingerprints; catalog repai
 fs.mkdirSync(path.join(root, 'build/checks'), { recursive: true })
 fs.writeFileSync(path.join(root, 'build/checks/build86-colours.json'), JSON.stringify(evidence, null, 2))
 console.log(`${checks} Build86 regression groups passed; ${evidence.length} foreground/surface pairs recorded. Native screenshots and device build run separately.`)
+
+
+// Shared title/navigation/menu emphasis must pass, not only playing rows.
+require('./check-theme-accent')
