@@ -18,13 +18,13 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git rev-parse HEAD^)" = '3f895d178d7dbf44e04f13b29dfa062347340acf'
+          test "$(git rev-parse HEAD^)" = '6526e04cf3a5044cc6b316cc7f7e2b1cde2215c7'
           echo 'bb562799087da57ca5f6d25adf221727baad5fc6d3ef214aae43c2499d4709e7  .build86-simulator-diagnostic.patch' | sha256sum -c -
-          git apply --check .build86-simulator-diagnostic.patch
-          git apply --index .build86-simulator-diagnostic.patch
+          git apply --exclude='.github/workflows/ios-ipa.yml' --check .build86-simulator-diagnostic.patch
+          git apply --exclude='.github/workflows/ios-ipa.yml' --index .build86-simulator-diagnostic.patch
           git diff --cached --check
-          test "$(git diff --cached --name-only | wc -l)" -eq 7
+          test "$(git diff --cached --name-only | wc -l)" -eq 6
           git config user.name skyhc
           git config user.email 61585718+skyhc@users.noreply.github.com
-          git commit -m 'fix(ci): use universal simulator target and inspect actual window style descriptor'
+          git commit -m 'fix(test): validate simulator descriptor type and runtime device idiom'
           git push origin HEAD:codex/ios-upstream-1.9.0
