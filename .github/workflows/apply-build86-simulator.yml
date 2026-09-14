@@ -1,0 +1,30 @@
+name: Apply reviewed Build86 simulator parity correction
+on:
+  push:
+    branches: ['codex/ios-upstream-1.9.0']
+    paths: ['.build86-simulator-diagnostic.patch', '.github/workflows/apply-build86-simulator.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: "startsWith(github.event.head_commit.message, 'ci: stage Build86 simulator parity')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD^)" = '3f895d178d7dbf44e04f13b29dfa062347340acf'
+          echo 'bb562799087da57ca5f6d25adf221727baad5fc6d3ef214aae43c2499d4709e7  .build86-simulator-diagnostic.patch' | sha256sum -c -
+          git apply --check .build86-simulator-diagnostic.patch
+          git apply --index .build86-simulator-diagnostic.patch
+          git diff --cached --check
+          test "$(git diff --cached --name-only | wc -l)" -eq 7
+          git config user.name skyhc
+          git config user.email 61585718+skyhc@users.noreply.github.com
+          git commit -m 'fix(ci): use universal simulator target and inspect actual window style descriptor'
+          git push origin HEAD:codex/ios-upstream-1.9.0
