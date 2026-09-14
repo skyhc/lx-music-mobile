@@ -111,7 +111,14 @@ jobs:
           xcodebuild -workspace "$IOS_WORKSPACE" -scheme "$IOS_SCHEME" -configuration Release \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build/Simulator \
             ARCHS=arm64 ONLY_ACTIVE_ARCH=YES PRODUCT_BUNDLE_IDENTIFIER="$IOS_BUNDLE_IDENTIFIER" \
+            TARGETED_DEVICE_FAMILY="1,2" IPHONEOS_DEPLOYMENT_TARGET=15.0 \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee build/checks/simulator-build.log
+          python3 - <<'PYTHON'
+          import plistlib, pathlib
+          info = plistlib.loads(pathlib.Path('build/Simulator/Build/Products/Release-iphonesimulator/LxMusicMobile.app/Info.plist').read_bytes())
+          assert sorted(info['UIDeviceFamily']) == [1, 2], info.get('UIDeviceFamily')
+          print('Simulator app uses the same iPhone+iPad device families as the device archive.')
+          PYTHON
       - name: Test native authentication, themes, streaming and offline restart
         run: bash scripts/run-ios-playback-smoke.sh
       - name: Verify and inventory visual evidence
