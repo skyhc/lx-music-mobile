@@ -74,7 +74,7 @@ const Fixture = () => {
       if (phase == 'lightagain') selectTheme(false)
     }, 1100)
     const report = setTimeout(() => {
-      void support.windowSnapshot().then((native: { sceneAttached: boolean, minimalWindowControls: boolean, statusBarStyle: number }) => {
+      void support.windowSnapshot().then((native: { sceneAttached: boolean, minimalWindowControls: boolean, statusBarStyle: number, deviceIdiom: number }) => {
         const expectedDark = themeState.theme.isDark
         const styleOK = expectedDark ? native.statusBarStyle == 1 : [0, 3].includes(native.statusBarStyle)
         const actualTheme = readableTheme(themeState.theme)

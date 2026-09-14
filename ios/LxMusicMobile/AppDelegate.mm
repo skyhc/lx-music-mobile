@@ -4721,11 +4721,25 @@ RCT_REMAP_METHOD(windowSnapshot, windowSnapshotWithResolver:(RCTPromiseResolveBl
       if ([delegate respondsToSelector:@selector(preferredWindowingControlStyleForScene:)]) {
         UISceneWindowingControlStyle *actual = [delegate preferredWindowingControlStyleForScene:scene];
         UISceneWindowingControlStyle *expected = UISceneWindowingControlStyle.minimalStyle;
-        // UIKit returns descriptor objects, not an enum or guaranteed singleton.
-        // Check semantic equality; pointer identity can reject the same style.
-        minimal = [actual isEqual:expected];
         actualStyleDescription = actual.description ?: @"nil";
         minimalStyleDescription = expected.description ?: @"nil";
+        // This fixed-SDK simulator diagnostic has no public value/type getter.
+        // UIKit creates fresh descriptors and NSObject isEqual: compares their
+        // identity, even when both describe minimal. Observe the reported type
+        // instead; fail closed if its diagnostic format changes. Production
+        // code never parses descriptions or inspects private properties.
+        NSRegularExpression *typePattern = [NSRegularExpression regularExpressionWithPattern:@";\\s*type:\\s*([a-zA-Z]+)\\s*>$" options:0 error:nil];
+        NSString *(^descriptorType)(NSString *) = ^NSString *(NSString *description) {
+          NSTextCheckingResult *match = [typePattern firstMatchInString:description options:0 range:NSMakeRange(0, description.length)];
+          return match ? [description substringWithRange:[match rangeAtIndex:1]] : @"";
+        };
+        NSString *actualType = descriptorType(actualStyleDescription);
+        NSString *expectedType = descriptorType(minimalStyleDescription);
+        NSString *automaticType = descriptorType(UISceneWindowingControlStyle.automaticStyle.description);
+        minimal = [actual isKindOfClass:UISceneWindowingControlStyle.class] &&
+                  [actualType isEqualToString:@"minimal"] &&
+                  [expectedType isEqualToString:@"minimal"] &&
+                  [automaticType isEqualToString:@"automatic"];
       }
     }
     resolve(@{ @"sceneAttached": @(scene != nil),
@@ -4733,6 +4747,8 @@ RCT_REMAP_METHOD(windowSnapshot, windowSnapshotWithResolver:(RCTPromiseResolveBl
                @"minimalWindowControls": @(minimal),
                @"windowControlStyle": actualStyleDescription,
                @"expectedMinimalStyle": minimalStyleDescription,
+               @"styleCheck": @"fixed-SDK runtime descriptor type (simulator only)",
+               @"deviceIdiom": @(UIDevice.currentDevice.userInterfaceIdiom),
                @"statusBarStyle": @(scene.statusBarManager.statusBarStyle),
                @"interfaceStyle": @(window.traitCollection.userInterfaceStyle),
                @"safeTop": @(window.safeAreaInsets.top),

@@ -185,6 +185,8 @@ def run() -> None:
                 width, height = struct.unpack('>II', content[16:24])
                 if min(width, height) < 600:
                     raise RuntimeError(f'Unexpected screenshot dimensions: {width}x{height}')
+                if record['native'].get('deviceIdiom') != (0 if form == 'phone' else 1):
+                    raise RuntimeError(f'Wrong device family or compatibility-mode app for {name}: {record}')
                 if (form == 'tablet') != (record['width'] > record['height']):
                     raise RuntimeError(f'Wrong window orientation for {name}: {record}')
                 item = {'image': image.name, 'report': name + '.json', 'bytes': len(content),
