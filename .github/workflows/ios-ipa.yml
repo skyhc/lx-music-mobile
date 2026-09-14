@@ -79,6 +79,7 @@ jobs:
           node scripts/check-build82-regressions.js 2>&1 | tee build/checks/build82-regressions.log
           node scripts/check-build84-regressions.js | tee build/checks/build84.log
           node scripts/check-build85-regressions.js | tee build/checks/build85.log
+          node scripts/check-build86-regressions.js | tee build/checks/build86.log
           node scripts/check-settings-preservation.js | tee build/checks/settings-audit.log
           node scripts/check-upstream190.js 2>&1 | tee build/checks/upstream190.log
           npx tsc --strict --noEmit --skipLibCheck --moduleResolution node --target ES2020 src/plugins/player/cache/DiskAudioCache.ts
@@ -113,6 +114,42 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee build/checks/simulator-build.log
       - name: Test native authentication, themes, streaming and offline restart
         run: bash scripts/run-ios-playback-smoke.sh
+      - name: Verify and inventory visual evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYTHON'
+          import hashlib, json, os, pathlib
+          root = pathlib.Path('build/checks')
+          images = sorted(root.glob('ui-*.png'))
+          assert len(images) == 54, f'Expected 54 screenshots, got {len(images)}'
+          records = []
+          for image in images:
+              raw = image.read_bytes()
+              assert raw.startswith(b'\x89PNG\r\n\x1a\n') and len(raw) > 1024, image.name
+              report = image.with_suffix('.json')
+              data = json.loads(report.read_text())
+              assert data.get('success'), (image.name, data)
+              records.append({'image': image.name, 'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest(), 'report': report.name})
+          for phase in ('online', 'offline'):
+              report = json.loads((root / f'playback-{phase}.json').read_text())
+              assert report.get('success') and report.get('done'), (phase, report)
+          (root / 'UI-MANIFEST.json').write_text(json.dumps({'commit': os.environ['GITHUB_SHA'], 'run': os.environ['GITHUB_RUN_ID'], 'count': len(images), 'screenshots': records}, indent=2))
+          print('54 PNG screenshots, their runtime reports and both playback records verified.')
+          PYTHON
+      - name: Upload individual UI screenshots and runtime records
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-evidence-${{ github.sha }}
+          path: |
+            build/checks/ui-*.png
+            build/checks/ui-*.json
+            build/checks/playback-*.json
+            build/checks/UI-MANIFEST.json
+            build/checks/build86-colours.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Upload simulator and regression evidence
         if: always()
         uses: actions/upload-artifact@v4
