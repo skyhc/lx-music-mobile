@@ -1,0 +1,31 @@
+name: Apply reviewed Build86 simulator style check
+on:
+  push:
+    branches: ['codex/ios-upstream-1.9.0']
+    paths: ['.build86-native-check.patch', '.github/workflows/apply-build86-native-check.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: "startsWith(github.event.head_commit.message, 'ci: stage Build86 native style')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD^)" = '232f0b80ee5a5794278bd2083921829808066d60'
+          sed -i 's/^ diff --git/diff --git/' .build86-native-check.patch
+          echo 'c6de537ce824687fe8133ec30637095925a2ea5201adc64f06338f034fe26a35  .build86-native-check.patch' | sha256sum -c -
+          git apply --check .build86-native-check.patch
+          git apply --index .build86-native-check.patch
+          git diff --cached --check
+          test "$(git diff --cached --name-only | wc -l)" -eq 3
+          git config user.name skyhc
+          git config user.email 61585718+skyhc@users.noreply.github.com
+          git commit -m 'fix(test): compare native window style descriptors by value, not identity'
+          git push origin HEAD:codex/ios-upstream-1.9.0

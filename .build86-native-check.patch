@@ -1,0 +1,56 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index d7ff445..ad3186f 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -7,6 +7,7 @@
+ - 不给播放状态增加整行填充、粗体或竖条；歌名、歌手、专辑、时长与播放标记使用同一强调色。保留来源标记、播放列表自动和手动定位；键盘焦点/多选与播放状态分别处理。
+ - 新增视觉策略回归，覆盖实际iOS主题可读性变换后的16个内置主题、菜单背景归属、真实SongRowContent渲染、透明底色和同色自定义文字。调整旧测试中要求中性主题必须使用灰色的错误断言。
+ - 模拟器表格截图将正在播放行放进首屏，并记录主题、普通/播放文字色及色差；扩展为54个生产组件视图，单独上传截图/运行记录，不能再用未取回的截图宣称人工验收。
++- 修正模拟器验证中窗口控件样式的对象比较：使用语义相等而非对象地址相等，并保留实际样式诊断。该修改只影响测试桥接，不移动或重建生产窗口，也不降低播放/同步/截图验收条件。
+ - 音频、音量、缓存、同步认证和原生Scene实现不变；按Build85源码指纹检查，沿用完整原生播放/同步和类型检查。编译及实际截图结果以本轮Actions为准，不预先声明真机或任意背景图片上的视觉验收。
+ 
+ 
+ diff --git a/ios/LxMusicMobile/AppDelegate.mm b/ios/LxMusicMobile/AppDelegate.mm
+index 321e809..a396a72 100644
+--- a/ios/LxMusicMobile/AppDelegate.mm
++++ b/ios/LxMusicMobile/AppDelegate.mm
+@@ -4714,15 +4714,25 @@ RCT_REMAP_METHOD(windowSnapshot, windowSnapshotWithResolver:(RCTPromiseResolveBl
+     UIWindow *window = ((AppDelegate *)UIApplication.sharedApplication.delegate).window;
+     UIWindowScene *scene = window.windowScene;
+     BOOL minimal = NO;
++    NSString *actualStyleDescription = @"unavailable";
++    NSString *minimalStyleDescription = @"unavailable";
+     if (@available(iOS 26.0, *)) {
+       id<UIWindowSceneDelegate> delegate = (id<UIWindowSceneDelegate>)scene.delegate;
+       if ([delegate respondsToSelector:@selector(preferredWindowingControlStyleForScene:)]) {
+-        minimal = [delegate preferredWindowingControlStyleForScene:scene] == UISceneWindowingControlStyle.minimalStyle;
++        UISceneWindowingControlStyle *actual = [delegate preferredWindowingControlStyleForScene:scene];
++        UISceneWindowingControlStyle *expected = UISceneWindowingControlStyle.minimalStyle;
++        // UIKit returns descriptor objects, not an enum or guaranteed singleton.
++        // Check semantic equality; pointer identity can reject the same style.
++        minimal = [actual isEqual:expected];
++        actualStyleDescription = actual.description ?: @"nil";
++        minimalStyleDescription = expected.description ?: @"nil";
+       }
+     }
+     resolve(@{ @"sceneAttached": @(scene != nil),
+                @"sceneDelegate": scene.delegate ? NSStringFromClass(scene.delegate.class) : @"",
+                @"minimalWindowControls": @(minimal),
++               @"windowControlStyle": actualStyleDescription,
++               @"expectedMinimalStyle": minimalStyleDescription,
+                @"statusBarStyle": @(scene.statusBarManager.statusBarStyle),
+                @"interfaceStyle": @(window.traitCollection.userInterfaceStyle),
+                @"safeTop": @(window.safeAreaInsets.top),
+diff --git a/src/tests/playbackSmoke.tsx b/src/tests/playbackSmoke.tsx
+index 64d77ff..cba8041 100644
+--- a/src/tests/playbackSmoke.tsx
++++ b/src/tests/playbackSmoke.tsx
+@@ -67,7 +67,7 @@ export const run = async() => {
+     await check('scene-based window and minimal native window controls', async() => {
+       const info = await support.windowSnapshot()
+       assert(info.sceneAttached && info.sceneDelegate == 'LXSceneDelegate', JSON.stringify(info))
+-      assert(info.minimalWindowControls, 'The configured scene is not using minimal window controls')
++      assert(info.minimalWindowControls, `The configured scene is not using minimal window controls: ${JSON.stringify(info)}`)
+       return info
+     })
+     await runKeyboardSmoke(check)
