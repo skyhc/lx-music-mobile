@@ -143,7 +143,7 @@ target 'LxMusicMobile' do
   end
 
   post_install do |installer|
-    # https://github.com/facebook/react-native/blob/main/packages/react_native_pods.rb#L197-L202
+    # https://github.com/facebook/react-native/blob/main/packages/react-native/scripts/react_native_pods.rb#L197-L202
     react_native_post_install(
       installer,
       config[:reactNativePath],
@@ -152,12 +152,6 @@ target 'LxMusicMobile' do
 
     lx_patch_swift_audio_seek(installer)
     lx_patch_swift_audio_player_access(installer)
-    # KVO is delivered outside the React Native method queue. Defer the actual
-    # SwiftAudio delegates too; abort installation if pinned anchors change.
-    kvo_test = File.expand_path('../scripts/check-swift-audio-kvo.js', __dir__)
-    raise 'SwiftAudio KVO regression failed' unless system('node', kvo_test)
-    kvo_patch = File.expand_path('../patches/ios/defer-swift-audio-kvo.cjs', __dir__)
-    raise 'SwiftAudio KVO patch failed' unless system('node', kvo_patch, installer.sandbox.root.to_s)
 
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |build_configuration|

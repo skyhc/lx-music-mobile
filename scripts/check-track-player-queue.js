@@ -67,30 +67,36 @@ check('ready-state mix refresh is ordered before play on main with async non-mai
   assert.ok(result.includes('self?.refreshSoundEffectAudioMix()'))
   assert.ok(result.indexOf('if Thread.isMainThread') < result.indexOf('DispatchQueue.main.async'))
 })
-check('mix ordering relies on the installed KVO callback deferral rather than running inside raw AVFoundation KVO', () => {
+check('SwiftAudio observer ordering stays upstream while React Native calls stay off main', () => {
   const podfile = fs.readFileSync(path.join(base, 'ios/Podfile'), 'utf8')
-  assert.ok(podfile.includes("raise 'SwiftAudio KVO regression failed' unless system('node', kvo_test)"))
-  assert.ok(podfile.includes("raise 'SwiftAudio KVO patch failed' unless system('node', kvo_patch, installer.sandbox.root.to_s)"))
-  const kvo = fs.readFileSync(path.join(base, 'patches/ios/defer-swift-audio-kvo.cjs'), 'utf8')
-  assert.ok(kvo.includes('DispatchQueue.main.async { [weak self, weak observed] in'))
+  assert.ok(!podfile.includes('defer-swift-audio-kvo.cjs'))
+  assert.ok(!podfile.includes('SwiftAudio KVO patch failed'))
+  const result = bridge(original)
+  assert.ok(!result.includes('methodQueue'))
+  const mix = swift(fixture).split(MIX_MARKER)[1]
+  assert.ok(mix.includes('if Thread.isMainThread'))
+  assert.ok(mix.includes('DispatchQueue.main.async'))
 })
 check('Swift patch is idempotent and rejects a missing function', () => {
   assert.equal(swift(swift(fixture)), swift(fixture))
   assert.throws(() => swift('changed dependency'))
 })
-check('postinstall and native stress tests keep the repair on the actual production path', () => {
+check('production install restores run74 timing while native stress coverage stays enabled', () => {
   const postinstall = JSON.parse(fs.readFileSync(path.join(base, 'package.json'), 'utf8')).scripts.postinstall
-  assert.ok(postinstall.includes('node dependencies-patch.js && node patches/ios/serialize-track-player.cjs'))
+  assert.equal(postinstall, 'node dependencies-patch.js')
+  const podfile = fs.readFileSync(path.join(base, 'ios/Podfile'), 'utf8')
+  assert.ok(!podfile.includes('defer-swift-audio-kvo.cjs'))
+  assert.ok(!podfile.includes('SwiftAudio KVO patch failed'))
   const smoke = fs.readFileSync(path.join(base, 'src/tests/playbackSmoke.tsx'), 'utf8')
   assert.ok(smoke.includes('repeated remote/cache transition'))
   assert.ok(smoke.includes('for (let pass = 0; pass < 3; pass++)'))
 })
 const installed = path.join(base, 'node_modules/react-native-track-player/ios/RNTrackPlayer')
-if (fs.existsSync(installed)) check('installed native dependency carries all three fixes', () => {
+if (fs.existsSync(installed)) check('installed native dependency has no inactive timing experiment markers', () => {
   const bridgeSource = fs.readFileSync(path.join(installed, 'RNTrackPlayerBridge.m'), 'utf8')
-  assert.ok(bridgeSource.includes(QUEUE_MARKER))
+  assert.ok(!bridgeSource.includes(QUEUE_MARKER))
   assert.ok(!bridgeSource.includes('methodQueue'))
-  const source = fs.readFileSync(path.join(installed, 'RNTrackPlayer.swift'), 'utf8')
-  assert.ok(source.includes(LIFECYCLE_MARKER) && source.includes(MIX_MARKER))
+  const installedSource = fs.readFileSync(path.join(installed, 'RNTrackPlayer.swift'), 'utf8')
+  assert.ok(!installedSource.includes(LIFECYCLE_MARKER) && !installedSource.includes(MIX_MARKER))
 })
-console.log(`${checks} TrackPlayer serialization checks passed. Native playback still requires the simulator gate.`)
+console.log(`${checks} TrackPlayer timing-contract checks passed. Native playback still requires the simulator gate.`)
