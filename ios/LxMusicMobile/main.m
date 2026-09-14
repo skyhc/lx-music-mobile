@@ -1,6 +1,10 @@
 #import <UIKit/UIKit.h>
 #import "AppDelegate.h"
 
+#if TARGET_OS_SIMULATOR
+#import "LXUITestOrientation.h"
+#endif
+
 static BOOL LXIsEditingText(UIView *view) {
   if (view.isFirstResponder && [view conformsToProtocol:@protocol(UITextInput)]) return YES;
   for (UIView *child in view.subviews) if (LXIsEditingText(child)) return YES;

@@ -44,6 +44,7 @@ const selectTheme = (dark: boolean) => {
   applyTheme(JSON.parse(JSON.stringify(theme)))
   applyNavigationAppearance(dark)
 }
+let geometry: unknown = null
 const songs = Array.from({ length: 100 }, (_, i) => ({
   id: `ci-ui-${i}`, name: ['一路生花', '天空之外', '风吹麦浪', '远方的声音'][i % 4],
   singer: ['测试歌手', '纯音乐作品', '艺术家示例'][i % 3], interval: '04:32', source: 'kw',
@@ -85,7 +86,7 @@ const Fixture = () => {
           secondaryDistance: playingColorDistance(foreground, actualTheme['c-font-label'], background) }
         const colourOK = colour.contrast >= 4.8 && colour.chroma >= .085 && colour.chroma <= .18 && colour.normalDistance >= .16 && colour.secondaryDistance >= .10
         return support.record({ done: true, success: native.sceneAttached && native.minimalWindowControls && styleOK && colourOK, colour,
-          phase: support.uiPhase, expectedDark, native, width: Dimensions.get('window').width,
+          phase: support.uiPhase, expectedDark, native, geometry, width: Dimensions.get('window').width,
           height: Dimensions.get('window').height, fixture: 'production views with synthetic data', wide })
       })
     }, 2800)
@@ -134,12 +135,17 @@ export const runUI = async() => {
   await createList({ id: 'ci-ui-favorite-a', name: '本地音乐' })
   await createList({ id: 'ci-ui-favorite-b', name: '通勤音乐' })
   await initial({ volume: 1, playRate: 1, cacheSize: 0, isHandleAudioFocus: true, isEnableAudioOffload: false })
-  Navigation.registerComponent('LXUIReview', () => () => <Provider><Fixture /></Provider>)
   const landscape = support.uiOrientation == 'landscape'
-  await Navigation.setRoot({ root: { component: { id: 'LXUIReview', name: 'LXUIReview', options: {
-    ...navigationAppearance(themeState.theme.isDark),
-    layout: { orientation: [landscape ? 'landscape' : 'portrait'] },
-  } } } })
+  const options = { ...navigationAppearance(themeState.theme.isDark),
+    layout: { orientation: [landscape ? 'landscape' : 'portrait'] as Array<'landscape' | 'portrait'> } }
+  // RNN's allowed-orientation option is not a physical scene geometry request.
+  // Rotate a real scene before mounting/capturing the production fixture; do
+  // not spoof Dimensions or rotate an already-rendered portrait screenshot.
+  Navigation.registerComponent('LXUIRotation', () => () => <View />)
+  await Navigation.setRoot({ root: { component: { name: 'LXUIRotation', options } } })
+  geometry = await NativeModules.LXUITestOrientation.setOrientation(landscape ? 'landscape' : 'portrait')
+  Navigation.registerComponent('LXUIReview', () => () => <Provider><Fixture /></Provider>)
+  await Navigation.setRoot({ root: { component: { id: 'LXUIReview', name: 'LXUIReview', options } } })
   commonState.componentIds[COMPONENT_IDS.home] = 'LXUIReview'
   applyNavigationAppearance(themeState.theme.isDark)
 }
