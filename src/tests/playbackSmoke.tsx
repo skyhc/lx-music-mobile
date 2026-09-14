@@ -67,7 +67,7 @@ export const run = async() => {
     await check('scene-based window and minimal native window controls', async() => {
       const info = await support.windowSnapshot()
       assert(info.sceneAttached && info.sceneDelegate == 'LXSceneDelegate', JSON.stringify(info))
-      assert(info.minimalWindowControls, 'The configured scene is not using minimal window controls')
+      assert(info.minimalWindowControls, `The configured scene is not using minimal window controls: ${JSON.stringify(info)}`)
       return info
     })
     await runKeyboardSmoke(check)

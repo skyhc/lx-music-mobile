@@ -4714,15 +4714,25 @@ RCT_REMAP_METHOD(windowSnapshot, windowSnapshotWithResolver:(RCTPromiseResolveBl
     UIWindow *window = ((AppDelegate *)UIApplication.sharedApplication.delegate).window;
     UIWindowScene *scene = window.windowScene;
     BOOL minimal = NO;
+    NSString *actualStyleDescription = @"unavailable";
+    NSString *minimalStyleDescription = @"unavailable";
     if (@available(iOS 26.0, *)) {
       id<UIWindowSceneDelegate> delegate = (id<UIWindowSceneDelegate>)scene.delegate;
       if ([delegate respondsToSelector:@selector(preferredWindowingControlStyleForScene:)]) {
-        minimal = [delegate preferredWindowingControlStyleForScene:scene] == UISceneWindowingControlStyle.minimalStyle;
+        UISceneWindowingControlStyle *actual = [delegate preferredWindowingControlStyleForScene:scene];
+        UISceneWindowingControlStyle *expected = UISceneWindowingControlStyle.minimalStyle;
+        // UIKit returns descriptor objects, not an enum or guaranteed singleton.
+        // Check semantic equality; pointer identity can reject the same style.
+        minimal = [actual isEqual:expected];
+        actualStyleDescription = actual.description ?: @"nil";
+        minimalStyleDescription = expected.description ?: @"nil";
       }
     }
     resolve(@{ @"sceneAttached": @(scene != nil),
                @"sceneDelegate": scene.delegate ? NSStringFromClass(scene.delegate.class) : @"",
                @"minimalWindowControls": @(minimal),
+               @"windowControlStyle": actualStyleDescription,
+               @"expectedMinimalStyle": minimalStyleDescription,
                @"statusBarStyle": @(scene.statusBarManager.statusBarStyle),
                @"interfaceStyle": @(window.traitCollection.userInterfaceStyle),
                @"safeTop": @(window.safeAreaInsets.top),
