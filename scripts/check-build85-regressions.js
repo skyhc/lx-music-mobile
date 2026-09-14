@@ -52,19 +52,18 @@ const check = async(name, fn) => { await fn(); checks++; console.log('PASS ' + n
       const c = colors.playingColor(t), rgb = c.match(/\d+/g).map(Number).map(v => v / 255)
       const l = (Math.max(...rgb) + Math.min(...rgb)) / 2
       const s = (Math.max(...rgb) - Math.min(...rgb)) / (1 - Math.abs(2 * l - 1))
-      assert.ok(s <= .66, 'neon saturation'); assert.ok(readability.contrastRatio(c, colors.songSurface(t)) >= 4.8)
+      assert.ok(s <= .74, 'excessive HSL saturation'); assert.ok(colors.playingColorChroma(c, colors.songSurface(t)) <= .181, 'neon chroma'); assert.ok(readability.contrastRatio(c, colors.songSurface(t)) >= 4.8)
       results.push(c)
     }
     assert.equal(new Set(results).size, 6)
   })
-  await check('neutral themes emphasize rather than dim playing text when contrast headroom exists', () => {
+  await check('neutral themes use a distinguishable chromatic foreground, not brighter black/white', () => {
     for (const [bg, normal] of [['#151515', '#dbdbdb'], ['#ffffff', '#444444']]) {
       const t = { isDark: bg !== '#ffffff', 'c-primary': '#888888', 'c-font': normal, 'c-content-background': bg }
       const c = colors.playingColor(t)
-      assert.ok(readability.contrastRatio(c, bg) > readability.contrastRatio(normal, bg) + 1)
-      const rgb = c.match(/\d+/g).map(Number)
-      assert.equal(rgb[0], rgb[1]); assert.equal(rgb[1], rgb[2])
-      assert.ok(rgb[0] > 0 && rgb[0] < 255, 'Do not force absolute black or white')
+      assert.ok(readability.contrastRatio(c, bg) >= 4.8)
+      assert.ok(colors.playingColorChroma(c, bg) >= .085)
+      assert.ok(colors.playingColorDistance(c, normal, bg) >= .16)
     }
   })
   await check('alpha backgrounds and theme changes recalculate the playing foreground', () => {
@@ -207,7 +206,7 @@ const check = async(name, fn) => { await fn(); checks++; console.log('PASS ' + n
     const pkg = JSON.parse(read('package.json')), lock = JSON.parse(read('package-lock.json'))
     const versions = Object.entries(lock.packages).filter(([k]) => k.endsWith('/react-native-quick-base64')).map(([, v]) => v.version)
     assert.deepEqual(versions, ['2.2.2']); assert.equal(pkg.dependencies.buffer, '5.7.1'); assert.equal(pkg.dependencies['spark-md5'], '3.0.2')
-    assert.equal(pkg.versionCode, 85)
+    assert.equal(pkg.versionCode, 86)
   })
   console.log(`${checks} Build85 checks passed (${process.argv.includes('--node-fixture-codecs') ? 'Node fixture codecs; bundled packages still require CI' : 'installed production JS codec packages'}). Native bridge/official-server tests run separately.`)
 })().catch(e => { console.error(e); process.exitCode = 1 })

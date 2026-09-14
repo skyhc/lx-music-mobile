@@ -1,5 +1,5 @@
-import { compositeColor, contrastRatio, readableColor } from './readability'
-type Theme = { isDark?: boolean } & Partial<Record<'c-primary' | 'c-primary-font' | 'c-theme' | 'c-badge-secondary' | 'c-font' | 'c-content-background' | 'c-main-background', string>>
+import { compositeColor, contrastRatio } from './readability'
+type Theme = { isDark?: boolean } & Partial<Record<'c-primary' | 'c-primary-font' | 'c-theme' | 'c-badge-secondary' | 'c-font' | 'c-font-label' | 'c-content-background' | 'c-main-background', string>>
 type RGB = [number, number, number]
 const rgb = (value: string): RGB => (value.match(/[\d.]+/g)?.slice(0, 3).map(Number) ?? [0, 0, 0]) as RGB
 const hsl = ([red, green, blue]: RGB) => {
@@ -17,44 +17,72 @@ const fromHSL = (h: number, s: number, l: number) => {
   }
   return `rgb(${channel(0)}, ${channel(8)}, ${channel(4)})`
 }
+// Oklab (Bjorn Ottosson, public-domain matrices): unlike luminance contrast,
+// this measures perceptual distance from the OTHER text on the same surface.
+// https://bottosson.github.io/posts/oklab/
+const oklab = (value: string, surface: string): RGB => {
+  const [r, g, b] = rgb(compositeColor(value, surface)).map(v => {
+    v /= 255
+    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+  })
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
+  return [0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s]
+}
+const distance = (a: RGB, b: RGB) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])
+const chroma = (a: RGB) => Math.hypot(a[1], a[2])
+export const playingColorDistance = (a: string, b: string, surface: string) => distance(oklab(a, surface), oklab(b, surface))
+export const playingColorChroma = (color: string, surface: string) => chroma(oklab(color, surface))
 const cache = new Map<string, string>()
 export const songSurface = (theme: Theme, surface?: string) => {
   const base = compositeColor(theme['c-content-background'] || 'transparent', theme.isDark ? '#121212' : '#ffffff')
   return compositeColor(surface || theme['c-main-background'] || base, base)
 }
-// Playing is NOT a selection surface. Retain the active theme's hue, restrain
-// saturation, and choose a readable luminance rather than a fixed blue/white.
+// Playback colour has three constraints: readable on the surface, visibly
+// different from normal/secondary text, and moderate chroma (not near-grey or
+// neon). A neutral theme MUST get a coloured accent, not brighter white/black.
 export const playingColor = (theme: Theme, surface?: string): string => {
   const bg = songSurface(theme, surface)
+  const dark = contrastRatio('#ffffff', bg) > contrastRatio('#000000', bg)
+  const normal = theme['c-font'] || (dark ? '#dddddd' : '#333333')
+  const secondary = theme['c-font-label'] || normal
   const accents = [theme['c-primary'], theme['c-primary-font'], theme['c-theme'], theme['c-badge-secondary']].filter(Boolean) as string[]
-  const palettes = accents.map(c => hsl(rgb(compositeColor(c, bg))))
-  const accent = palettes.find(c => c.s >= 0.12) ?? palettes[0] ?? hsl(rgb(compositeColor(theme['c-font'] || '#808080', bg)))
-  const key = `${bg}|${accent.h}|${accent.s}|${theme['c-font']}`
+  const key = JSON.stringify([bg, normal, secondary, ...accents])
   const previous = cache.get(key)
   if (previous) return previous
-  // Saturated source themes remain recognizable without neon colours. Neutral
-  // themes remain neutral unless they already provide another coloured accent.
-  const saturation = accent.s < 0.12 ? 0 : Math.min(0.64, Math.max(0.38, accent.s * 0.85))
-  const darkSurface = contrastRatio('#ffffff', bg) > contrastRatio('#000000', bg)
-  const normalColor = compositeColor(theme['c-font'] || (darkSurface ? '#aaa' : '#444'), bg)
-  const normal = hsl(rgb(normalColor))
-  const normalContrast = contrastRatio(normalColor, bg)
-  const maximumContrast = Math.max(contrastRatio('#ffffff', bg), contrastRatio('#000000', bg))
-  // With a monochrome palette, a generic 6:1 target could make the playing
-  // song DIMMER than ordinary text. Increase its contrast where room permits.
-  const canEmphasizeNeutral = saturation == 0 && maximumContrast > normalContrast + 1
-  const target = saturation == 0 ? Math.min(maximumContrast - 0.2, Math.max(12, normalContrast + 3)) : 6
-  let best = '', score = Infinity
-  for (let step = 2; step <= 98; step++) {
-    const c = fromHSL(accent.h, saturation, step / 100)
-    const contrast = contrastRatio(c, bg)
-    if (contrast < 4.8) continue
-    // Prefer 6:1, not maximum luminosity. Avoid merging with normal text.
-    const separation = Math.abs(step / 100 - normal.l) + saturation * 0.3
-    const cost = Math.abs(contrast - target) + (separation < 0.13 ? 1.5 : 0) + (canEmphasizeNeutral && contrast <= normalContrast ? 20 : 0)
-    if (cost < score) { score = cost; best = c }
+  const accent = accents.map(c => hsl(rgb(compositeColor(c, bg)))).find(c => c.s >= 0.06)
+  const backgroundHue = hsl(rgb(bg))
+  // Neutral palettes have no hue to preserve. Use a subdued teal on dark
+  // surfaces and a steel-blue on light ones; tinted neutral surfaces influence
+  // the fallback. Coloured themes always try their own hue first.
+  const hue = accent?.h ?? (backgroundHue.s > 0.12 ? (backgroundHue.h + 0.5) % 1 : dark ? 175 / 360 : 205 / 360)
+  const texts = [oklab(normal, bg), oklab(secondary, bg)]
+  let best = '', bestScore = Infinity, fallback = '', fallbackScore = -Infinity
+  const evaluate = (h: number, hueCost: number) => {
+    for (const saturation of [0.64, 0.72, 0.56, 0.48, 0.40]) for (let step = 18; step <= 82; step++) {
+      const c = fromHSL((h + 1) % 1, saturation, step / 100)
+      const lab = oklab(c, bg), strength = chroma(lab), contrast = contrastRatio(c, bg)
+      if (strength < 0.085 || strength > 0.18) continue
+      const separation = distance(lab, texts[0])
+      const secondarySeparation = distance(lab, texts[1])
+      const hueSeparation = Math.min(...texts.map(t => Math.hypot(lab[1] - t[1], lab[2] - t[2])))
+      // Keep a chromatic best-effort result for pathological custom colours;
+      // never silently fall back to the normal black/white text colour.
+      const safeScore = Math.min(contrast, 4.8) * 3 + Math.min(separation, 0.16) * 10 + Math.min(hueSeparation, 0.07) * 10 - hueCost
+      if (safeScore > fallbackScore) { fallbackScore = safeScore; fallback = c }
+      if (contrast < 4.8 || separation < 0.16 || secondarySeparation < 0.10 || hueSeparation < 0.07) continue
+      const score = Math.abs(contrast - 5.2) * 0.18 + Math.abs(strength - 0.12) * 14 + hueCost
+      if (score < bestScore) { bestScore = score; best = c }
+    }
   }
-  const result = best || readableColor(fromHSL(accent.h, saturation, 0.5), bg, 4.8)
+  evaluate(hue, 0)
+  // Only move hue when the original would merge with another text colour or
+  // cannot meet the surface constraints. Common built-in palettes stay put.
+  if (!best) for (const offset of [1 / 12, -1 / 12, 1 / 6, -1 / 6, 1 / 3, -1 / 3, 0.5]) evaluate(hue + offset, Math.abs(offset))
+  const result = best || fallback
   if (cache.size > 256) cache.clear()
   cache.set(key, result)
   return result

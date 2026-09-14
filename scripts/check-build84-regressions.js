@@ -10,9 +10,8 @@ const plain=x=>JSON.parse(JSON.stringify(x));const sleep=ms=>new Promise(r=>setT
 let count=0;const check=async(name,fn)=>{await fn();count++;console.log('PASS '+name)}
 ;(async()=>{
  const {selectionColors}=load('src/utils/selectionColors.ts')
- const {contrastRatio}=load('src/utils/readability.ts')
- await check('selected content remains readable with monochrome light/dark themes',()=>{
-  for(const isDark of [false,true]){const c=selectionColors({isDark});assert.ok(contrastRatio(c.text,c.background)>=7);assert.ok(contrastRatio(c.indicator,c.background)>=3);assert.notEqual(c.background,isDark?'#141414':'#FFFFFF')}
+ await check('multi-selection preserves upstream theme surface; no hard-coded heading selection palette',()=>{
+  for(const isDark of [false,true]){const theme={isDark,'c-primary-background-hover':isDark?'rgba(20,100,80,0.3)':'rgba(70,150,110,0.2)','c-font':isDark?'#ddd':'#333','c-primary-font':'#457865','c-border-background':'#678'};const c=selectionColors(theme);assert.equal(c.background,theme['c-primary-background-hover']);assert.equal(c.text,theme['c-font']);assert.equal(c.indicator,theme['c-primary-font'])}
  })
  const {KeyboardRouter,nextKeyboardIndex}=load('src/core/keyboardRouter.ts')
  await check('keyboard routing isolates modal, visible page and newer focused target',()=>{

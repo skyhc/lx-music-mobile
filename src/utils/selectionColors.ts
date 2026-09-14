@@ -1,5 +1,9 @@
-// Selected/current states must remain visible even in monochrome/custom themes.
-// Pair foreground with its own opaque surface, never with the page primary hue.
-export const selectionColors = (theme: { isDark?: boolean }) => theme.isDark
-  ? { background: '#243F58', text: '#FFFFFF', indicator: '#8ED1FF', border: '#8ED1FF' }
-  : { background: '#D9EAF9', text: '#102F4A', indicator: '#125780', border: '#125780' }
+// Multi-selection alone uses the upstream theme's existing selection surface.
+// Navigation, headings and the playing song must not receive this background.
+type Theme = { isDark?: boolean } & Partial<Record<'c-primary-background-hover' | 'c-font' | 'c-primary-font' | 'c-border-background', string>>
+export const selectionColors = (theme: Theme) => ({
+  background: theme['c-primary-background-hover'] || 'transparent',
+  text: theme['c-font'] || (theme.isDark ? '#dddddd' : '#333333'),
+  indicator: theme['c-primary-font'] || theme['c-font'] || '#808080',
+  border: theme['c-border-background'] || 'transparent',
+})

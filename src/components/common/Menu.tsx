@@ -1,4 +1,3 @@
-import { selectionColors } from '@/utils/selectionColors'
 import useSongKeyboard from '@/utils/hooks/useSongKeyboard'
 import { overlaySurface, anchoredMenuBounds } from '@/utils/overlaySurface'
 import { displayMenuLabel, menuMetrics } from '@/utils/menuLayout'
@@ -51,7 +50,6 @@ const Menu = ({ buttonPosition, menuSize, menus, width, height, onPress, onHide,
       const item = menus.filter(menu => !menu.disabled)[index]
       if (item) scrollRef.current?.scrollTo({ y: Math.max(0, (itemOffsets.current[item.action] ?? 0) - menuStyle.height / 3), animated: false })
     })
-  const selected = selectionColors(theme)
   return <View ref={viewportRef} style={{ flex: 1 }} pointerEvents="box-none" onLayout={() => {
     viewportRef.current?.measureInWindow((x, y, width, height) => {
       if (width <= 0 || height <= 0) return
@@ -75,10 +73,13 @@ const Menu = ({ buttonPosition, menuSize, menus, width, height, onPress, onHide,
           accessibilityLabel={displayMenuLabel(menu.label)} accessibilityState={{ disabled: !!menu.disabled, selected: menu.action == activeId }}
           disabled={menu.disabled || menu.action == activeId}
           style={{ minHeight: metrics.rowHeight, paddingHorizontal: 16, paddingVertical: 10,
-            justifyContent: 'center', opacity: menu.disabled ? 0.45 : 1, backgroundColor: menu.action == activeId || menu.action == focused ? selected.background : 'transparent' }}
+            justifyContent: 'center', opacity: menu.disabled ? 0.45 : 1, backgroundColor: 'transparent' }}
           underlayColor={theme['c-primary-background-active']} onPress={() => press(menu)}>
+          <View>
+          {menu.action == focused ? <View pointerEvents="none" style={{ position: 'absolute', left: -8, right: -8, top: -5, bottom: -5, borderWidth: 1, borderColor: theme['c-primary-font'] }} /> : null}
           <Text size={fontSize} style={{ textAlign: center ? 'center' : 'left', flexShrink: 1 }}
-            color={menu.action == activeId || menu.action == focused ? selected.text : theme['c-font']}>{displayMenuLabel(menu.label)}</Text>
+            color={menu.action == activeId || menu.action == focused ? theme['c-primary-font'] : theme['c-font']}>{displayMenuLabel(menu.label)}</Text>
+          </View>
         </TouchableHighlight>)}
       </ScrollView>
     </View>

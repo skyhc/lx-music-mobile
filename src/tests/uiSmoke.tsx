@@ -1,6 +1,8 @@
 import { KeyboardConfigurationDialog } from '@/screens/Home/Views/Setting/settings/Basic/KeyboardShortcuts'
 import type { DialogType } from '@/components/common/Dialog'
 import { PlaylistContents } from '@/screens/PlayDetail/Horizontal/components/PlaylistBtn'
+import { playingColor, playingColorChroma, playingColorDistance, songSurface } from '@/utils/playingColor'
+import { readableTheme, contrastRatio } from '@/utils/readability'
 import playerActions from '@/store/player/action'
 import { applyTheme } from '@/core/theme'
 import { applyNavigationAppearance, navigationAppearance } from '@/navigation/appearance'
@@ -35,9 +37,10 @@ import { createList, getUserLists, setUserList, overwriteListMusics } from '@/co
 import { initial } from '@/plugins/player'
 
 const support = NativeModules.LXPlaybackTestSupport
-const phase: string = support.uiPhase.replace(/^dark/, '')
+const requestedPalette = /^palette-(.+)$/.exec(support.uiPhase)?.[1]
+const phase: string = requestedPalette ? 'table' : support.uiPhase.replace(/^dark/, '')
 const selectTheme = (dark: boolean) => {
-  const theme = themes.find(item => item.isDark == dark)!
+  const theme = (requestedPalette ? themes.find(item => item.id == requestedPalette) : themes.find(item => item.isDark == dark))!
   applyTheme(JSON.parse(JSON.stringify(theme)))
   applyNavigationAppearance(dark)
 }
@@ -74,7 +77,14 @@ const Fixture = () => {
       void support.windowSnapshot().then((native: { sceneAttached: boolean, minimalWindowControls: boolean, statusBarStyle: number }) => {
         const expectedDark = themeState.theme.isDark
         const styleOK = expectedDark ? native.statusBarStyle == 1 : [0, 3].includes(native.statusBarStyle)
-        return support.record({ done: true, success: native.sceneAttached && native.minimalWindowControls && styleOK,
+        const actualTheme = readableTheme(themeState.theme)
+        const background = songSurface(actualTheme), foreground = playingColor(actualTheme)
+        const colour = { background, foreground, normal: actualTheme['c-font'], secondary: actualTheme['c-font-label'],
+          contrast: contrastRatio(foreground, background), chroma: playingColorChroma(foreground, background),
+          normalDistance: playingColorDistance(foreground, actualTheme['c-font'], background),
+          secondaryDistance: playingColorDistance(foreground, actualTheme['c-font-label'], background) }
+        const colourOK = colour.contrast >= 4.8 && colour.chroma >= .085 && colour.chroma <= .18 && colour.normalDistance >= .16 && colour.secondaryDistance >= .10
+        return support.record({ done: true, success: native.sceneAttached && native.minimalWindowControls && styleOK && colourOK, colour,
           phase: support.uiPhase, expectedDark, native, width: Dimensions.get('window').width,
           height: Dimensions.get('window').height, fixture: 'production views with synthetic data', wide })
       })
@@ -114,7 +124,9 @@ export const runUI = async() => {
   await windowSizeTools.init()
   updateSetting({ 'common.hidePortraitNavigation': support.uiPhase == 'navhidden' })
   setUserList(await getUserLists())
-  playerActions.setPlayMusicInfo('default', songs[65])
+  // Table views put the current song in the visible viewport; the queue still
+  // uses a distant row so its automatic location is exercised.
+  playerActions.setPlayMusicInfo('default', songs[phase == 'list' || phase == 'library' ? 65 : 3])
   playerActions.setIsPlay(true)
   await overwriteListMusics('default', songs)
   commonState.navActiveId = phase == 'library' ? 'nav_love' : 'nav_top'
