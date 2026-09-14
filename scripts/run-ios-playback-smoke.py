@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
-"""Run the real simulator checks; every success must leave durable evidence.
-
-All paths are anchored to this repository, not the caller's current directory.
-The output is validated before deleting simulators and again in the workflow.
-"""
+"""Run simulator checks and retain their actual reports, including failures."""
 from __future__ import annotations
-
 import hashlib
 import json
 import math
@@ -21,8 +16,8 @@ import urllib.request
 import wave
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / 'build' / 'checks'
-HTTP = ROOT / 'build' / 'smoke-http'
+OUT = ROOT / 'build/checks'
+HTTP = ROOT / 'build/smoke-http'
 APP = ROOT / 'build/Simulator/Build/Products/Release-iphonesimulator/LxMusicMobile.app'
 BUNDLE = 'com.skyhc.lxmusic'
 FORMS = ('tablet', 'tabletportrait', 'phone')
@@ -30,7 +25,6 @@ PHASES = ('table', 'favorites', 'list', 'settings', 'menu', 'navhidden', 'librar
           'keyboard', 'darktable', 'darkmenu', 'darklibrary', 'darklist',
           'themeswitch', 'lightagain', 'palette-grey', 'palette-orange',
           'palette-purple', 'palette-blue')
-# Shell and standalone invocation must use the same complete matrix.
 for name, expected in (('LX_UI_FORMS', FORMS), ('LX_UI_PHASES', PHASES)):
     if name in os.environ and tuple(os.environ[name].split()) != expected:
         raise RuntimeError(f'Capture matrix mismatch: {name}')
@@ -46,6 +40,19 @@ def command(*args: str, timeout: int = 180, check: bool = True) -> str:
     if check and process.returncode:
         raise RuntimeError(f'Command failed ({process.returncode}): {args}\n{process.stdout[-5000:]}')
     return process.stdout.strip()
+
+
+def sample_process(pid: str, destination: Path) -> None:
+    """Optional diagnostics for our simulator app, without elevated privileges."""
+    if not pid.isdigit():
+        raise ValueError('The simulator process id must be numeric')
+    try:
+        command('/usr/bin/sample', pid, '2', '-file', str(destination), check=False, timeout=15)
+    except (subprocess.TimeoutExpired, OSError, RuntimeError) as error:
+        message = f'DIAGNOSTIC-ONLY: sampling pid {pid} failed: {type(error).__name__}: {error}'
+        with (OUT / 'native-driver.log').open('a') as log:
+            log.write(message + '\n')
+        print(message, flush=True)
 
 
 def simctl(*args: str, **kwargs) -> str:
@@ -89,7 +96,7 @@ def run() -> None:
     HTTP.mkdir(parents=True, exist_ok=True)
     if not APP.is_dir():
         raise RuntimeError(f'Release simulator app missing: {APP}')
-    # Prevent an earlier run's files from satisfying the evidence gate.
+    command(sys.executable, str(ROOT / 'scripts/check-smoke-diagnostic-failure.py'))
     for pattern in ('ui-*.png', 'ui-*.json', 'playback-*.json', 'UI-MANIFEST.json'):
         for path in OUT.glob(pattern):
             path.unlink()
@@ -137,11 +144,11 @@ def run() -> None:
             report_path = data / 'Documents/playback-smoke.json'
             report_path.unlink(missing_ok=True)
             launch_result = simctl('launch', '--stdout=' + str(OUT / (name + '.out')), '--stderr=' + str(OUT / (name + '.err')),
-                   simulator, BUNDLE, '--lx-playback-smoke', *arguments)
+                                   simulator, BUNDLE, '--lx-playback-smoke', *arguments)
             pid = re.search(r': (\d+)\s*$', launch_result)
             def sample_failure() -> None:
                 if pid:
-                    command('/usr/bin/sample', pid.group(1), '2', '-file', str(OUT / (name + '-threads.txt')), check=False, timeout=15)
+                    sample_process(pid.group(1), OUT / (name + '-threads.txt'))
             deadline = time.monotonic() + (90 if phase else 300)
             last = None
             while time.monotonic() < deadline:
@@ -158,7 +165,6 @@ def run() -> None:
                         raise RuntimeError(f'{name} failed: {last}')
                     if phase is not None and last.get('phase') != phase:
                         raise RuntimeError(f'{name}: stale or mismatched native phase {last}')
-                    # Preserve the native record verbatim, not a fabricated success.
                     (OUT / (name + '.json')).write_bytes(raw)
                     print('NATIVE-RECORD', name, json.dumps(last, ensure_ascii=False), flush=True)
                     return last
@@ -174,15 +180,13 @@ def run() -> None:
             launch_and_record(tablet, 'playback-online', [])
         except RuntimeError as error:
             native_failures.append(str(error))
-        # Stop only the audio endpoint; the real sync server remains available.
         stop(audio_server)
         audio_server = None
         try:
             launch_and_record(tablet, 'playback-offline', ['--lx-playback-offline'])
         except RuntimeError as error:
             native_failures.append(str(error))
-        # Still collect independently useful UI evidence on a native failure;
-        # the mandatory success gate below continues to reject the build.
+        # Capture UI independently, but do not release if native checks failed.
         inventory = []
         for form in FORMS:
             simulator = create(phone_type) if form == 'phone' else tablet
@@ -221,7 +225,6 @@ def run() -> None:
             raise RuntimeError('Native checks failed; device archive remains blocked: ' + '\n'.join(native_failures))
         print('Native playback records and 54 production-view screenshots are present at ' + str(OUT), flush=True)
     finally:
-        # File listing is retained even when a native test or screenshot fails.
         save_json(OUT / 'native-evidence-files.json', {'started': started, 'finished': time.time(), 'root': str(OUT),
                   'files': [{'name': p.name, 'bytes': p.stat().st_size} for p in sorted(OUT.iterdir()) if p.is_file()]})
         stop(audio_server)
