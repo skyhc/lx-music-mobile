@@ -42,5 +42,37 @@ class SamplingTests(unittest.TestCase):
         self.assertIn('device archive remains blocked', ast.unparse(gates[0]))
         self.assertIn('if len(inventory) != 54:', path.read_text())
 
+class DriverFailureTests(unittest.TestCase):
+    def test_command_timeout_retains_command_and_partial_output(self):
+        with tempfile.TemporaryDirectory() as folder, patch.object(driver, 'OUT', Path(folder)), patch.object(driver.subprocess, 'run', side_effect=subprocess.TimeoutExpired(['simctl', 'install'], 180, output=b'install is waiting')):
+            with self.assertRaisesRegex(RuntimeError, 'Command timed out'):
+                driver.command('simctl', 'install')
+            log = (Path(folder) / 'native-driver.log').read_text()
+            self.assertIn('$ simctl install', log)
+            self.assertIn('install is waiting', log)
+            self.assertIn('TIMEOUT after 180s', log)
+
+    def test_command_nonzero_is_not_green_and_retains_exit(self):
+        with tempfile.TemporaryDirectory() as folder, patch.object(driver, 'OUT', Path(folder)), patch.object(driver.subprocess, 'run', return_value=subprocess.CompletedProcess(['test'], 7, 'failed')):
+            with self.assertRaisesRegex(RuntimeError, 'Command failed'):
+                driver.command('test')
+            self.assertIn('EXIT 7', (Path(folder) / 'native-driver.log').read_text())
+
+    def test_offline_requires_successful_completed_online_phase(self):
+        for report in [None, {}, {'done': True}, {'success': True}, {'done': False, 'success': True}, {'done': True, 'success': False}, {'done': True, 'success': 'true'}]:
+            self.assertFalse(driver.offline_prerequisite(report), report)
+        self.assertTrue(driver.offline_prerequisite({'done': True, 'success': True}))
+
+    def test_phone_creation_stops_only_preceding_owned_device(self):
+        with patch.object(driver, 'simctl') as command:
+            driver.prepare_next_device(None)
+            command.assert_not_called()
+            driver.prepare_next_device('owned-tablet-uuid')
+            self.assertEqual(command.call_args_list[0].args, ('terminate', 'owned-tablet-uuid', driver.BUNDLE))
+            self.assertEqual(command.call_args_list[1].args, ('shutdown', 'owned-tablet-uuid'))
+            self.assertEqual(command.call_count, 2)
+        source = path.read_text()
+        self.assertLess(source.index('prepare_next_device(active_simulator)'), source.index("simctl('create'"))
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

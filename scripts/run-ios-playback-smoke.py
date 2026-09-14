@@ -32,14 +32,39 @@ XCRUN = '/usr/bin/xcrun'
 
 
 def command(*args: str, timeout: int = 180, check: bool = True) -> str:
-    print('RUN', ' '.join(str(a) for a in args), flush=True)
-    process = subprocess.run(args, cwd=ROOT, text=True, stdout=subprocess.PIPE,
-                             stderr=subprocess.STDOUT, timeout=timeout)
+    label = ' '.join(str(a) for a in args)
+    print('RUN', label, flush=True)
+    OUT.mkdir(parents=True, exist_ok=True)
     with (OUT / 'native-driver.log').open('a') as log:
-        log.write('$ ' + ' '.join(str(a) for a in args) + '\n' + process.stdout + '\n')
+        log.write('$ ' + label + '\n')
+        log.flush()
+        try:
+            process = subprocess.run(args, cwd=ROOT, text=True, stdout=subprocess.PIPE,
+                                     stderr=subprocess.STDOUT, timeout=timeout)
+        except subprocess.TimeoutExpired as error:
+            output = error.stdout or ''
+            if isinstance(output, bytes):
+                output = output.decode('utf8', errors='replace')
+            log.write(output + f'\nTIMEOUT after {timeout}s: {label}\n')
+            raise RuntimeError(f'Command timed out after {timeout}s: {label}\n{output[-5000:]}') from error
+        log.write(process.stdout + f'\nEXIT {process.returncode}: {label}\n')
     if check and process.returncode:
         raise RuntimeError(f'Command failed ({process.returncode}): {args}\n{process.stdout[-5000:]}')
     return process.stdout.strip()
+
+
+def offline_prerequisite(report: dict | None) -> bool:
+    # Offline validation depends on all online setup/format/cache checks. An
+    # aborted setup is blocked, not evidence that a completed file was lost.
+    return bool(report and report.get('done') is True and report.get('success') is True)
+
+
+def prepare_next_device(previous: str | None) -> None:
+    # Only our own preceding simulator is stopped; never touch user devices.
+    # Release resources before phone install; #77 stopped there with two booted devices.
+    if previous is not None:
+        simctl('terminate', previous, BUNDLE, check=False)
+        simctl('shutdown', previous)
 
 
 def sample_process(pid: str, destination: Path) -> None:
@@ -130,12 +155,18 @@ def run() -> None:
         tablet_type = next(d['identifier'] for d in device_types if 'iPad Pro' in d['name'] and '13' in d['name'])
         phone_type = next(d['identifier'] for d in device_types if re.match(r'iPhone (17|16|15) Pro(?: |$)', d['name']))
 
+        active_simulator = None
+
         def create(kind: str) -> str:
+            nonlocal active_simulator
+            prepare_next_device(active_simulator)
+            active_simulator = None
             simulator = simctl('create', 'LXBuild86-' + str(len(simulators)), kind, runtime)
             simulators.append(simulator)
             simctl('boot', simulator)
             simctl('bootstatus', simulator, '-b', timeout=300)
             simctl('install', simulator, str(APP))
+            active_simulator = simulator
             return simulator
 
         def launch_and_record(simulator: str, name: str, arguments: list[str], phase: str | None = None) -> dict:
@@ -188,16 +219,25 @@ def run() -> None:
 
         tablet = create(tablet_type)
         native_failures = []
+        online_report = None
         try:
-            launch_and_record(tablet, 'playback-online', [])
+            online_report = launch_and_record(tablet, 'playback-online', [])
         except RuntimeError as error:
             native_failures.append(str(error))
         stop(audio_server)
         audio_server = None
-        try:
-            launch_and_record(tablet, 'playback-offline', ['--lx-playback-offline'])
-        except RuntimeError as error:
-            native_failures.append(str(error))
+        if offline_prerequisite(online_report):
+            try:
+                launch_and_record(tablet, 'playback-offline', ['--lx-playback-offline'])
+            except RuntimeError as error:
+                native_failures.append(str(error))
+        else:
+            save_json(OUT / 'playback-offline.json', {
+                'done': True, 'success': False, 'phase': 'offline', 'status': 'blocked',
+                'error': 'Online prerequisite failed; completed caches and peer mutations were not verified',
+                'prerequisite': 'playback-online.json'})
+            if not native_failures:
+                native_failures.append('Online prerequisite did not pass; offline validation is blocked')
         # Capture UI independently, but do not release if native checks failed.
         # A separate UI-test bundle performs real simulated hardware rotation.
         # It does not alter the release app, its Info.plist or reported geometry.
