@@ -1,0 +1,32 @@
+name: Apply reviewed Build86 follow-up
+on:
+  push:
+    branches: [codex/ios-upstream-1.9.0]
+    paths: [.github/repair-build86/**, .github/workflows/build86-final-repair.yml]
+permissions:
+  contents: write
+  actions: write
+jobs:
+  apply:
+    if: startsWith(github.event.head_commit.message, 'ci: stage Build 86 final')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Apply only the reviewed patch and verify source hashes
+        run: python3 .github/repair-build86/apply.py
+      - name: Commit exact reviewed repair and remove temporary transport
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name skyhc
+          git config user.email 61585718+skyhc@users.noreply.github.com
+          git rm -r .github/repair-build86 .github/workflows/build86-final-repair.yml
+          git add .github/workflows/ios-ipa.yml CHANGELOG.md docs/BUILD86_BASELINE_HASHES.json scripts/check-build86-regressions.js scripts/run-ios-playback-smoke.py src/event/listEvent.ts src/plugins/sync/listEvent.ts src/tests/uiSmoke.tsx src/utils/listManage.ts
+          git diff --cached --check
+          git commit -m 'fix(ios): preserve sync catalogs during persistence and rotate real test devices'
+          git push origin HEAD:codex/ios-upstream-1.9.0
+          gh workflow run ios-ipa.yml --ref codex/ios-upstream-1.9.0
