@@ -7,7 +7,13 @@ final class OrientationTests: XCTestCase {
     private func rotate(_ orientation: UIDeviceOrientation, landscape: Bool) {
         continueAfterFailure = false
         let app = XCUIApplication(bundleIdentifier: "com.skyhc.lxmusic")
-        app.activate()
+        // simctl launch on an already running app does not replace arguments.
+        // Relaunch with the requested RNN orientation before rotating hardware;
+        // otherwise the previous portrait-only fixture can reject landscape.
+        app.terminate()
+        app.launchArguments = ["--lx-playback-smoke", "--lx-ui=table"]
+        if landscape { app.launchArguments.append("--lx-ui-landscape") }
+        app.launch()
         XCUIDevice.shared.orientation = orientation
         let matches = NSPredicate { _, _ in
             let frame = app.frame
