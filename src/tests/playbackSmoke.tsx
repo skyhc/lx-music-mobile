@@ -28,15 +28,16 @@ const bounded = async<T,>(task: Promise<T>, label: string, ms = 15000): Promise<
   finally { clearTimeout(timer!) }
 }
 const music = (kind: string): LX.Music.MusicInfoOnline => ({
-  id: `ci-sine-${kind}`, name: `Generated ${kind} test tone`, singer: 'CI synthetic signal', source: 'kw', interval: '00:12',
+  id: `ci-sine-${kind}`, name: `Generated ${kind} test tone`, singer: 'CI synthetic signal', source: 'kw', interval: '00:30',
   meta: { songId: `ci-${kind}`, albumName: 'CI', picUrl: '', qualitys: [], _qualitys: {} },
 } as LX.Music.MusicInfoOnline)
 export const run = async() => {
   const checks: Array<{ name: string, ok: boolean, detail?: unknown }> = []
+  const probes: Array<{ label: string, started: number, elapsed?: number, value?: number }> = []
   const events: unknown[] = []
   let stage = 'launch'
   const record = async(done = false, error?: unknown) => {
-    await support.record({ done, success: done && !error, phase: support.offline ? 'offline' : 'online', stage, checks, events: events.slice(-30), error: error ? String(error) : undefined })
+    await support.record({ done, success: done && !error, phase: support.offline ? 'offline' : 'online', stage, checks, probes, events: events.slice(-30), error: error ? String(error) : undefined })
   }
   const check = async(name: string, fn: () => Promise<unknown>) => {
     stage = name; await record()
@@ -50,9 +51,18 @@ export const run = async() => {
     throw new Error(name)
   }
   const audibleTimeline = async(label: string) => {
-    const initial = await bounded(getPosition(), 'getPosition', 3000)
-    await until(async() => (await bounded(getPosition(), 'getPosition', 3000)) > initial + 0.25, `${label}: rendered position did not advance`)
-    return getPosition()
+    const position = async() => {
+      const probe: typeof probes[number] = { label, started: Date.now() }
+      probes.push(probe)
+      await record()
+      const value = await bounded(getPosition(), 'getPosition', 3000)
+      probe.elapsed = Date.now() - probe.started; probe.value = value
+      assert(Number.isFinite(value), 'Native position must be a finite number')
+      return value
+    }
+    const initial = await position()
+    await until(async() => (await position()) > initial + 0.25, `${label}: rendered position did not advance`)
+    return position()
   }
   try {
     await new Promise<void>(resolve => onAppLaunched(resolve))
@@ -73,12 +83,14 @@ export const run = async() => {
     await runKeyboardSmoke(check)
     await runSyncSmoke(check, !!support.offline)
     initUnifiedPlayerEngine()
-    onUnifiedPlayerEvent(event => { events.push(event) })
+    onUnifiedPlayerEvent(event => { events.push({ ...event, at: Date.now() }) })
     settingState.setting['player.cacheSize'] = '32'
     settingState.setting['player.volume'] = 0.4
     await check('real native player setup with persistent cache enabled', async() => {
       await initial({ volume: 0.4, playRate: 1, cacheSize: 32, isHandleAudioFocus: true, isEnableAudioOffload: false })
       await configureAudioCache(32)
+      const position = await bounded(getPosition(), 'idle native getPosition', 3000)
+      return { idlePosition: position, nativePositionExport: typeof NativeModules.TrackPlayerModule?.getPosition }
     })
     const formats = [['mp3', '128k'], ['flac', 'flac']] as const
     if (!support.offline) {

@@ -98,7 +98,7 @@ def run() -> None:
         audio.setsampwidth(2)
         audio.setframerate(16000)
         audio.writeframes(b''.join(struct.pack('<h', int(6000 * math.sin(2 * math.pi * 440 * i / 16000)))
-                                   for i in range(12 * 16000)))
+                                   for i in range(30 * 16000)))
     if not shutil.which('ffmpeg'):
         command('brew', 'install', 'ffmpeg', timeout=300)
     command('ffmpeg', '-v', 'error', '-y', '-i', str(HTTP / 'tone.wav'), '-c:a', 'flac', str(HTTP / 'tone.flac'))
@@ -112,7 +112,8 @@ def run() -> None:
             log = (OUT / name).open('w')
             logs.append(log)
             return subprocess.Popen(args, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
-        audio_server = service([sys.executable, '-m', 'http.server', '18779', '--bind', '127.0.0.1', '--directory', str(HTTP)], 'smoke-http.log')
+        command(sys.executable, str(ROOT / 'scripts/check-smoke-media-server.py'))
+        audio_server = service([sys.executable, '-u', str(ROOT / 'scripts/smoke-media-server.py'), str(HTTP)], 'smoke-http.log')
         sync_server = service(['node', str(ROOT / 'scripts/sync-peer-fixture.cjs'), str(ROOT / 'build/official-sync')], 'sync-peer.log')
         wait_for_service('http://127.0.0.1:18779/tone.wav', audio_server)
         wait_for_service('http://127.0.0.1:18781/health', sync_server)
@@ -135,8 +136,12 @@ def run() -> None:
             data = Path(simctl('get_app_container', simulator, BUNDLE, 'data'))
             report_path = data / 'Documents/playback-smoke.json'
             report_path.unlink(missing_ok=True)
-            simctl('launch', '--stdout=' + str(OUT / (name + '.out')), '--stderr=' + str(OUT / (name + '.err')),
+            launch_result = simctl('launch', '--stdout=' + str(OUT / (name + '.out')), '--stderr=' + str(OUT / (name + '.err')),
                    simulator, BUNDLE, '--lx-playback-smoke', *arguments)
+            pid = re.search(r': (\d+)\s*$', launch_result)
+            def sample_failure() -> None:
+                if pid:
+                    command('/usr/bin/sample', pid.group(1), '2', '-file', str(OUT / (name + '-threads.txt')), check=False, timeout=15)
             deadline = time.monotonic() + (90 if phase else 300)
             last = None
             while time.monotonic() < deadline:
@@ -149,6 +154,7 @@ def run() -> None:
                 if last.get('done'):
                     if last.get('success') is not True:
                         save_json(OUT / (name + '.json'), last)
+                        sample_failure()
                         raise RuntimeError(f'{name} failed: {last}')
                     if phase is not None and last.get('phase') != phase:
                         raise RuntimeError(f'{name}: stale or mismatched native phase {last}')
@@ -159,14 +165,24 @@ def run() -> None:
                 time.sleep(.5)
             if last is not None:
                 save_json(OUT / (name + '.json'), last)
+            sample_failure()
             raise RuntimeError(f'Timed out waiting for native result: {name}')
 
         tablet = create(tablet_type)
-        launch_and_record(tablet, 'playback-online', [])
+        native_failures = []
+        try:
+            launch_and_record(tablet, 'playback-online', [])
+        except RuntimeError as error:
+            native_failures.append(str(error))
         # Stop only the audio endpoint; the real sync server remains available.
         stop(audio_server)
         audio_server = None
-        launch_and_record(tablet, 'playback-offline', ['--lx-playback-offline'])
+        try:
+            launch_and_record(tablet, 'playback-offline', ['--lx-playback-offline'])
+        except RuntimeError as error:
+            native_failures.append(str(error))
+        # Still collect independently useful UI evidence on a native failure;
+        # the mandatory success gate below continues to reject the build.
         inventory = []
         for form in FORMS:
             simulator = create(phone_type) if form == 'phone' else tablet
@@ -201,6 +217,8 @@ def run() -> None:
             content = (OUT / item['image']).read_bytes()
             if hashlib.sha256(content).hexdigest() != item['sha256']:
                 raise RuntimeError(f'Changed capture: {item["image"]}')
+        if native_failures:
+            raise RuntimeError('Native checks failed; device archive remains blocked: ' + '\n'.join(native_failures))
         print('Native playback records and 54 production-view screenshots are present at ' + str(OUT), flush=True)
     finally:
         # File listing is retained even when a native test or screenshot fails.
