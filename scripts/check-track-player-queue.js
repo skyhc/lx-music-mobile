@@ -20,10 +20,10 @@ const fixture = source.slice(start, end) + `
 let checks = 0
 const check = (name, fn) => { fn(); checks++; console.log('PASS ' + name) }
 const original = '@interface RCT_EXTERN_REMAP_MODULE(TrackPlayerModule, RNTrackPlayer, NSObject)\nRCT_EXTERN_METHOD(play);\n@end\n'
-check('exported methods explicitly use the main dispatch queue, not only main-queue setup', () => {
+check('exported methods retain React Native default serial queue instead of blocking main', () => {
   const result = bridge(original)
   assert.ok(result.includes(QUEUE_MARKER))
-  assert.match(result, /- \(dispatch_queue_t\)methodQueue\s*\{\s*return dispatch_get_main_queue\(\);/)
+  assert.ok(!result.includes('methodQueue'))
   assert.ok(result.includes('RCT_EXTERN_METHOD(play)'))
 })
 check('queue patch is idempotent', () => assert.equal(bridge(bridge(original)), bridge(original)))
@@ -32,14 +32,31 @@ check('unknown or duplicate bridge anchors fail instead of silently shipping', (
   assert.throws(() => bridge(original + original))
   assert.throws(() => bridge(original + 'methodQueue'))
 })
-check('lifecycle snapshot queries run only in a deferred main-queue block', () => {
+check('lifecycle notifications defer without reading the AVPlayer timeline', () => {
   const result = swift(fixture)
   assert.ok(result.includes(LIFECYCLE_MARKER))
-  assert.ok(result.indexOf('DispatchQueue.main.async') < result.indexOf('self.player.currentTime'))
-  assert.ok(result.includes('position ?? self.player.currentTime'))
-  assert.ok(result.includes('state ?? self.player.playerState'))
-  assert.ok(result.includes('NotificationCenter.default.post'))
-  assert.ok(!result.includes('DispatchQueue.main.sync'))
+  const lifecycle = result.split(MIX_MARKER)[0]
+  assert.ok(lifecycle.includes('DispatchQueue.main.async'))
+  assert.ok(lifecycle.includes('if let position = position'))
+  assert.ok(lifecycle.includes('if let rate = rate'))
+  assert.ok(lifecycle.includes('state ?? self.player.playerState'))
+  assert.ok(lifecycle.includes('NotificationCenter.default.post'))
+  assert.ok(!lifecycle.includes('self.player.currentTime'))
+  assert.ok(!lifecycle.includes('position ??'))
+  assert.ok(!lifecycle.includes('DispatchQueue.main.sync'))
+})
+check('native lifecycle consumer requires position only for explicit seek', () => {
+  const app = fs.readFileSync(path.join(base, 'ios/LxMusicMobile/AppDelegate.mm'), 'utf8')
+  const start = app.indexOf('static void LXHandleTrackPlayerLifecycleNotification')
+  const end = app.indexOf('static void LXRegisterTrackPlayerLifecycleObserver', start)
+  assert.ok(start > 0 && end > start)
+  const handler = app.slice(start, end)
+  assert.ok(handler.includes('event isEqualToString:@"seek"'))
+  assert.ok(handler.includes('@"elapsedTime": position ?: @0'))
+  assert.ok(handler.includes('event isEqualToString:@"destroy"'))
+  assert.ok(handler.includes('event isEqualToString:@"reset"'))
+  assert.ok(!handler.includes('@"state"'))
+  assert.ok(!handler.includes('@"error"'))
 })
 check('observer mix refresh is deferred even on main, preserving the same DSP function', () => {
   const result = swift(fixture).split(MIX_MARKER)[1]
@@ -60,7 +77,9 @@ check('postinstall and native stress tests keep the repair on the actual product
 })
 const installed = path.join(base, 'node_modules/react-native-track-player/ios/RNTrackPlayer')
 if (fs.existsSync(installed)) check('installed native dependency carries all three fixes', () => {
-  assert.ok(fs.readFileSync(path.join(installed, 'RNTrackPlayerBridge.m'), 'utf8').includes(QUEUE_MARKER))
+  const bridgeSource = fs.readFileSync(path.join(installed, 'RNTrackPlayerBridge.m'), 'utf8')
+  assert.ok(bridgeSource.includes(QUEUE_MARKER))
+  assert.ok(!bridgeSource.includes('methodQueue'))
   const source = fs.readFileSync(path.join(installed, 'RNTrackPlayer.swift'), 'utf8')
   assert.ok(source.includes(LIFECYCLE_MARKER) && source.includes(MIX_MARKER))
 })

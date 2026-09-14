@@ -1,9 +1,10 @@
-// Serialise the bridge and SwiftAudio callbacks on the same queue. This does
-// not change decoders, buffering policy, volume, seek semantics or cache data.
+// Keep React Native exports on their default serial module queue and defer
+// SwiftAudio observer work away from AVFoundation callbacks. This does not
+// change decoders, buffering policy, volume, seek semantics or cache data.
 const fs = require('node:fs')
 const path = require('node:path')
 const assert = require('node:assert/strict')
-const QUEUE_MARKER = '// LX_SERIAL_PLAYBACK_QUEUE_V1'
+const QUEUE_MARKER = '// LX_DEFAULT_REACT_NATIVE_PLAYBACK_QUEUE_V2'
 const LIFECYCLE_MARKER = '// LX_DEFER_LIFECYCLE_SNAPSHOT_V1'
 const MIX_MARKER = '// LX_DEFER_AUDIO_MIX_REFRESH_V1'
 
@@ -12,17 +13,15 @@ function bridge(source) {
   const anchor = '@interface RCT_EXTERN_REMAP_MODULE(TrackPlayerModule, RNTrackPlayer, NSObject)'
   assert.equal(source.split(anchor).length, 2, 'Unexpected TrackPlayer bridge: queue anchor must be unique')
   assert.ok(!source.includes('methodQueue'), 'Review existing TrackPlayer queue before replacing it')
-  // RCT_EXTERN_REMAP_MODULE expands to the RCTExternModule category
-  // implementation. Use the documented Objective-C methodQueue override.
+  // Do not add a methodQueue override. React Native supplies a private serial
+  // module queue for these exports. AVPlayer.currentTime() can synchronously
+  // wait for AVFoundation while a remote item is being opened; moving that call
+  // to the main queue starves the callbacks that advance the same player.
   return source.replace(anchor, anchor + `
 
 ${QUEUE_MARKER}
-// requiresMainQueueSetup only controls construction, not exported methods.
-// Queue mutation, position queries and AVPlayer observation must not race.
-- (dispatch_queue_t)methodQueue
-{
-    return dispatch_get_main_queue();
-}
+// Keep React Native's default serial module queue. AVFoundation observer work
+// is separately deferred by the installed SwiftAudio patch.
 `)
 }
 function swift(source) {
@@ -40,8 +39,10 @@ function swift(source) {
             var userInfo = extra
             userInfo["event"] = event
             userInfo["state"] = self.lifecycleStateName(state ?? self.player.playerState)
-            userInfo["position"] = position ?? self.player.currentTime
-            userInfo["rate"] = rate ?? self.player.rate
+            // Only seek notifications consume a timeline value in AppDelegate.
+            // State/error notifications must not synchronously read AVPlayer time.
+            if let position = position { userInfo["position"] = position }
+            if let rate = rate { userInfo["rate"] = rate }
             userInfo["track"] = self.player.currentIndex
             NotificationCenter.default.post(name: lxTrackPlayerLifecycleNotification, object: self, userInfo: userInfo)
         }

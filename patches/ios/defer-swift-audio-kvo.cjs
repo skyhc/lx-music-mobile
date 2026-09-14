@@ -67,7 +67,7 @@ function tracePosition(source) {
   return source.replace(original, `    public func getPosition(resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
         ${marker}
         #if targetEnvironment(simulator)
-        NSLog("LX_NATIVE_POSITION enter")
+        NSLog("LX_NATIVE_POSITION enter main=%@", Thread.isMainThread ? "yes" : "no")
         #endif
         let position = player.currentTime
         #if targetEnvironment(simulator)
