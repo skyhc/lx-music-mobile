@@ -107,8 +107,21 @@ const clone=x=>JSON.parse(JSON.stringify(x))
     // selected-row UI. Protect the actual audio/scene implementation instead of
     // assuming that a later repair can never modify any UIKit bridge file.
     const baseline='22270f3c02d7ff7c47406ec7bd0410ac1be39371'
-    const unchanged=cp.execFileSync('git',['diff','--name-only',baseline,'--','src/components/WindowContent.tsx','src/plugins/player/nativeFlac.ts','src/plugins/player/soundEffect','ios/LxMusicMobile/LXWindowInsets.swift'],{cwd:root,encoding:'utf8'})
+    const unchanged=cp.execFileSync('git',['diff','--name-only',baseline,'--','src/components/WindowContent.tsx','src/plugins/player/nativeFlac.ts','src/plugins/player/soundEffect'],{cwd:root,encoding:'utf8'})
     assert.equal(unchanged.trim(),'')
+    // Build87 adds system-appearance methods in the same bridge as safe-area
+    // measurement. Compare the pre-existing code byte-for-byte, rather than
+    // incorrectly banning the requested extension of this file.
+    const windowPath='ios/LxMusicMobile/LXWindowInsets.swift'
+    const oldWindow=cp.execFileSync('git',['show',baseline+':'+windowPath],{cwd:root,encoding:'utf8'})
+    const window=source(windowPath),start=window.indexOf('  @objc func setAuto()'),end=window.indexOf('  private func refresh(',start)
+    assert.ok(start>=0&&end>start,'System appearance extension is missing')
+    assert.equal(window.indexOf('  @objc func setAuto()',start+1),-1,'Duplicate system appearance extension')
+    const extension=window.slice(start,end)
+    assert.ok(extension.includes('window.overrideUserInterfaceStyle = .unspecified'))
+    assert.ok(extension.includes('@objc(getSystemDark:rejecter:)'))
+    assert.ok(extension.includes('scene?.traitCollection.userInterfaceStyle'))
+    assert.equal(window.slice(0,start)+window.slice(end),oldWindow,'Existing safe-area or fixed-theme code changed')
     const p='ios/LxMusicMobile/AppDelegate.mm'
     const original=cp.execFileSync('git',['show',baseline+':'+p],{cwd:root,encoding:'utf8'}),current=source(p)
     const prefix='@interface UtilsModule',crypto='@interface CryptoModule',test='#if TARGET_OS_SIMULATOR',scene='@implementation AppDelegate'
@@ -119,8 +132,9 @@ const clone=x=>JSON.parse(JSON.stringify(x))
   })
   await check('upstream dependency lock, monotonic iOS build and changelog are consistent',()=>{
     const pkg=JSON.parse(source('package.json')),lock=JSON.parse(source('package-lock.json'))
-    assert.equal(pkg.version,'1.9.0');assert.equal(pkg.versionCode,86);assert.equal(lock.version,'1.9.0')
+    assert.equal(pkg.version,'1.9.0');assert.equal(pkg.versionCode,87);assert.equal(lock.version,'1.9.0')
     assert.deepEqual(pkg.dependencies,lock.packages[''].dependencies);assert.deepEqual(pkg.devDependencies,lock.packages[''].devDependencies)
+    assert.ok(source('docs/BUILD87_SEEK_THEME.md').includes('Build87'))
     assert.equal(pkg.scripts.postinstall,'node dependencies-patch.js');assert.ok(source('CHANGELOG.md').includes('iOS / iPadOS 1.9.0 Build 86'))
   })
   console.log(`${checks} upstream 1.9.0 behavioral/integration checks passed. External live APIs require separate device validation.`)
