@@ -51,10 +51,12 @@ function transform(source) {
 
   // Reset at the exact AVPlayerItem replacement point too. During an async
   // remote load the old item may remain installed after reset(soft: true).
+  // This anchor lives inside DispatchQueue.main.async in SwiftAudioEx 0.14.7,
+  // so Swift requires an explicit self reference for the helper call.
   next = replaceExactlyOnce(
     next,
     /(                            self\.avPlayer\.replaceCurrentItem\(with: currentItem\)\n)/,
-    `                            lxSetCachedCurrentTime(0)\n$1`,
+    `                            self.lxSetCachedCurrentTime(0)\n$1`,
     'item replacement',
   )
 
