@@ -178,6 +178,20 @@ const bus = () => new EventEmitter()
     assert.equal(rendered.props.accessibilityState.selected,true);assert.equal(rendered.props.accessibilityRole,'radio')
     rendered.props.onPress();await sleep(1);assert.deepEqual(pressed,['auto',['blue',false]])
     for(const n of nodes(rendered).filter(n=>n.type==='Text'))assert.ok(!n.props.style?.backgroundColor)
+    const selectedIds=()=>nodes(comp.AutoThemeDialog({},{})).filter(n=>n.type===comp.ThemePreset&&n.props.selected).map(n=>n.props.item.id)
+    // Upgrading an existing automatic user must preview the effective legacy
+    // light theme, not the untouched default theme.lightId.
+    Object.assign(cfg,{'theme.id':'red','common.isAutoTheme':true,'theme.lightId':'green'})
+    const legacyAuto=comp.AutoThemeItem({visible:true,onPress(){}})
+    assert.equal(nodes(legacyAuto).find(n=>n.props?.style?.overflow==='hidden').props.style.backgroundColor,
+      themes.find(t=>t.id==='red').config.themeColors['c-theme'],'legacy automatic swatch differs from the applied light theme')
+    assert.deepEqual(selectedIds(),['red','black'])
+    // The same fallback used by playback UI must remain selected when an
+    // imported/deleted preset is missing or belongs to the wrong appearance.
+    Object.assign(cfg,{'theme.id':'auto','theme.lightId':'deleted-theme','theme.darkId':'blue'})
+    assert.deepEqual(selectedIds(),['green','black'])
+    Object.assign(cfg,{'theme.id':'purple','common.isAutoTheme':false,'theme.lightId':'blue','theme.darkId':'black'})
+    assert.deepEqual(selectedIds(),['blue','black'],'editing presets in fixed mode must not select the fixed theme')
   })
   await check('production scene geometry/audio/sync baseline preserved; explicit feature gates remain required',()=>{
     const baseline=JSON.parse(read('docs/BUILD86_BASELINE_HASHES.json')),hash=require('node:crypto').createHash

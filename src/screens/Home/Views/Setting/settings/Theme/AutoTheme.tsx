@@ -22,12 +22,20 @@ const useCatalog = () => {
   }, [])
   return info
 }
-const useSelection = () => ({
-  'theme.id': useSettingValue('theme.id'),
-  'theme.lightId': useSettingValue('theme.lightId'),
-  'theme.darkId': useSettingValue('theme.darkId'),
-  'common.isAutoTheme': useSettingValue('common.isAutoTheme'),
-})
+const useSelection = () => {
+  const id = useSettingValue('theme.id')
+  const lightId = useSettingValue('theme.lightId')
+  const darkId = useSettingValue('theme.darkId')
+  const legacyAuto = useSettingValue('common.isAutoTheme')
+  return {
+    'theme.id': id,
+    // Old automatic mode stored the light preset in theme.id. Match the
+    // resolver without rewriting the user's settings merely to render a swatch.
+    'theme.lightId': legacyAuto && id != 'auto' ? id : lightId,
+    'theme.darkId': darkId,
+    'common.isAutoTheme': legacyAuto,
+  }
+}
 const previewImage = (theme: LX.Theme, dataPath: string): ImageSourcePropType | undefined => {
   const image = theme.config.extInfo['bg-image']
   if (!image) return
@@ -75,13 +83,16 @@ export const AutoThemeItem = ({ onPress, visible }: { onPress: () => void, visib
 
 export const AutoThemeDialog = forwardRef<DialogType>((_props, ref) => {
   const t = useI18n(), info = useCatalog(), setting = useSelection()
+  const presets = { ...setting, 'theme.id': 'auto' }
+  const selectedIds = info.themes.length
+    ? [false, true].map(dark => selectSystemTheme(info.themes, presets, dark).id) : []
   return <Dialog ref={ref} title={t('theme_selector_modal__title')} maxWidth={720}>
     <ScrollView testID="system-theme-selector" style={{ flexShrink: 1 }} contentContainerStyle={{ padding: 16 }}>
       {[false, true].map(dark => <View key={String(dark)} style={{ marginBottom: 14 }}>
         <Text size={14} style={{ marginBottom: 8 }}>{t(dark ? 'theme_selector_modal__dark_title' : 'theme_selector_modal__light_title')}</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
           {info.themes.filter(item => item.isDark == dark).map(item => <ThemePreset key={item.id} item={item} dataPath={info.dataPath}
-            selected={item.id == setting[dark ? 'theme.darkId' : 'theme.lightId']}
+            selected={item.id == selectedIds[dark ? 1 : 0]}
             onPress={() => { void setThemeVariant(item.id, dark).catch(() => toast(t('theme_selector_error'))) }} />)}
         </View>
       </View>)}
