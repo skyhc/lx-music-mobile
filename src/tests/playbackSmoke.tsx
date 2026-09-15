@@ -1,3 +1,4 @@
+import { runSeekBurstSmoke } from './seekBurstSmoke'
 import { runSyncSmoke } from './syncSmoke'
 import { runKeyboardSmoke } from './keyboardSmoke'
 import TrackPlayer from 'react-native-track-player'
@@ -66,6 +67,10 @@ export const run = async() => {
   }
   try {
     await new Promise<void>(resolve => onAppLaunched(resolve))
+    if (support.uiPhase == 'system-theme' || support.uiPhase == 'system-theme-restart') {
+      await import('./systemThemeSmoke').then(test => test.runSystemThemeSmoke(support.uiPhase == 'system-theme-restart'))
+      return
+    }
     if (support.uiPhase) {
       await import('./uiSmoke').then(test => test.runUI())
       return
@@ -164,6 +169,7 @@ export const run = async() => {
           await until(async() => (await getPosition()) > 3.25, 'Seek/resume position did not advance')
           return getPosition()
         })
+        await runSeekBurstSmoke(check, format, info)
       }
       await check('switch FLAC to MP3 without a zero-seek deadlock', async() => {
         await loadPlaybackResource({ musicInfo: music('mp3'), url: (await lookupAudioCache(music('mp3'), '128k'))!, time: 0, quality: '128k' })

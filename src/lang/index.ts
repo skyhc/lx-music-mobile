@@ -1,6 +1,11 @@
-import zh_cn from './zh-cn.json'
-import zh_tw from './zh-tw.json'
-import en_us from './en-us.json'
+import zh_cn_base from './zh-cn.json'
+import zh_tw_base from './zh-tw.json'
+import en_us_base from './en-us.json'
+import systemThemeMessages from './systemThemeMessages'
+
+const zh_cn = { ...zh_cn_base, ...systemThemeMessages.zh_cn }
+const zh_tw = { ...zh_tw_base, ...systemThemeMessages.zh_tw }
+const en_us = { ...en_us_base, ...systemThemeMessages.en_us }
 
 type Message = Record<keyof typeof zh_cn, string>
 | Record<keyof typeof zh_tw, string>

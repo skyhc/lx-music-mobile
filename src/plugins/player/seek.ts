@@ -4,9 +4,7 @@ import { NativeModules, Platform } from 'react-native'
 const NativeTrackPlayerModule = NativeModules.TrackPlayerModule as {
   getPosition?: () => Promise<number>
 }
-
 const wait = async(ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-
 export const getAccuratePosition = async() => {
   if (Platform.OS == 'ios' && typeof NativeTrackPlayerModule?.getPosition == 'function') {
     return NativeTrackPlayerModule.getPosition()
@@ -15,33 +13,23 @@ export const getAccuratePosition = async() => {
 }
 
 export const seekToTime = async(targetTime: number) => {
+  if (!Number.isFinite(targetTime) || targetTime < 0) throw new Error('Invalid seek target')
+  // Submit once. The old delayed "accuracy" loop resubmitted historical targets
+  // while newer shortcuts were already seeking elsewhere, causing audible hops.
   await TrackPlayer.seekTo(targetTime)
   if (Platform.OS != 'ios') return targetTime
 
-  let position = targetTime
-  let stableCount = 0
-  for (const [delay, tolerance] of [
-    [140, 1.2],
-    [200, 0.75],
-    [280, 0.4],
-    [360, 0.22],
-    [520, 0.12],
-  ] as const) {
+  let position = NaN
+  let confirmations = 0
+  for (const delay of [140, 200, 280, 360, 520]) {
     await wait(delay)
-    const currentPosition = await getAccuratePosition().catch(() => position)
-    const nextPosition = currentPosition > 0 ? currentPosition : position
-    // eslint-disable-next-line require-atomic-updates
-    position = nextPosition
-    if (Math.abs(position - targetTime) <= tolerance) {
-      stableCount++
-      if (stableCount > 1 || tolerance <= 0.22) break
-      continue
-    }
-    stableCount = 0
-    await TrackPlayer.seekTo(targetTime)
+    position = await getAccuratePosition()
+    if (Number.isFinite(position) && position >= 0 && Math.abs(position - targetTime) <= 1.2) {
+      if (++confirmations >= 2) return position
+    } else confirmations = 0
   }
-  const finalPosition = await getAccuratePosition().catch(() => position)
-  // eslint-disable-next-line require-atomic-updates
-  position = finalPosition > 0 ? finalPosition : position
+  // This is an observed native position, never a simulated clock or a fallback
+  // to the requested target. UI publication is guarded by the request revision.
+  if (!Number.isFinite(position) || position < 0) throw new Error('Invalid native seek position')
   return position
 }

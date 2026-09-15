@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { View, TouchableOpacity, type ImageSourcePropType } from 'react-native'
 import { setTheme } from '@/core/theme'
 import { useI18n } from '@/lang'
@@ -12,10 +12,13 @@ import { createStyle } from '@/utils/tools'
 import { scaleSizeH } from '@/utils/pixelRatio'
 import { Icon } from '@/components/common/Icon'
 import ImageBackground from '@/components/common/ImageBackground'
+import { AutoThemeDialog, AutoThemeItem } from './AutoTheme'
+import type { DialogType } from '@/components/common/Dialog'
 
 const useActive = (id: string) => {
   const activeThemeId = useSettingValue('theme.id')
-  const isActive = useMemo(() => activeThemeId == id, [activeThemeId, id])
+  const auto = useSettingValue('common.isAutoTheme')
+  const isActive = useMemo(() => !auto && activeThemeId == id, [activeThemeId, id, auto])
   return isActive
 }
 
@@ -75,6 +78,7 @@ interface ThemeInfo {
 const initInfo: ThemeInfo = { themes: [], userThemes: [], dataPath: '' }
 export default memo(() => {
   const [showAll, setShowAll] = useState(false)
+  const autoDialog = useRef<DialogType>(null)
   const t = useI18n()
   const [themeInfo, setThemeInfo] = useState(initInfo)
   const setThemeId = useCallback((id: string) => {
@@ -114,8 +118,10 @@ export default memo(() => {
               setTheme={setThemeId} />
           })
         }
+        <AutoThemeItem visible={showAll} onPress={() => { setTheme('auto'); autoDialog.current?.setVisible(true) }} />
         <MoreBtn showAll={showAll} setShowAll={setShowAll} />
       </View>
+      <AutoThemeDialog ref={autoDialog} />
     </SubTitle>
   )
 })

@@ -80,6 +80,7 @@ jobs:
           node scripts/check-build84-regressions.js | tee build/checks/build84.log
           node scripts/check-build85-regressions.js | tee build/checks/build85.log
           node scripts/check-build86-regressions.js | tee build/checks/build86.log
+          node scripts/check-build87-regressions.js | tee build/checks/build87.log
           node scripts/check-track-player-queue.js | tee build/checks/track-player-queue.log
           node scripts/check-sync-catalog-race.js | tee build/checks/sync-catalog-race.log
           node scripts/check-settings-preservation.js | tee build/checks/settings-audit.log
@@ -142,6 +143,9 @@ jobs:
               data = json.loads(report.read_text())
               assert data.get('success'), (image.name, data)
               records.append({'image': image.name, 'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest(), 'report': report.name})
+          for name in ('system-theme', 'system-theme-restart'):
+              feature = json.loads((root / f'{name}.json').read_text())
+              assert feature.get('success') and feature.get('done'), (name, feature)
           for phase in ('online', 'offline'):
               report = json.loads((root / f'playback-{phase}.json').read_text())
               assert report.get('success') and report.get('done'), (phase, report)
@@ -159,6 +163,8 @@ jobs:
             build/checks/playback-*.json
             build/checks/UI-MANIFEST.json
             build/checks/build86-colours.json
+            build/checks/feature-theme-*.png
+            build/checks/system-theme*.json
           if-no-files-found: error
           retention-days: 30
       - name: Upload simulator and regression evidence

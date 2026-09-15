@@ -1,6 +1,6 @@
 {
   "ios/LxMusicMobile/AppDelegate.mm": "5764c47479c8dd7ec4de68de512b32af03ce667caaebcf3b9bf77a625024ea3a",
-  "ios/LxMusicMobile/LXWindowInsets.swift": "0e02398721406aac184fd493aa2fc7a69f3e019d174c5784acc6ec4b6d041d88",
+  "ios/LxMusicMobile/LXWindowInsets.swift": "b2699fd643b66747e2fa390cb2e578f18b880ce97fef2affe9ab566b031964db",
   "src/components/WindowContent.tsx": "f167ff74a5d63334526d77b9667c644c7b7d336ae5802bcff6c08b3e5d6e6b60",
   "src/plugins/player/cache/DiskAudioCache.ts": "e1161d30f337599c876d34f74ad53a7b553ac6182e8bff7f9d46acc88009161e",
   "src/plugins/player/cache/index.ts": "eefa6b3a338284f62713aaf1c40f74c0ae3bdada91500bcd32ddeffeada2ee40",

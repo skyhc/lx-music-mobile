@@ -183,6 +183,7 @@ def run() -> None:
             deadline = time.monotonic() + (90 if phase else 300)
             last = None
             early_sampled = False
+            appearance_steps = set()
             while time.monotonic() < deadline:
                 try:
                     raw = report_path.read_bytes()
@@ -201,6 +202,13 @@ def run() -> None:
                     early_sampled = True
                     save_json(OUT / (name + '-stalled.json'), last)
                     sample_process(pid.group(1), OUT / (name + '-stalled-threads.txt'))
+                if phase == 'system-theme' and last.get('stage') not in appearance_steps:
+                    stage = last.get('stage')
+                    target = {'await-dark': 'dark', 'await-light': 'light', 'await-fixed-dark': 'dark'}.get(stage)
+                    if target:
+                        appearance_steps.add(stage)
+                        simctl('io', simulator, 'screenshot', '--type=png', str(OUT / ('feature-theme-' + stage + '.png')))
+                        simctl('ui', simulator, 'appearance', target)
                 if last.get('done'):
                     if last.get('success') is not True:
                         save_json(OUT / (name + '.json'), last)
@@ -238,6 +246,17 @@ def run() -> None:
                 'prerequisite': 'playback-online.json'})
             if not native_failures:
                 native_failures.append('Online prerequisite did not pass; offline validation is blocked')
+        # Exercise real OS appearance events and persisted presets in a fresh
+        # process. A failure remains fatal; the original 54-view gate is intact.
+        simctl('ui', tablet, 'appearance', 'light')
+        try:
+            launch_and_record(tablet, 'system-theme', ['--lx-ui=system-theme'], 'system-theme')
+            launch_and_record(tablet, 'system-theme-restart', ['--lx-ui=system-theme-restart'], 'system-theme-restart')
+        except RuntimeError as error:
+            native_failures.append(str(error))
+        finally:
+            simctl('ui', tablet, 'appearance', 'light')
+        # system-theme.json and system-theme-restart.json are required reports.
         # Capture UI independently, but do not release if native checks failed.
         # A separate UI-test bundle performs real simulated hardware rotation.
         # It does not alter the release app, its Info.plist or reported geometry.

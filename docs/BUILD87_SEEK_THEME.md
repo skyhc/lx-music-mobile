@@ -1,0 +1,26 @@
+# Build87 — latest-target seeking and independent system-theme presets
+
+Base: `c458b17ce7bf3f0dc7684a02c4aead7092b542ca` (Actions #84 / Build86).
+Desktop behavior reference: `lyswhut/lx-music-desktop@abcbf5fa00b0b9f2c532a80b10ad8906ee4b22ab`, `src/renderer/views/Setting/components/ThemeSelectorModal.vue`, `src/renderer/core/useApp/useEventListener.ts`. This is a native React Native adaptation, not an embedded Electron view.
+
+## Changes and cross-checks
+
+1. The old iOS seek verifier repeatedly submitted its captured target after timed reads. Overlapping calls could therefore restore historical targets. The production progress listener now debounces rapid inputs for 120 ms, accumulates the immediately displayed target, and allows only one in-flight operation. A revision rejects delayed results and pre-seek polling. Changing media, stopping, errors and listener cleanup cancel pending requests. Native position zero is accepted.
+2. The iOS seek verifier submits once and only reads the real native clock afterwards. No synthesized progress, extra audio reset or changed native getPosition deadline is introduced. MP3 uses TrackPlayer; FLAC keeps its existing native implementation behind the same public seeking path.
+3. Automatic themes use `theme.id=auto`, independent `theme.lightId`/`theme.darkId`, and the existing persisted `common.isAutoTheme` compatibility flag. The picker separates light/dark themes and includes the split-color automatic entry. Invalid or deleted presets fall back within the correct appearance group. Fixed themes ignore system changes.
+4. Native automatic mode clears the window override to `.unspecified`. The system preference comes from the window scene, not the previously forced window. Startup, live Appearance events, foreground activation and settings edits refresh through guarded asynchronous paths. Stored theme objects are cloned before resolving mutable colors/paths.
+5. No original settings file was removed. Theme backgrounds/assets, decoder, DSP, cache format, resource replacement path, sync protocol, signing identity and bundle identifier remain unchanged. The pre-existing safe-area and fixed-window code in LXWindowInsets.swift remains byte-identical when the two added appearance methods are excluded; the new regression reconstructs and checks its original SHA256 `0e02398721406aac184fd493aa2fc7a69f3e019d174c5784acc6ec4b6d041d88`. Only this explicitly extended file's fingerprint is updated in BUILD86_BASELINE_HASHES.json; all other protected fingerprints remain unchanged.
+6. Build increments to 87. Earlier regression files' exact release-number assertions move to 87, not a relaxed range. Build80's release-note check now targets CHANGELOG_BUILD87.md; CHANGELOG.md and all earlier notes remain byte-identical. New translations are additive through the typed language index; the original three language JSON files are unchanged.
+
+## Pre-submission execution
+
+- Build87: 11 executable behavioral groups, including actual shortcut/progress listener integration, stale in-flight completion, canceled requests, zero/invalid values, read-only iOS settling, preset fallback/legacy behavior, actual theme refresh races, system events despite fixed-window overrides, listener cleanup, actual picker render props/callbacks, and mandatory CI gates.
+- Existing Build79, Build80, Build81, Build82, Build84, Build86/shared accent, TrackPlayer timing, SwiftAudio position-cache, audio-cache, sync/catalog race and iPad layout checks run against the edited source. Build85 also runs with its explicit Node fixture codec option, not misreported as a bundled-codec test.
+- Source syntax parse, Swift syntax parse, Python driver compilation/tests, Podfile syntax and whitespace checks are separate from semantic/native compilation.
+- This container cannot resolve registry.npmjs.org (EAI_AGAIN), has no installed React Native dependency tree and no Xcode. Full-project semantic TypeScript, CocoaPods, actual Swift/Objective-C linking, simulator execution and Archive/IPA therefore remain mandatory Actions gates. No native or device result is predeclared.
+
+## Native evidence added without replacing old gates
+
+- MP3 and FLAC each send a rapid hardware-key command burst through the existing native test bridge and actual production shortcut/progress listeners. Required evidence includes the accumulated targets, native playback advancing after the final target and no old UI positions restoring themselves afterwards. The 3000 ms native query limit remains unchanged.
+- A fresh app process runs the real settings UI and theme initialization while the driver changes simulated OS light/dark appearance. It checks independent preset edits, fixed-theme isolation, re-entering automatic mode and a second-process persistence check. Reports: `system-theme.json`, `system-theme-restart.json`; screenshots: `feature-theme-*.png`.
+- Both feature reports are required before release. The original online/offline checks, all 54 existing UI screenshots, source SHA metadata, archive metadata and IPA checksum gates remain enabled. Actual results must be matched to this submission's commit and Actions run.

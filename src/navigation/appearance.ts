@@ -6,7 +6,7 @@ export const navigationAppearance = (isDark: boolean) => ({
   statusBar: { style: isDark ? 'light' as const : 'dark' as const, visible: true, drawBehind: true },
 })
 
-export const applyNavigationAppearance = (isDark: boolean) => {
+export const applyNavigationAppearance = (isDark: boolean, followSystem = false) => {
   StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', false)
   if (Platform.OS != 'ios') return
   const options = navigationAppearance(isDark)
@@ -16,5 +16,6 @@ export const applyNavigationAppearance = (isDark: boolean) => {
     if (id) Navigation.mergeOptions(id, options)
   }
   // Native modal controllers and system window controls follow the same theme.
-  NativeModules.LXWindowAppearance?.setDark(isDark)
+  if (followSystem) NativeModules.LXWindowAppearance?.setAuto()
+  else NativeModules.LXWindowAppearance?.setDark(isDark)
 }
