@@ -227,7 +227,7 @@ export const tipDialog = async({
   btnText = global.i18n.t('dialog_confirm'),
   bgClose = true,
 }) => {
-  return new Promise<void>(resolve => {
+  return new Promise<void>((resolve) => {
     Alert.alert(title, message, [
       {
         text: btnText,
@@ -376,7 +376,8 @@ export const onAppearanceChange = (callback: (colorScheme: Parameters<Parameters
 let isSupportedAutoTheme: boolean | null = null
 export const getIsSupportedAutoTheme = () => {
   if (isSupportedAutoTheme == null) {
-    const osVerNum = parseInt(osVer)
+    // Release is Android-only; iOS exposes the OS version via Platform.Version.
+    const osVerNum = parseInt(Platform.OS == 'ios' ? String(Platform.Version) : osVer, 10)
     isSupportedAutoTheme = isAndroid
       ? osVerNum >= 5
       : osVerNum >= 13

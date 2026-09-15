@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import { NativeModules, ScrollView } from 'react-native'
+import { NativeModules, Platform, ScrollView } from 'react-native'
 import { Navigation } from 'react-native-navigation'
 import initTheme from '@/core/init/theme'
 import { initSetting, updateSetting } from '@/core/common'
@@ -13,6 +13,7 @@ import ThemeSettings from '@/screens/Home/Views/Setting/settings/Theme'
 import { AutoThemeDialog } from '@/screens/Home/Views/Setting/settings/Theme/AutoTheme'
 import type { DialogType } from '@/components/common/Dialog'
 import { windowSizeTools } from '@/utils/windowSizeTools'
+import { getIsSupportedAutoTheme, getAppearance } from '@/utils/tools'
 
 const support = NativeModules.LXPlaybackTestSupport
 const sleep = async(ms: number) => new Promise(resolve => setTimeout(resolve, ms))
@@ -31,6 +32,8 @@ export const runSystemThemeSmoke = async(restart: boolean) => {
     activeTheme: themeState.theme.id, systemDark: themeState.shouldUseDarkColors,
     light: settingState.setting['theme.lightId'], dark: settingState.setting['theme.darkId'],
     mode: settingState.setting['theme.id'],
+    osVersion: Platform.Version, autoSupported: getIsSupportedAutoTheme(),
+    appearance: getAppearance(), nativeDark: await NativeModules.LXWindowAppearance.getSystemDark(),
   })
   const until = async(test: () => boolean | Promise<boolean>, label: string) => {
     for (let i = 0; i < 100; i++) { if (await test()) { checks.push(label); return }; await sleep(100) }
@@ -41,6 +44,8 @@ export const runSystemThemeSmoke = async(restart: boolean) => {
     await windowSizeTools.init()
     await initSetting()
     if (!restart) updateSetting({ 'theme.id': 'auto', 'common.isAutoTheme': true, 'theme.lightId': 'blue', 'theme.darkId': 'black' })
+    requireCondition(getIsSupportedAutoTheme(), `Automatic appearance unsupported on iOS ${String(Platform.Version)}`)
+    checks.push('real iOS version gate enables automatic appearance')
     cleanup = await initTheme(settingState.setting)
     Navigation.registerComponent('LXSystemThemeReview', () => () => <Provider><Review /></Provider>)
     await Navigation.setRoot({ root: { component: { name: 'LXSystemThemeReview' } } })
