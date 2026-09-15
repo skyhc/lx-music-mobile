@@ -18,6 +18,8 @@ import {
   listMusicClear,
   allMusicList,
   isListAvailable,
+  getUserLists,
+  getListMusics,
 } from '@/utils/listManage'
 import { LIST_IDS } from '@/config/constant'
 import { setActiveList, setUserList } from '@/core/list'
@@ -65,10 +67,30 @@ const fixListIdType = (lists: LX.List.UserListInfo[] | LX.List.UserListInfoFull[
 
 export class ListEvent extends Event {
   private mutationTail: Promise<void> = Promise.resolve()
-  private runMutation(task: () => Promise<void>): Promise<void> {
-    const result = this.mutationTail.then(task)
-    this.mutationTail = result.catch(() => {})
+  private runMutation<T>(task: () => Promise<T>): Promise<T> {
+    const result = this.mutationTail.then(async() => {
+      await getUserLists()
+      return task()
+    })
+    this.mutationTail = result.then(() => {}, () => {})
     return result
+  }
+
+  /** A detached protocol snapshot, ordered after all earlier durable mutations. */
+  async list_data_snapshot(): Promise<LX.Sync.List.ListData> {
+    return this.runMutation(async() => {
+      const metadata = userLists.map(info => ({ ...info }))
+      const [defaultList, loveList, ...songs] = await Promise.all([
+        getListMusics(LIST_IDS.DEFAULT), getListMusics(LIST_IDS.LOVE),
+        ...metadata.map(info => getListMusics(info.id)),
+      ])
+      const userList = metadata.map(({ id, name, source, sourceListId, locationUpdateTime }, index) => ({
+        id, name, source, sourceListId, locationUpdateTime, list: songs[index],
+      }))
+      // Keep the upstream field order used by snapshot hashing. Do not expose
+      // live arrays to a later async RPC compression or serialization step.
+      return JSON.parse(JSON.stringify({ defaultList, loveList, userList })) as LX.Sync.List.ListData
+    })
   }
 
   /**

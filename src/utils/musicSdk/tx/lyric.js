@@ -1,7 +1,7 @@
 import { httpFetch } from '../../request'
 import getMusicInfo from './musicInfo'
 import { b64DecodeUnicode, decodeName } from '../../index'
-import { decryptQrc } from './qrc/decode'
+import { decodeQrc } from './qrcDecode'
 
 const songIdMap = new Map()
 const promises = new Map()
@@ -93,7 +93,7 @@ const parseTools = {
     let arr = interval.split(/:|\./)
     while (arr.length < 3) arr.unshift('0')
     const [m, s, ms] = arr
-    return parseInt(m) * 3600000 + parseInt(s) * 1000 + parseInt(ms)
+    return parseInt(m) * 60000 + parseInt(s) * 1000 + parseInt(ms.padEnd(3, '0').slice(0, 3))
   },
   fixRlrcTimeTag(rlrc, lrc) {
     const rlrcLines = rlrc.split('\n')
@@ -163,11 +163,11 @@ const parseTools = {
   },
 }
 
-const decodeLyric = async(lrc, tlrc, rlrc) => {
+export const decodeLyric = async(lrc, tlrc, rlrc) => {
   return {
-    lyric: lrc ? decryptQrc(lrc) : '',
-    tlyric: tlrc ? decryptQrc(tlrc) : '',
-    rlyric: rlrc ? decryptQrc(rlrc) : '',
+    lyric: lrc ? await decodeQrc(lrc) : '',
+    tlyric: tlrc ? await decodeQrc(tlrc) : '',
+    rlyric: rlrc ? await decodeQrc(rlrc) : '',
   }
 }
 
@@ -197,17 +197,19 @@ export default {
     if (promises.has(songmid)) return (await promises.get(songmid)).songId
     const promise = getMusicInfo(songmid)
     promises.set(songmid, promise)
-    const info = await promise
-    songIdMap.set(songmid, info.songId)
-    promises.delete(songmid)
-    return info.songId
+    try {
+      const info = await promise
+      songIdMap.set(songmid, info.songId)
+      return info.songId
+    } finally { promises.delete(songmid) }
   },
   async parseLyric(lrc, tlrc, rlrc) {
     const { lyric, tlyric, rlyric } = await decodeLyric(lrc, tlrc, rlrc)
+    if (!lyric) throw new Error('Empty QRC lyric')
     return parseTools.parse(decodeName(lyric), decodeName(tlyric), decodeName(rlyric))
   },
   getLyric(mInfo, retryNum = 0) {
-    if (retryNum > 3) return Promise.reject(new Error('Get lyric failed'))
+    if (retryNum > 3) return { cancelHttp() {}, promise: Promise.reject(new Error('Get lyric failed')) }
 
     return {
       cancelHttp() {},
@@ -247,7 +249,7 @@ export default {
           },
         })
         return requestObj.promise.then(({ body }) => {
-          if (body.code != this.successCode || body.req.code != this.successCode) {
+          if (!body || body.code != this.successCode || body.req?.code != this.successCode) {
             return this.getLyric(mInfo, ++retryNum).promise
           }
           const data = body.req.data

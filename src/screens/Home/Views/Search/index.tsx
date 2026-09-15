@@ -1,3 +1,4 @@
+import { KeyboardPage } from '@/components/KeyboardScope'
 import { useRef, useEffect } from 'react'
 import { type LayoutChangeEvent, View } from 'react-native'
 
@@ -22,7 +23,7 @@ interface SearchInfo {
   searchType: 'music' | 'songlist'
 }
 
-export default () => {
+const Page = () => {
   const headerBarRef = useRef<HeaderBarType>(null)
   const searchTipListRef = useRef<TipListType>(null)
   const listRef = useRef<ListType>(null)
@@ -126,3 +127,5 @@ const styles = createStyle({
     overflow: 'hidden',
   },
 })
+
+export default () => <KeyboardPage navId="nav_search"><Page /></KeyboardPage>

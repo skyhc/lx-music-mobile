@@ -1,3 +1,5 @@
+import useSongKeyboard from '@/utils/hooks/useSongKeyboard'
+import { usePlayMusicInfo } from '@/store/player/hook'
 import SongTableHeader from '@/components/common/SongTableHeader'
 import { useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import { FlatList, type FlatListProps, RefreshControl, View, Platform } from 'react-native'
@@ -186,6 +188,11 @@ const List = forwardRef<ListType, ListProps>(({
   }
 
 
+  const playing = usePlayMusicInfo()
+  const keyboardId = useSongKeyboard(currentList, handlePress, index => {
+    flatListRef.current?.scrollToIndex({ index: Math.floor(index / columnCount), viewPosition: 0.4, animated: false })
+  }, playing.musicInfo?.id)
+
   const renderItem: FlatListType['renderItem'] = ({ item, index }) => (
     <ListItem
       item={item}
@@ -195,6 +202,7 @@ const List = forwardRef<ListType, ListProps>(({
       onLongPress={handleLongPress}
       onShowMenu={onShowMenu}
       selectedList={selectedList}
+      focused={item.id == keyboardId}
       rowInfo={rowInfo}
       isShowAlbumName={isShowAlbumName}
       isShowInterval={isShowInterval}

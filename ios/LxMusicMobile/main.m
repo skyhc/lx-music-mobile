@@ -1,107 +1,61 @@
 #import <UIKit/UIKit.h>
-
 #import "AppDelegate.h"
 
-static NSString * const LXKeyboardRemoteCommandNotificationName = @"LXRemoteCommand";
+#if TARGET_OS_SIMULATOR
+#import "LXUITestOrientation.h"
+#endif
 
-static void LXPostKeyboardCommand(NSString *command)
-{
-  if (command.length == 0) return;
-  [[NSNotificationCenter defaultCenter]
-    postNotificationName:LXKeyboardRemoteCommandNotificationName
-    object:nil
-    userInfo:@{ @"command": command }];
+static BOOL LXIsEditingText(UIView *view) {
+  if (view.isFirstResponder && [view conformsToProtocol:@protocol(UITextInput)]) return YES;
+  for (UIView *child in view.subviews) if (LXIsEditingText(child)) return YES;
+  return NO;
 }
-
 @interface LXApplication : UIApplication
 @end
-
 @implementation LXApplication
-
-- (NSArray<UIKeyCommand *> *)keyCommands
-{
-  NSMutableArray<UIKeyCommand *> *commands = [NSMutableArray arrayWithArray:[super keyCommands] ?: @[]];
-
-  UIKeyCommand *toggle = [UIKeyCommand keyCommandWithInput:@" " modifierFlags:0 action:@selector(lx_togglePlayback:)];
-  toggle.discoverabilityTitle = @"播放/暂停";
-  [commands addObject:toggle];
-
-  UIKeyCommand *previous = [UIKeyCommand keyCommandWithInput:UIKeyInputLeftArrow modifierFlags:UIKeyModifierCommand action:@selector(lx_previousTrack:)];
-  previous.discoverabilityTitle = @"上一曲";
-  [commands addObject:previous];
-
-  UIKeyCommand *next = [UIKeyCommand keyCommandWithInput:UIKeyInputRightArrow modifierFlags:UIKeyModifierCommand action:@selector(lx_nextTrack:)];
-  next.discoverabilityTitle = @"下一曲";
-  [commands addObject:next];
-
-  UIKeyCommand *search = [UIKeyCommand keyCommandWithInput:@"1" modifierFlags:UIKeyModifierCommand action:@selector(lx_openSearch:)];
-  search.discoverabilityTitle = @"搜索";
-  [commands addObject:search];
-
-  UIKeyCommand *songList = [UIKeyCommand keyCommandWithInput:@"2" modifierFlags:UIKeyModifierCommand action:@selector(lx_openSongList:)];
-  songList.discoverabilityTitle = @"歌单";
-  [commands addObject:songList];
-
-  UIKeyCommand *leaderboard = [UIKeyCommand keyCommandWithInput:@"3" modifierFlags:UIKeyModifierCommand action:@selector(lx_openLeaderboard:)];
-  leaderboard.discoverabilityTitle = @"排行榜";
-  [commands addObject:leaderboard];
-
-  UIKeyCommand *favorites = [UIKeyCommand keyCommandWithInput:@"4" modifierFlags:UIKeyModifierCommand action:@selector(lx_openFavorites:)];
-  favorites.discoverabilityTitle = @"收藏";
-  [commands addObject:favorites];
-
-  UIKeyCommand *settings = [UIKeyCommand keyCommandWithInput:@"," modifierFlags:UIKeyModifierCommand action:@selector(lx_openSettings:)];
-  settings.discoverabilityTitle = @"设置";
-  [commands addObject:settings];
-
+- (NSArray<UIKeyCommand *> *)keyCommands {
+  NSMutableArray *commands = [NSMutableArray arrayWithArray:[super keyCommands] ?: @[]];
+  NSDictionary *settings = [[NSUserDefaults standardUserDefaults] dictionaryForKey:@"LXKeyboardShortcuts"] ?: @{};
+  if (settings[@"enabled"] && ![settings[@"enabled"] boolValue]) return commands;
+  for (UIScene *scene in self.connectedScenes) {
+    if (![scene isKindOfClass:UIWindowScene.class]) continue;
+    for (UIWindow *window in ((UIWindowScene *)scene).windows) if (window.isKeyWindow && LXIsEditingText(window)) return commands;
+  }
+  NSArray *bindings = @[
+    @[@" ", @0, @"toggle", @"播放/暂停", @"playback"],
+    @[UIKeyInputLeftArrow, @(UIKeyModifierCommand), @"previous", @"上一曲", @"playback"],
+    @[UIKeyInputRightArrow, @(UIKeyModifierCommand), @"next", @"下一曲", @"playback"],
+    @[UIKeyInputLeftArrow, @0, @"seek_backward", @"快退5秒", @"seek"],
+    @[UIKeyInputRightArrow, @0, @"seek_forward", @"快进5秒", @"seek"],
+    @[UIKeyInputUpArrow, @0, @"select_up", @"选择上一条", @"selection"],
+    @[UIKeyInputDownArrow, @0, @"select_down", @"选择下一条", @"selection"],
+    @[@"\r", @0, @"select_enter", @"播放所选歌曲", @"selection"],
+    @[@"l", @(UIKeyModifierCommand), @"locate_current", @"定位正在播放", @"selection"],
+    @[@"1", @(UIKeyModifierCommand), @"nav_search", @"搜索", @"navigation"],
+    @[@"2", @(UIKeyModifierCommand), @"nav_songlist", @"歌单", @"navigation"],
+    @[@"3", @(UIKeyModifierCommand), @"nav_top", @"排行榜", @"navigation"],
+    @[@"4", @(UIKeyModifierCommand), @"nav_love", @"我的列表", @"navigation"],
+    @[@"5", @(UIKeyModifierCommand), @"nav_setting", @"设置", @"navigation"],
+    @[@",", @(UIKeyModifierCommand), @"nav_setting", @"设置", @"navigation"],
+    @[UIKeyInputEscape, @0, @"escape", @"关闭当前菜单", @"navigation"]
+  ];
+  for (NSArray *binding in bindings) {
+    if (settings[binding[4]] && ![settings[binding[4]] boolValue]) continue;
+    UIKeyCommand *key = [UIKeyCommand commandWithTitle:binding[3] image:nil action:@selector(lx_keyboard:) input:binding[0] modifierFlags:[binding[1] unsignedIntegerValue] propertyList:binding[2]];
+    key.discoverabilityTitle = binding[3];
+    if (@available(iOS 15.0, *)) key.wantsPriorityOverSystemBehavior = YES;
+    [commands addObject:key];
+  }
   return commands;
 }
-
-- (void)lx_togglePlayback:(UIKeyCommand *)command
-{
-  LXPostKeyboardCommand(@"toggle");
+- (void)lx_keyboard:(UIKeyCommand *)key {
+  // Re-check editing state on delivery: focus may have changed since keyCommands.
+  for (UIScene *scene in self.connectedScenes) if ([scene isKindOfClass:UIWindowScene.class])
+    for (UIWindow *window in ((UIWindowScene *)scene).windows) if (window.isKeyWindow && LXIsEditingText(window)) return;
+  if (![key.propertyList isKindOfClass:NSString.class]) return;
+  [[NSNotificationCenter defaultCenter] postNotificationName:@"LXRemoteCommand" object:nil userInfo:@{ @"command": key.propertyList, @"source": @"keyboard" }];
 }
-
-- (void)lx_previousTrack:(UIKeyCommand *)command
-{
-  LXPostKeyboardCommand(@"previous");
-}
-
-- (void)lx_nextTrack:(UIKeyCommand *)command
-{
-  LXPostKeyboardCommand(@"next");
-}
-
-- (void)lx_openSearch:(UIKeyCommand *)command
-{
-  LXPostKeyboardCommand(@"nav_search");
-}
-
-- (void)lx_openSongList:(UIKeyCommand *)command
-{
-  LXPostKeyboardCommand(@"nav_songlist");
-}
-
-- (void)lx_openLeaderboard:(UIKeyCommand *)command
-{
-  LXPostKeyboardCommand(@"nav_top");
-}
-
-- (void)lx_openFavorites:(UIKeyCommand *)command
-{
-  LXPostKeyboardCommand(@"nav_love");
-}
-
-- (void)lx_openSettings:(UIKeyCommand *)command
-{
-  LXPostKeyboardCommand(@"nav_setting");
-}
-
 @end
-
-int main(int argc, char *argv[])
-{
-  @autoreleasepool {
-    return UIApplicationMain(argc, argv, NSStringFromClass([LXApplication class]), NSStringFromClass([AppDelegate class]));
-  }
+int main(int argc, char *argv[]) {
+  @autoreleasepool { return UIApplicationMain(argc, argv, NSStringFromClass(LXApplication.class), NSStringFromClass(AppDelegate.class)); }
 }

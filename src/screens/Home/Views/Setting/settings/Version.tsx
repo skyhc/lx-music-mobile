@@ -1,5 +1,7 @@
 import { memo, useState, useEffect } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet, View, Platform } from 'react-native'
+import { PORT_PROJECT } from '@/config/project'
+import { openUrl, toast } from '@/utils/tools'
 
 import Section from '../components/Section'
 import SubTitle from '../components/SubTitle'
@@ -21,6 +23,10 @@ export default memo(() => {
   const progress = useVersionDownloadProgressUpdated()
   const handleOpenVersionModal = () => {
     // setVersionInfo({ showModal: true })
+    if (Platform.OS == 'ios') {
+      void openUrl(PORT_PROJECT.releases).catch(() => toast('无法打开发布页面'))
+      return
+    }
     showModal()
   }
 
@@ -65,16 +71,16 @@ export default memo(() => {
 
   return (
     <Section title={t('setting_version')}>
-      <SubTitle title={title}>
+      <SubTitle title={Platform.OS == 'ios' ? 'iOS / iPadOS 移植版' : title}>
         <View style={styles.desc}>
-          <Text size={14}>{t('version_label_latest_ver')}{versionInfo.newVersion?.version}</Text>
+          {Platform.OS != 'ios' ? <Text size={14}>{t('version_label_latest_ver')}{versionInfo.newVersion?.version}</Text> : <Text size={14}>新版及发布说明以移植仓库 Releases 为准。</Text>}
           <Text size={14}>{t('version_label_current_ver')}{currentVer}</Text>
           {
             tip ? <Text size={14}>{tip}</Text> : null
           }
         </View>
         <View style={styles.btn}>
-          <Button onPress={handleOpenVersionModal}>{t('setting_version_show_ver_modal')}</Button>
+          <Button onPress={handleOpenVersionModal}>{Platform.OS == 'ios' ? '查看移植版更新 / 下载' : t('setting_version_show_ver_modal')}</Button>
         </View>
       </SubTitle>
     </Section>

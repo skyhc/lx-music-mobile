@@ -4599,6 +4599,10 @@ RCT_EXPORT_MODULE();
   });
 }
 
+RCT_EXPORT_METHOD(configureKeyboard:(NSDictionary *)settings) {
+  [[NSUserDefaults standardUserDefaults] setObject:settings ?: @{} forKey:@"LXKeyboardShortcuts"];
+}
+
 RCT_EXPORT_METHOD(exitApp) {
   dispatch_async(dispatch_get_main_queue(), ^{
     exit(0);
@@ -4710,19 +4714,77 @@ RCT_REMAP_METHOD(windowSnapshot, windowSnapshotWithResolver:(RCTPromiseResolveBl
     UIWindow *window = ((AppDelegate *)UIApplication.sharedApplication.delegate).window;
     UIWindowScene *scene = window.windowScene;
     BOOL minimal = NO;
+    NSString *actualStyleDescription = @"unavailable";
+    NSString *minimalStyleDescription = @"unavailable";
     if (@available(iOS 26.0, *)) {
       id<UIWindowSceneDelegate> delegate = (id<UIWindowSceneDelegate>)scene.delegate;
       if ([delegate respondsToSelector:@selector(preferredWindowingControlStyleForScene:)]) {
-        minimal = [delegate preferredWindowingControlStyleForScene:scene] == UISceneWindowingControlStyle.minimalStyle;
+        UISceneWindowingControlStyle *actual = [delegate preferredWindowingControlStyleForScene:scene];
+        UISceneWindowingControlStyle *expected = UISceneWindowingControlStyle.minimalStyle;
+        actualStyleDescription = actual.description ?: @"nil";
+        minimalStyleDescription = expected.description ?: @"nil";
+        // This fixed-SDK simulator diagnostic has no public value/type getter.
+        // UIKit creates fresh descriptors and NSObject isEqual: compares their
+        // identity, even when both describe minimal. Observe the reported type
+        // instead; fail closed if its diagnostic format changes. Production
+        // code never parses descriptions or inspects private properties.
+        NSRegularExpression *typePattern = [NSRegularExpression regularExpressionWithPattern:@";\\s*type:\\s*([a-zA-Z]+)\\s*>$" options:0 error:nil];
+        NSString *(^descriptorType)(NSString *) = ^NSString *(NSString *description) {
+          NSTextCheckingResult *match = [typePattern firstMatchInString:description options:0 range:NSMakeRange(0, description.length)];
+          return match ? [description substringWithRange:[match rangeAtIndex:1]] : @"";
+        };
+        NSString *actualType = descriptorType(actualStyleDescription);
+        NSString *expectedType = descriptorType(minimalStyleDescription);
+        NSString *automaticType = descriptorType(UISceneWindowingControlStyle.automaticStyle.description);
+        minimal = [actual isKindOfClass:UISceneWindowingControlStyle.class] &&
+                  [actualType isEqualToString:@"minimal"] &&
+                  [expectedType isEqualToString:@"minimal"] &&
+                  [automaticType isEqualToString:@"automatic"];
       }
     }
     resolve(@{ @"sceneAttached": @(scene != nil),
                @"sceneDelegate": scene.delegate ? NSStringFromClass(scene.delegate.class) : @"",
                @"minimalWindowControls": @(minimal),
+               @"windowControlStyle": actualStyleDescription,
+               @"expectedMinimalStyle": minimalStyleDescription,
+               @"styleCheck": @"fixed-SDK runtime descriptor type (simulator only)",
+               @"deviceIdiom": @(UIDevice.currentDevice.userInterfaceIdiom),
                @"statusBarStyle": @(scene.statusBarManager.statusBarStyle),
                @"interfaceStyle": @(window.traitCollection.userInterfaceStyle),
                @"safeTop": @(window.safeAreaInsets.top),
                @"windowWidth": @(window.bounds.size.width), @"windowHeight": @(window.bounds.size.height) });
+  });
+}
+RCT_REMAP_METHOD(keyboardSnapshot, keyboardSnapshotWithResolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSMutableArray *result = [NSMutableArray new];
+    for (UIKeyCommand *key in UIApplication.sharedApplication.keyCommands)
+      if ([NSStringFromSelector(key.action) isEqualToString:@"lx_keyboard:"] && key.propertyList) [result addObject:key.propertyList];
+    resolve(result);
+  });
+}
+RCT_REMAP_METHOD(keyboardEditingProbe, keyboardEditingProbeWithResolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    UIWindow *window = ((AppDelegate *)UIApplication.sharedApplication.delegate).window;
+    UITextField *field = [[UITextField alloc] initWithFrame:CGRectMake(20, 80, 180, 40)];
+    [window addSubview:field];
+    BOOL focused = [field becomeFirstResponder];
+    NSUInteger appKeys = 0;
+    for (UIKeyCommand *key in UIApplication.sharedApplication.keyCommands)
+      if ([NSStringFromSelector(key.action) isEqualToString:@"lx_keyboard:"]) appKeys++;
+    [field resignFirstResponder]; [field removeFromSuperview];
+    resolve(@{@"focused": @(focused), @"appKeysWhileEditing": @(appKeys)});
+  });
+}
+RCT_REMAP_METHOD(sendKeyboard, sendKeyboard:(NSString *)command resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    UIApplication *app = UIApplication.sharedApplication;
+    for (UIKeyCommand *key in app.keyCommands) {
+      if ([key.propertyList isKindOfClass:NSString.class] && [key.propertyList isEqualToString:command]) {
+        resolve(@([app sendAction:key.action to:app from:key forEvent:nil])); return;
+      }
+    }
+    resolve(@NO);
   });
 }
 RCT_REMAP_METHOD(record, record:(NSDictionary *)report resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {

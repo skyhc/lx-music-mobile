@@ -1,9 +1,11 @@
 export type PanelPosition = 'top' | 'bottom' | 'left' | 'right' | 'center'
-export const panelPosition = (ios: boolean, kind: 'list' | 'panel', requested: PanelPosition): PanelPosition =>
-  ios ? kind == 'list' ? 'left' : 'center' : requested
-export const panelBounds = (width: number, height: number, kind: 'list' | 'panel') => ({
-  width: Math.max(0, Math.min(kind == 'list' ? 420 : 680, width - 24)),
-  height: Math.max(0, Math.min(kind == 'list' ? 600 : 620, height - 24)),
+export type PanelKind = 'list' | 'panel' | 'player-playlist'
+// No global iOS redirect: only the player queue has a left-edge policy.
+export const panelPosition = (ios: boolean, kind: PanelKind, requested: PanelPosition): PanelPosition =>
+  ios && kind == 'player-playlist' ? 'left' : requested
+export const panelBounds = (width: number, height: number, kind: PanelKind) => ({
+  width: Math.max(0, Math.min(kind != 'panel' ? 420 : 680, width - 24)),
+  height: Math.max(0, Math.min(kind != 'panel' ? 600 : 620, height - 24)),
 })
 export const listGridLayout = (width: number) => {
   const available = Math.max(0, width - 32)

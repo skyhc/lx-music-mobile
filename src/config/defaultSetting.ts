@@ -1,4 +1,9 @@
 const defaultSetting: LX.AppSetting = {
+  'keyboard.enabled': true,
+  'keyboard.playback': true,
+  'keyboard.seek': true,
+  'keyboard.selection': true,
+  'keyboard.navigation': true,
   version: '2.0',
   'common.isAutoTheme': false,
   'common.langId': null,
@@ -55,6 +60,7 @@ const defaultSetting: LX.AppSetting = {
   'player.soundEffect.panner.soundR': 5,
   'player.soundEffect.panner.speed': 25,
   'player.soundEffect.pitchShifter.playbackRate': 1,
+  'player.isShowBluetoothFullLyric': false,
 
   // 'playDetail.isZoomActiveLrc': false,
   // 'playDetail.isShowLyricProgressSetting': false,

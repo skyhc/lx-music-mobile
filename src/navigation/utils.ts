@@ -113,12 +113,13 @@ export const showVersionModal = () => {
   })
 }
 
-export const showSyncModeModal = () => {
+export const showSyncModeModal = (componentId?: string) => {
   const theme = themeState.theme
 
-  void Navigation.showOverlay({
+  return Navigation.showOverlay({
     component: {
       name: SYNC_MODE_MODAL,
+      id: componentId,
       options: {
         layout: {
           componentBackgroundColor: 'transparent',

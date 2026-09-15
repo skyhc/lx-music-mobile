@@ -1,146 +1,49 @@
 import { memo } from 'react'
-import { View, TouchableOpacity } from 'react-native'
-
+import { View, TouchableOpacity, Alert } from 'react-native'
+import Clipboard from '@react-native-clipboard/clipboard'
 import Section from '../components/Section'
-// import Button from './components/Button'
-
-import { createStyle, openUrl } from '@/utils/tools'
-// import { showPactModal } from '@/navigation'
+import { openUrl, toast } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
-import { useI18n } from '@/lang'
 import Text from '@/components/common/Text'
 import { showPactModal } from '@/core/common'
+import { PORT_PROJECT } from '@/config/project'
 
-// const qqGroupUrl = 'mqqopensdkapi://bizAgent/qm/qr?url=http%3A%2F%2Fqm.qq.com%2Fcgi-bin%2Fqm%2Fqr%3Ffrom%3Dapp%26p%3Dandroid%26jump_from%3Dwebapi%26k%3Du1zyxek8roQAwic44nOkBXtG9CfbAxFw'
-// const qqGroupUrl2 = 'mqqopensdkapi://bizAgent/qm/qr?url=http%3A%2F%2Fqm.qq.com%2Fcgi-bin%2Fqm%2Fqr%3Ffrom%3Dapp%26p%3Dandroid%26jump_from%3Dwebapi%26k%3D-l4kNZ2bPQAuvfCQFFhl1UoibvF5wcrQ'
-// const qqGroupWebUrl = 'https://qm.qq.com/cgi-bin/qm/qr?k=jRZkyFSZ4FmUuTHA3P_RAXbbUO_Rrn5e&jump_from=webapi'
-// const qqGroupWebUrl2 = 'https://qm.qq.com/cgi-bin/qm/qr?k=HPNJEfrZpBZ9T8szYWbe2d5JrAAeOt_l&jump_from=webapi'
-
+const visit = (url: string) => { void openUrl(url).catch(() => { toast('无法打开链接，请检查网络或浏览器设置') }) }
 export default memo(() => {
   const theme = useTheme()
-  const t = useI18n()
-  const openHomePage = () => {
-    void openUrl('https://github.com/lyswhut/lx-music-mobile#readme')
+  const feedback = async() => {
+    const report = `LX Music iOS/iPadOS ${process.versions.app}\n问题描述：\n复现步骤：\n设备/系统：\n期望结果：\n实际结果：\n（请勿附音源密钥、配对码或隐私数据）`
+    Clipboard.setString(report)
+    // A fork may have Issues disabled. Never silently send its users upstream.
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 6000)
+    try {
+      const response = await fetch('https://api.github.com/repos/skyhc/lx-music-mobile', { signal: controller.signal })
+      if (response.ok && (await response.json()).has_issues === false) {
+        Alert.alert('问题反馈', '反馈内容已复制。移植仓库暂未开启 Issues，请维护者在仓库设置中启用；本移植版问题不要提交到上游官方仓库。', [
+          { text: '关闭', style: 'cancel' }, { text: '打开移植仓库', onPress: () => visit(PORT_PROJECT.repository) },
+        ])
+        return
+      }
+    } catch {} finally { clearTimeout(timer) }
+    visit(PORT_PROJECT.issues + '/new/choose')
   }
-  const openIssuePage = () => {
-    void openUrl('https://github.com/lyswhut/lx-music-mobile/issues?q=is%3Aissue+')
-  }
-  const openGHReleasePage = () => {
-    void openUrl('https://github.com/lyswhut/lx-music-mobile/releases')
-  }
-  const openFAQPage = () => {
-    void openUrl('https://lyswhut.github.io/lx-music-doc/mobile/faq')
-  }
-  // const openIssuesPage = () => {
-  //   openUrl('https://github.com/lyswhut/lx-music-mobile/issues')
-  // }
-  const openPactModal = () => {
-    showPactModal()
-  }
-  const openPartPage = () => {
-    void openUrl('https://github.com/lyswhut/lx-music-mobile#%E9%A1%B9%E7%9B%AE%E5%8D%8F%E8%AE%AE')
-  }
-
-  // const goToQQGroup = () => {
-  //   openUrl(qqGroupUrl).catch(() => {
-  //     void openUrl(qqGroupWebUrl)
-  //   })
-  // }
-  // const goToQQGroup2 = () => {
-  //   openUrl(qqGroupUrl2).catch(() => {
-  //     void openUrl(qqGroupWebUrl2)
-  //   })
-  // }
-
-  const textLinkStyle = {
-    ...styles.text,
-    textDecorationLine: 'underline',
-    color: theme['c-primary-font'],
-    // fontSize: 14,
-  } as const
-
-
-  return (
-    <Section title={t('setting_about')}>
-      <View style={styles.part}>
-        <Text style={styles.text} >本软件完全免费，代码已开源。开源地址：</Text>
-        <TouchableOpacity onPress={openHomePage}>
-          <Text style={textLinkStyle}>https://github.com/lyswhut/lx-music-mobile</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.part}>
-        <Text style={styles.text}>最新版下载地址：</Text>
-        <TouchableOpacity onPress={openGHReleasePage}>
-          <Text style={textLinkStyle}>GitHub Releases</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.part}>
-        <Text style={styles.text} >软件的常见问题可转至：</Text>
-        <TouchableOpacity onPress={openFAQPage}>
-          <Text style={textLinkStyle}>移动版常见问题</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.part}>
-        <Text style={styles.text}><Text style={styles.boldText}>本软件没有客服</Text>，但我们整理了一些常见的使用问题。<Text style={styles.boldText} >仔细、仔细、仔细</Text>地阅读常见问题后，</Text>
-        <Text style={styles.text}>仍有问题可到 GitHub </Text>
-        <TouchableOpacity onPress={openIssuePage}>
-          <Text style={textLinkStyle}>提交 Issue</Text>
-        </TouchableOpacity>
-        <Text style={styles.text}>。</Text>
-      </View>
-      <View style={styles.part}>
-        <Text style={styles.text}>由于软件开发的初衷仅是为了对新技术的学习与研究，因此软件直至停止维护都将会一直保持纯净。</Text>
-      </View>
-      <View style={styles.part}>
-        <Text style={styles.text}>目前本项目的原始发布地址<Text style={styles.boldText}>只有 GitHub</Text>，其他渠道均为第三方转载发布，可信度请自行鉴别。</Text>
-      </View>
-      <View style={styles.part}>
-        <Text style={styles.text}><Text style={styles.boldText}>本项目没有微信公众号之类的所谓「官方账号」，也未在小米、华为、vivo 等应用商店发布同名应用，谨防被骗！</Text></Text>
-      </View>
-      <View style={styles.part}>
-        <Text style={styles.text}>若你使用过程中遇到<Text style={styles.boldText}>广告</Text>或者<Text style={styles.boldText}>引流</Text>（如需要加群、关注公众号之类才能使用或者升级）的信息，则表明你当前运行的软件是「第三方修改版」。</Text>
-      </View>
-      <View style={styles.part}>
-        <Text style={styles.text}>若在升级新版本时提示「<Text style={styles.boldText}>签名不一致</Text>」，则表明你手机上的旧版本或者将要安装的新版本中<Text style={styles.boldText}>有一方</Text>是「<Text style={styles.boldText}>第三方修改版</Text>」。</Text>
-      </View>
-      <View style={styles.part}>
-        <Text style={styles.text}>你已签署本软件的</Text>
-        <TouchableOpacity onPress={openPactModal}><Text style={styles.text} color={theme['c-primary-font']}>许可协议</Text></TouchableOpacity>
-        <Text style={styles.text}>，协议的在线版本在</Text>
-        <TouchableOpacity onPress={openPartPage}><Text style={textLinkStyle}>这里</Text></TouchableOpacity>
-        <Text style={styles.text}>。</Text>
-      </View>
-      <View style={styles.part}>
-        <Text style={styles.text}>By: </Text>
-        <Text style={styles.text}>落雪无痕</Text>
-      </View>
-    </Section>
-  )
-})
-
-const styles = createStyle({
-  part: {
-    marginLeft: 15,
-    marginRight: 15,
-    marginBottom: 10,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  text: {
-    fontSize: 14,
-    textAlignVertical: 'bottom',
-  },
-  boldText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    textAlignVertical: 'bottom',
-  },
-  throughText: {
-    fontSize: 14,
-    textDecorationLine: 'line-through',
-    textAlignVertical: 'bottom',
-  },
-  btn: {
-    flexDirection: 'row',
-  },
+  const link = (label: string, url: string) => <TouchableOpacity accessibilityRole="link" onPress={() => visit(url)} style={{ paddingVertical: 10 }}><Text color={theme['c-primary-font']}>{label}</Text></TouchableOpacity>
+  return <Section title="关于 LX Music">
+    <View style={{ marginHorizontal: 18, gap: 10 }}>
+      <Text size={18} style={{ fontWeight: '600' }}>iOS / iPadOS 移植与适配</Text>
+      <Text>维护者：{PORT_PROJECT.maintainer}。基于上游 LX Music 和 Q-1515 的早期 iOS 移植继续开发，提供 iPhone / iPad 播放、缓存、窗口布局、键盘控制与数据同步适配。本版本不是上游官方发布的 iOS 应用。</Text>
+      {link('移植项目 · skyhc/lx-music-mobile', PORT_PROJECT.repository)}
+      {link('下载移植版最新版本 · GitHub Releases', PORT_PROJECT.releases)}
+      <TouchableOpacity accessibilityRole="button" onPress={() => { void feedback() }} style={{ paddingVertical: 10 }}><Text color={theme['c-primary-font']}>提交移植问题 / 复制反馈信息</Text></TouchableOpacity>
+      <Text size={18} style={{ fontWeight: '600' }}>上游官方项目</Text>
+      <Text>LX Music Mobile（落雪音乐助手），原作者：lyswhut / 落雪无痕。原始移动版面向 Android；本项目保留上游许可与署名，不将 iOS 移植支持归属于原作者。</Text>
+      {link('上游官方源码 · lyswhut/lx-music-mobile', PORT_PROJECT.upstream)}
+      {link('早期 iOS 移植 · Q-1515', PORT_PROJECT.previousPort)}
+      {link('上游官方文档与常见问题', 'https://lyswhut.github.io/lx-music-doc/')}
+      <TouchableOpacity onPress={() => showPactModal()} style={{ paddingVertical: 10 }}><Text color={theme['c-primary-font']}>查看许可与使用协议</Text></TouchableOpacity>
+      {link('Apache-2.0 开源许可', PORT_PROJECT.repository + '/blob/codex/ios-upstream-1.9.0/LICENSE')}
+      <Text size={12}>下载请核对移植仓库、版本及签名。日志反馈前请移除密钥和个人信息。iOS 版本不能通过 Android APK 更新。</Text>
+    </View>
+  </Section>
 })

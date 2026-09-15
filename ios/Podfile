@@ -152,6 +152,10 @@ target 'LxMusicMobile' do
 
     lx_patch_swift_audio_seek(installer)
     lx_patch_swift_audio_player_access(installer)
+    position_cache_test = File.expand_path('../scripts/check-swift-audio-position-cache.js', __dir__)
+    raise 'SwiftAudio position cache regression failed' unless system('node', position_cache_test)
+    position_cache_patch = File.expand_path('../patches/ios/cache-swift-audio-position.cjs', __dir__)
+    raise 'SwiftAudio position cache patch failed' unless system('node', position_cache_patch, installer.sandbox.root.to_s)
 
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |build_configuration|

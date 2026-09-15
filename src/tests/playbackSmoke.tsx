@@ -1,3 +1,6 @@
+import { runSeekBurstSmoke } from './seekBurstSmoke'
+import { runSyncSmoke } from './syncSmoke'
+import { runKeyboardSmoke } from './keyboardSmoke'
 import TrackPlayer from 'react-native-track-player'
 import React from 'react'
 import { NativeModules, View, Text } from 'react-native'
@@ -15,6 +18,8 @@ import { createList, removeUserList, removeListMusics, getUserLists, setUserList
 import { getUserLists as getStoredLists, getListMusics as getStoredMusics } from '@/utils/data'
 import { bootstrapLibrary, LOCAL_LIBRARY_ID } from '@/utils/libraryBootstrap'
 import listState from '@/store/list/state'
+import { clearSongResourceCache } from '@/core/music/cache'
+import { saveMusicUrl, hasMusicUrlByMusic } from '@/utils/data'
 
 const support = NativeModules.LXPlaybackTestSupport
 const sleep = async(ms: number) => new Promise(resolve => setTimeout(resolve, ms))
@@ -24,15 +29,16 @@ const bounded = async<T,>(task: Promise<T>, label: string, ms = 15000): Promise<
   finally { clearTimeout(timer!) }
 }
 const music = (kind: string): LX.Music.MusicInfoOnline => ({
-  id: `ci-sine-${kind}`, name: `Generated ${kind} test tone`, singer: 'CI synthetic signal', source: 'kw', interval: '00:12',
+  id: `ci-sine-${kind}`, name: `Generated ${kind} test tone`, singer: 'CI synthetic signal', source: 'kw', interval: '00:30',
   meta: { songId: `ci-${kind}`, albumName: 'CI', picUrl: '', qualitys: [], _qualitys: {} },
 } as LX.Music.MusicInfoOnline)
 export const run = async() => {
   const checks: Array<{ name: string, ok: boolean, detail?: unknown }> = []
+  const probes: Array<{ label: string, started: number, elapsed?: number, value?: number }> = []
   const events: unknown[] = []
   let stage = 'launch'
   const record = async(done = false, error?: unknown) => {
-    await support.record({ done, success: done && !error, phase: support.offline ? 'offline' : 'online', stage, checks, events: events.slice(-30), error: error ? String(error) : undefined })
+    await support.record({ done, success: done && !error, phase: support.offline ? 'offline' : 'online', stage, checks, probes, events: events.slice(-30), error: error ? String(error) : undefined })
   }
   const check = async(name: string, fn: () => Promise<unknown>) => {
     stage = name; await record()
@@ -46,12 +52,25 @@ export const run = async() => {
     throw new Error(name)
   }
   const audibleTimeline = async(label: string) => {
-    const initial = await bounded(getPosition(), 'getPosition', 3000)
-    await until(async() => (await bounded(getPosition(), 'getPosition', 3000)) > initial + 0.25, `${label}: rendered position did not advance`)
-    return getPosition()
+    const position = async() => {
+      const probe: typeof probes[number] = { label, started: Date.now() }
+      probes.push(probe)
+      await record()
+      const value = await bounded(getPosition(), 'getPosition', 3000)
+      probe.elapsed = Date.now() - probe.started; probe.value = value
+      assert(Number.isFinite(value), 'Native position must be a finite number')
+      return value
+    }
+    const initial = await position()
+    await until(async() => (await position()) > initial + 0.25, `${label}: rendered position did not advance`)
+    return position()
   }
   try {
     await new Promise<void>(resolve => onAppLaunched(resolve))
+    if (support.uiPhase == 'system-theme' || support.uiPhase == 'system-theme-restart') {
+      await import('./systemThemeSmoke').then(test => test.runSystemThemeSmoke(support.uiPhase == 'system-theme-restart'))
+      return
+    }
     if (support.uiPhase) {
       await import('./uiSmoke').then(test => test.runUI())
       return
@@ -63,16 +82,20 @@ export const run = async() => {
     await check('scene-based window and minimal native window controls', async() => {
       const info = await support.windowSnapshot()
       assert(info.sceneAttached && info.sceneDelegate == 'LXSceneDelegate', JSON.stringify(info))
-      assert(info.minimalWindowControls, 'The configured scene is not using minimal window controls')
+      assert(info.minimalWindowControls, `The configured scene is not using minimal window controls: ${JSON.stringify(info)}`)
       return info
     })
+    await runKeyboardSmoke(check)
+    await runSyncSmoke(check, !!support.offline)
     initUnifiedPlayerEngine()
-    onUnifiedPlayerEvent(event => { events.push(event) })
+    onUnifiedPlayerEvent(event => { events.push({ ...event, at: Date.now() }) })
     settingState.setting['player.cacheSize'] = '32'
     settingState.setting['player.volume'] = 0.4
     await check('real native player setup with persistent cache enabled', async() => {
       await initial({ volume: 0.4, playRate: 1, cacheSize: 32, isHandleAudioFocus: true, isEnableAudioOffload: false })
       await configureAudioCache(32)
+      const position = await bounded(getPosition(), 'idle native getPosition', 3000)
+      return { idlePosition: position, nativePositionExport: typeof NativeModules.TrackPlayerModule?.getPosition }
     })
     const formats = [['mp3', '128k'], ['flac', 'flac']] as const
     if (!support.offline) {
@@ -146,11 +169,23 @@ export const run = async() => {
           await until(async() => (await getPosition()) > 3.25, 'Seek/resume position did not advance')
           return getPosition()
         })
+        await runSeekBurstSmoke(check, format, info)
       }
       await check('switch FLAC to MP3 without a zero-seek deadlock', async() => {
         await loadPlaybackResource({ musicInfo: music('mp3'), url: (await lookupAudioCache(music('mp3'), '128k'))!, time: 0, quality: '128k' })
         return audibleTimeline('switch')
       })
+      // Each replacement has its own timeout; six loads must not share one.
+      for (let pass = 0; pass < 3; pass++) {
+        for (const source of ['remote', 'cache']) {
+          await check(`repeated remote/cache transition ${pass} ${source}`, async() => {
+            const url = source == 'remote' ? 'http://127.0.0.1:18779/tone.mp3' : await lookupAudioCache(music('mp3'), '128k')
+            assert(url, 'Completed MP3 required for transition stress')
+            await loadPlaybackResource({ musicInfo: music('mp3'), url: url!, time: 0, quality: '128k' })
+            return { pass, source, position: await audibleTimeline(`transition ${pass} ${source}`) }
+          })
+        }
+      }
     } else {
       await check('second app process does not restore removed lists or songs', async() => {
         let recreated = false
@@ -171,7 +206,16 @@ export const run = async() => {
           return audibleTimeline(`${format} offline restart`)
         })
       }
-      await check('clear cache preserves the active FLAC playback lease', async() => {
+      await check('1.9.0 single-song clear removes URLs and complete FLAC while preserving MP3 and playing lease', async() => {
+        await saveMusicUrl(music('flac'), 'flac', 'https://invalid.example/old-token')
+        await saveMusicUrl(music('flac'), '320k', 'https://invalid.example/old-token2')
+        await clearSongResourceCache(music('flac'))
+        assert(!await hasMusicUrlByMusic(music('flac')), 'Per-song URL cache remains')
+        assert(!await lookupAudioCache(music('flac'), 'flac'), 'Per-song audio cache remains')
+        assert(!!await lookupAudioCache(music('mp3'), '128k'), 'Other song cache was deleted')
+        return audibleTimeline('playing during per-song clear')
+      })
+      await check('clear cache preserves the active FLAC playback lease' , async() => {
         await clearAudioCache()
         assert((await getAudioCacheSize()) == 0, 'Cache not cleared')
         return audibleTimeline('playing during clear')

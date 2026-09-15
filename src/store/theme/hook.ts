@@ -1,6 +1,6 @@
 import { useContext, useEffect, useState } from 'react'
 import { Platform } from 'react-native'
-import { readableTheme } from '@/utils/readability'
+import { readableThemeWithAccent } from '@/utils/themeAccent'
 import { ThemeContext } from './state'
 import settingState from '@/store/setting/state'
 
@@ -42,7 +42,7 @@ export const useTheme = () => {
   const theme = useContext(ThemeContext)
   if (Platform.OS != 'ios') return theme
   let result = readableThemes.get(theme)
-  if (!result) { result = readableTheme(theme); readableThemes.set(theme, result) }
+  if (!result) { result = readableThemeWithAccent(theme); readableThemes.set(theme, result) }
   return result
 }
 

@@ -240,10 +240,17 @@ export const setPlaybackRate = async(num: number) => {
   if (Platform.OS == 'ios' && isNativeFlacActive()) return setNativeFlacRate(num)
   return TrackPlayer.setRate(num)
 }
-export const updateNowPlayingTitles = async(duration: number, title: string, artist: string, album: string) => {
-  console.log('set playing titles', duration, title, artist, album)
-  if (Platform.OS == 'ios') return Promise.resolve()
-  return TrackPlayer.updateNowPlayingTitles(duration, title, artist, album)
+export interface NowPlayingTitles {
+  title?: string
+  artist?: string
+  album?: string
+  lyric?: string
+}
+export const updateNowPlayingTitles = async(titles: NowPlayingTitles) => {
+  // iOS metadata stays with the existing NowPlaying coordinator, not the
+  // Android Bluetooth-title bridge introduced by the upstream dependency.
+  if (Platform.OS == 'ios') return
+  return TrackPlayer.updateNowPlayingTitles(titles)
 }
 
 export const resetPlay = async() => Promise.all([setPause(), setCurrentTime(0)])

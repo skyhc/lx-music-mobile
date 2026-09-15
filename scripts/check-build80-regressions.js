@@ -32,10 +32,11 @@ const clone = obj => JSON.parse(JSON.stringify(obj))
     console.log(`  checked ${themes.length} shipped palettes`)
   })
   const panel=load('src/utils/panelLayout.ts')
-  await check('only list panels slide left; non-list panels center regardless of old caller position',()=>{
+  await check('only the player playlist overrides position; all other callers retain their design',()=>{
     for(const pos of ['top','bottom','right','left','center']){
-      assert.equal(panel.panelPosition(true,'list',pos),'left')
-      assert.equal(panel.panelPosition(true,'panel',pos),'center')
+      assert.equal(panel.panelPosition(true,'player-playlist',pos),'left')
+      assert.equal(panel.panelPosition(true,'list',pos),pos)
+      assert.equal(panel.panelPosition(true,'panel',pos),pos)
       assert.equal(panel.panelPosition(false,'panel',pos),pos)
     }
   })
@@ -147,7 +148,8 @@ const clone = obj => JSON.parse(JSON.stringify(obj))
     for(const p of ['src/components/OnlineList/List.tsx','src/screens/Home/Views/Mylist/MusicList/List.tsx']){
       const s=source(p);assert.ok(s.indexOf('<SongTableHeader')<s.indexOf('<FlatList\n'))
     }
-    assert.ok(source('src/screens/PlayDetail/Horizontal/components/PlaylistBtn.tsx').includes('<SongTableHeader'))
+    assert.ok(source('src/screens/PlayDetail/Horizontal/components/PlaylistBtn.tsx').includes('<SongRowContent'))
+    assert.ok(source('src/screens/PlayDetail/Horizontal/components/PlaylistBtn.tsx').includes('getItemLayout='))
   })
   await check('no hidden gain multiplier; explicit unity mixer and real PCM measurement gate',()=>{
     const native=source('ios/LxMusicMobile/AppDelegate.mm')
@@ -159,7 +161,7 @@ const clone = obj => JSON.parse(JSON.stringify(obj))
   })
   await check('version-specific repair summary exists in project CHANGELOG',()=>{
     const pkg=JSON.parse(source('package.json'))
-    assert.ok(source('CHANGELOG.md').includes(`iOS / iPadOS ${pkg.version} Build ${pkg.versionCode}`))
+    assert.ok(source('CHANGELOG_BUILD87.md').includes(`iOS / iPadOS ${pkg.version} Build ${pkg.versionCode}`))
   })
   console.log(`${total} Build 80 checks passed. Real native output and rendered UI have separate evidence.`)
 })().catch(e=>{console.error(e);process.exitCode=1})

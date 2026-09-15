@@ -6,7 +6,7 @@ import { Icon } from './Icon'
 import { useKeyboard } from '@/utils/hooks'
 import { useTheme } from '@/store/theme/hook'
 import Text from './Text'
-import { panelBounds, panelPosition, type PanelPosition } from '@/utils/panelLayout'
+import { panelBounds, panelPosition, type PanelKind, type PanelPosition } from '@/utils/panelLayout'
 
 export interface PopupProps {
   onHide?: () => void
@@ -14,7 +14,7 @@ export interface PopupProps {
   bgHide?: boolean
   closeBtn?: boolean
   position?: PanelPosition
-  kind?: 'list' | 'panel'
+  kind?: PanelKind
   title?: string
   children: React.ReactNode
 }
@@ -30,7 +30,7 @@ export default forwardRef<PopupType, PopupProps>(({
   const [frame, setFrame] = useState({ width: 0, height: 0 })
   const modalRef = useRef<ModalType>(null)
   const entrance = useRef(new Animated.Value(1)).current
-  // Only an explicit list panel uses the left drawer. Settings are centered.
+  // Preserve each caller's placement; only the player queue opts into left.
   const actualPosition = panelPosition(Platform.OS == 'ios', kind, position)
   const bounds = panelBounds(frame.width || window.width, frame.height || Math.max(0, window.height - 80 - (keyboardShown ? keyboardHeight : 0)), kind)
   useImperativeHandle(ref, () => ({

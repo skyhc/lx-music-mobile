@@ -63,12 +63,18 @@ const check = async(name, fn) => { await fn(); n++; console.log('PASS', name) }
     assert.equal(await optionalTask(Promise.reject(Error('Disk unavailable')),20,null,'test'),null)
     assert.equal(await optionalTask(Promise.resolve('file://hit.mp3'),20,null,'test'),'file://hit.mp3')
   })
-  const queue = []; let playing = false; let seeks = 0
-  const track = { add: async t=>queue.push(...t),getQueue:async()=>queue,skip:async()=>{},getCurrentTrack:async()=>0,
-    play:async()=>{playing=true},pause:async()=>{playing=false},setVolume:async()=>{},remove:async()=>{} }
+  const queue = []; let playing = false; let seeks = 0; let resets = 0; let removes = 0; let skips = 0
+  const track = {
+    add: async t=>queue.push(...t), getQueue:async()=>queue,
+    getCurrentTrack:async()=>queue.length ? 0 : null,
+    skip:async()=>{skips++}, reset:async()=>{resets++; queue.splice(0)},
+    play:async()=>{playing=true}, pause:async()=>{playing=false}, setVolume:async()=>{},
+    remove:async()=>{removes++},
+  }
   const core = load('src/plugins/player/trackPlayerCore.ts', {
     'react-native-track-player': { default: track }, '@/config': { defaultUrl: 'file://placeholder' },
     'react-native': { ...native, NativeModules: {} }, '@/store/setting/state': { default: { setting: { 'player.volume':0.7 } } },
+    './fullLyric': { getCurrentFullLyric: () => undefined },
     './seek': { seekToTime: async n=>{seeks++; if(!n) throw Error('zero seek') } },
     '@/utils/nativeModules/nowPlaying': {},
   }, { global: { lx: {} } })
@@ -77,9 +83,11 @@ const check = async(name, fn) => { await fn(); n++; console.log('PASS', name) }
     await core.loadTrackPlayerResource(info,'https://fixture.test/tone.mp3',0,true)
     assert.equal(playing,true); assert.equal(seeks,0)
   })
-  await check('nonzero seek and paused restore remain supported', async()=>{
+  await check('iOS source replacement clears the old queue before opening cached media', async()=>{
     await core.loadTrackPlayerResource(info,'file://tone.mp3',3,false)
     assert.equal(playing,false); assert.equal(seeks,1)
+    assert.equal(resets,1); assert.equal(removes,0); assert.equal(skips,0)
+    assert.equal(queue.length,1); assert.equal(queue[0].url,'file://tone.mp3')
   })
   await check('cache URL resolution does not launch a competing download',()=>{
     const adapter=source('src/plugins/player/cache/index.ts')

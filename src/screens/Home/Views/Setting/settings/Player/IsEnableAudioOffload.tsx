@@ -2,7 +2,7 @@ import { updateSetting } from '@/core/common'
 import { useI18n } from '@/lang'
 import { createStyle, toast } from '@/utils/tools'
 import { memo } from 'react'
-import { View } from 'react-native'
+import { View, Platform } from 'react-native'
 import { useSettingValue } from '@/store/setting/hook'
 
 
@@ -18,10 +18,9 @@ export default memo(() => {
 
   return (
     <View style={styles.content}>
-      <CheckBoxItem
+      <CheckBoxItem disabled={Platform.OS == 'ios'} helpDesc={Platform.OS == 'ios' ? '音频卸载开关属于 Android 播放器；iOS 无相同开关，原设置值保留。' : t('setting_play_audio_offload_tip')}
         check={isEnableAudioOffload}
         onChange={setHandleAudioFocus}
-        helpDesc={t('setting_play_audio_offload_tip')}
         label={t('setting_play_audio_offload')}
       />
     </View>

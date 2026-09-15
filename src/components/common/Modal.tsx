@@ -1,3 +1,8 @@
+import { KeyboardEnabled, KeyboardLayer } from '@/components/KeyboardScope'
+import { keyboardRouter } from '@/core/keyboardRouter'
+import { useEffect, useRef } from 'react'
+let keyboardLayerSequence = 0
+
 import { OVERLAY_BACKDROP } from '@/utils/overlaySurface'
 // import { createStyle } from '@/utils/tools'
 import { useImperativeHandle, forwardRef, useState, useMemo } from 'react'
@@ -56,6 +61,18 @@ export default forwardRef<ModalType, ModalProps>(({
   ...props
 }: ModalProps, ref) => {
   const [visible, setVisible] = useState(false)
+  const layer = useRef(++keyboardLayerSequence).current
+  const closeRef = useRef(() => {})
+  closeRef.current = () => { if (keyHide) { setVisible(false); onHide() } }
+  useEffect(() => {
+    if (!visible) return
+    keyboardRouter.openLayer(layer)
+    const remove = keyboardRouter.register({ layer, enabled: () => true, handle: action => {
+      if (action != 'escape') return false
+      closeRef.current(); return true
+    } })
+    return () => { remove(); keyboardRouter.closeLayer(layer) }
+  }, [visible, layer])
   // const { window: windowSize } = useWindowSize()
   const statusBarHeight = useStatusbarHeight()
   const handleRequestClose = () => {
@@ -85,7 +102,7 @@ export default forwardRef<ModalType, ModalProps>(({
     : undefined, [])
   const content = (
     <View style={{ flex: 1, backgroundColor: bgColor, paddingTop: Platform.OS != 'ios' && statusBarPadding ? statusBarHeight : 0 }}>
-      <WindowInsetsScope><WindowContent>{memoChildren}</WindowContent></WindowInsetsScope>
+      <WindowInsetsScope><WindowContent><KeyboardLayer.Provider value={layer}><KeyboardEnabled.Provider value={visible}>{memoChildren}</KeyboardEnabled.Provider></KeyboardLayer.Provider></WindowContent></WindowInsetsScope>
     </View>
   )
 

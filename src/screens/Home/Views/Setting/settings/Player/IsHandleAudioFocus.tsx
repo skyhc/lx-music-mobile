@@ -2,7 +2,7 @@ import { updateSetting } from '@/core/common'
 import { useI18n } from '@/lang'
 import { createStyle, toast } from '@/utils/tools'
 import { memo } from 'react'
-import { View } from 'react-native'
+import { View, Platform } from 'react-native'
 import { useSettingValue } from '@/store/setting/hook'
 
 
@@ -18,7 +18,7 @@ export default memo(() => {
 
   return (
     <View style={styles.content}>
-      <CheckBoxItem check={isHandleAudioFocus} onChange={setHandleAudioFocus} label={t('setting_play_handle_audio_focus')} />
+      <CheckBoxItem disabled={Platform.OS == 'ios'} helpDesc={Platform.OS == 'ios' ? '此开关控制 Android 音频焦点；iOS 由音频会话管理电话和其他应用的中断，原设置值保留。' : undefined} check={isHandleAudioFocus} onChange={setHandleAudioFocus} label={t('setting_play_handle_audio_focus')} />
     </View>
   )
 })

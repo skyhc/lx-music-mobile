@@ -3,8 +3,10 @@ import { NativeModules } from 'react-native'
 const { CryptoModule } = NativeModules
 export const isCryptoSupported = !!CryptoModule
 
-const assertCryptoSupport = () => {
-  if (!CryptoModule) throw new Error('Crypto module is not available on this platform')
+const assertCryptoSupport = (method: string) => {
+  if (typeof CryptoModule?.[method] != 'function') {
+    throw new Error(`CryptoModule.${method} is unavailable; rebuild the iOS native app`)
+  }
 }
 
 // export const testRsa = (text: string, key: string) => {
@@ -29,7 +31,7 @@ export enum AES_MODE {
 
 export const generateRsaKey = async() => {
   // console.log(sourceFilePath, targetFilePath)
-  assertCryptoSupport()
+  assertCryptoSupport('generateRsaKey')
   const key = await CryptoModule.generateRsaKey() as { publicKey: string, privateKey: string }
   return {
     publicKey: `${KEY_PREFIX.publicKeyStart}\n${key.publicKey}${KEY_PREFIX.publicKeyEnd}`,
@@ -39,7 +41,7 @@ export const generateRsaKey = async() => {
 
 export const rsaEncrypt = async(text: string, key: string, padding: RSA_PADDING): Promise<string> => {
   // console.log(sourceFilePath, targetFilePath)
-  assertCryptoSupport()
+  assertCryptoSupport('rsaEncrypt')
   return CryptoModule.rsaEncrypt(text, key
     .replace(KEY_PREFIX.publicKeyStart, '')
     .replace(KEY_PREFIX.publicKeyEnd, ''), padding)
@@ -47,7 +49,7 @@ export const rsaEncrypt = async(text: string, key: string, padding: RSA_PADDING)
 
 export const rsaDecrypt = async(text: string, key: string, padding: RSA_PADDING): Promise<string> => {
   // console.log(sourceFilePath, targetFilePath)
-  assertCryptoSupport()
+  assertCryptoSupport('rsaDecrypt')
   return CryptoModule.rsaDecrypt(text, key
     .replace(KEY_PREFIX.privateKeyStart, '')
     .replace(KEY_PREFIX.privateKeyEnd, ''), padding)
@@ -55,7 +57,7 @@ export const rsaDecrypt = async(text: string, key: string, padding: RSA_PADDING)
 
 export const rsaEncryptSync = (text: string, key: string, padding: RSA_PADDING): string => {
   // console.log(sourceFilePath, targetFilePath)
-  assertCryptoSupport()
+  assertCryptoSupport('rsaEncryptSync')
   return CryptoModule.rsaEncryptSync(text, key
     .replace(KEY_PREFIX.publicKeyStart, '')
     .replace(KEY_PREFIX.publicKeyEnd, ''), padding)
@@ -63,7 +65,7 @@ export const rsaEncryptSync = (text: string, key: string, padding: RSA_PADDING):
 
 export const rsaDecryptSync = (text: string, key: string, padding: RSA_PADDING): string => {
   // console.log(sourceFilePath, targetFilePath)
-  assertCryptoSupport()
+  assertCryptoSupport('rsaDecryptSync')
   return CryptoModule.rsaDecryptSync(text, key
     .replace(KEY_PREFIX.privateKeyStart, '')
     .replace(KEY_PREFIX.privateKeyEnd, ''), padding)
@@ -72,31 +74,31 @@ export const rsaDecryptSync = (text: string, key: string, padding: RSA_PADDING):
 
 export const aesEncrypt = async(text: string, key: string, vi: string, mode: AES_MODE): Promise<string> => {
   // console.log(sourceFilePath, targetFilePath)
-  assertCryptoSupport()
+  assertCryptoSupport('aesEncrypt')
   return CryptoModule.aesEncrypt(text, key, vi, mode)
 }
 
 export const aesDecrypt = async(text: string, key: string, vi: string, mode: AES_MODE): Promise<string> => {
   // console.log(sourceFilePath, targetFilePath)
-  assertCryptoSupport()
+  assertCryptoSupport('aesDecrypt')
   return CryptoModule.aesDecrypt(text, key, vi, mode)
 }
 
 export const aesEncryptSync = (text: string, key: string, vi: string, mode: AES_MODE): string => {
   // console.log(sourceFilePath, targetFilePath)
-  assertCryptoSupport()
+  assertCryptoSupport('aesEncryptSync')
   return CryptoModule.aesEncryptSync(text, key, vi, mode)
 }
 
 export const aesDecryptSync = (text: string, key: string, vi: string, mode: AES_MODE): string => {
   // console.log(sourceFilePath, targetFilePath)
-  assertCryptoSupport()
+  assertCryptoSupport('aesDecryptSync')
   return CryptoModule.aesDecryptSync(text, key, vi, mode)
 }
 
 export const hashSHA1 = async(text: any) => {
   try {
-    assertCryptoSupport()
+    assertCryptoSupport('sha1')
     return await CryptoModule.sha1(text)
   } catch (error) {
     console.error('生成SHA1出现问题:', error)

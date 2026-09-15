@@ -1,3 +1,4 @@
+import { getMusicCacheRevision } from '@/utils/musicCacheRevision'
 import TrackPlayer, { State } from 'react-native-track-player'
 import { exportCompletedStreamingFlac, getStreamingFlacState } from '@/utils/nativeModules/streamingFlac'
 import { optionalTask } from './optionalTask'
@@ -87,6 +88,7 @@ export const queueAudioCache = (music: LX.Music.MusicInfoOnline, quality: LX.Qua
   if (!cache) return
   // Register only. Build 78 started a second request before the audio engine
   // consumed the URL, competing for bandwidth / single-use stream credentials.
+  clearedURLs.delete(url)
   pendingKeys.set(url, keyFor(music, quality))
   if (pendingKeys.size > 16) pendingKeys.delete(pendingKeys.keys().next().value!)
 }
@@ -94,6 +96,16 @@ export const invalidateAudioCache = async(music: LX.Music.MusicInfoOnline, quali
   if (!cache) return
   await optionalTask(ready().then(async() => cache.invalidate(keyFor(music, quality))), 600, undefined, 'invalidate')
 }
+/** Explicit user action: do not swallow storage failures or delete other songs. */
+export const clearSongAudioCache = async(music: LX.Music.MusicInfoOnline) => {
+  if (!cache) return
+  const keys = new Set((['128k', '320k', 'flac', 'flac24bit'] as LX.Quality[]).map(q => keyFor(music, q)))
+  if (observedKey && keys.has(observedKey)) { suppressAudioCacheURL(observedURL); stopAudioCacheObservation() }
+  for (const [url, key] of pendingKeys) { if (keys.has(key)) { suppressAudioCacheURL(url); pendingKeys.delete(url) } }
+  await ready()
+  for (const key of keys) await cache.invalidate(key, true)
+}
+
 export const getAudioCacheSize = async() => {
   if (!cache) return 0
   await ready()
@@ -122,10 +134,15 @@ export const adoptAudioCacheURL = async(url: string) => {
 }
 
 const pendingKeys = new Map<string, string>()
+const clearedURLs = new Set<string>()
+export const suppressAudioCacheURL = (url: string) => { clearedURLs.add(url) }
+let observedURL = ''
+let observedKey: string | null = null
 let observation = 0
 let observationTimer: ReturnType<typeof setTimeout> | null = null
 export const stopAudioCacheObservation = () => {
   observation++
+  observedKey = null
   if (observationTimer) clearTimeout(observationTimer)
   observationTimer = null
   cache?.cancelPending()
@@ -136,12 +153,15 @@ export const stopAudioCacheObservation = () => {
  * the *entire* track is buffered, so it cannot starve startup/rebuffering. */
 export const observePlaybackAudioCache = (music: LX.Player.PlayMusic, url: string, quality?: LX.Quality | null) => {
   stopAudioCacheObservation()
-  if (!cache || !/^https?:\/\//i.test(url) || !quality || 'progress' in music || music.source == 'local') return
+  if (!cache || clearedURLs.has(url) || !/^https?:\/\//i.test(url) || !quality || 'progress' in music || music.source == 'local') return
   const token = observation
   const key = pendingKeys.get(url) ?? keyFor(music, quality)
+  observedKey = key
+  observedURL = url
+  const revision = getMusicCacheRevision(music.id)
   const native = quality == 'flac' || quality == 'flac24bit'
   let attempts = 0
-  const current = () => token == observation
+  const current = () => token == observation && revision == getMusicCacheRevision(music.id)
   const poll = async() => {
     if (!current() || ++attempts > 1200) return
     let completed = false

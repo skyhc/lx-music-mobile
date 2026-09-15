@@ -44,5 +44,5 @@ export default async(setting: LX.AppSetting) => {
     updateSetting({ 'sync.enable': false })
     return
   }
-  void connectServer(host)
+  void connectServer(host).catch(() => {})
 }

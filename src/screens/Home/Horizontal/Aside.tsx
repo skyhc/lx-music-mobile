@@ -77,7 +77,7 @@ const MenuItem = ({ id, icon, onPress }: {
   const theme = useTheme()
 
   return activeId == id
-    ? <TouchableOpacity style={styles.menuItem} onPress={() => { onPress(id) }}>
+    ? <TouchableOpacity accessibilityState={{ selected: true }} style={styles.menuItem} onPress={() => { onPress(id) }}>
         <View style={styles.iconContent}>
           <Icon name={icon} size={20} color={theme['c-primary-font-active']} />
         </View>
@@ -126,7 +126,7 @@ export default memo(({ onNavigate }: { onNavigate?: () => void } = {}) => {
         </View>
       </ScrollView>
       {
-        showBackBtn ? <MenuItem id="back_home" icon="home" onPress={handlePress} /> : null
+        Platform.OS != 'ios' && showBackBtn ? <MenuItem id="back_home" icon="home" onPress={handlePress} /> : null
       }
       {
         showExitBtn ? <MenuItem id="nav_exit" icon="exit2" onPress={handlePress} /> : null

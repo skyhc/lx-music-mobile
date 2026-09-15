@@ -1,3 +1,4 @@
+import { getCurrentFullLyric } from './fullLyric'
 import TrackPlayer from 'react-native-track-player'
 import { defaultUrl } from '@/config'
 import { NativeModules, Platform } from 'react-native'
@@ -77,6 +78,7 @@ export const buildTracks = (musicInfo: LX.Player.PlayMusic, url?: LX.Player.Trac
       artwork,
       userAgent: defaultUserAgent,
       musicId: mInfo.id,
+      lyric: getCurrentFullLyric(mInfo.id),
       duration,
     })
   }
@@ -89,6 +91,7 @@ export const buildTracks = (musicInfo: LX.Player.PlayMusic, url?: LX.Player.Trac
       album,
       artwork,
       musicId: mInfo.id,
+      lyric: getCurrentFullLyric(mInfo.id),
       duration: 0,
     })
   }
@@ -125,6 +128,7 @@ export const clearTracks = () => {
 }
 
 export const updateCurrentTrackMetadata = async(metadata: {
+  lyric?: string
   title?: string
   artist?: string
   album?: string
@@ -200,9 +204,23 @@ export const initTrackInfo = async(musicInfo: LX.Player.PlayMusic, mInfo: LX.Pla
 export const loadTrackPlayerResource = async(musicInfo: LX.Player.PlayMusic, url: string, time: number, shouldAutoStart: boolean) => {
   const tracks = buildTracks(musicInfo, url)
   const track = tracks[0]
+
+  // SwiftAudioEx 0.14.7 mutates its current queue index before removing a
+  // previous item. Appending a replacement, jumping to it, then removing the
+  // old item therefore emits a second queue-index transition while the new
+  // AVPlayerItem is still loading. Keep iOS resource replacement single-item:
+  // stop/clear the old queue first, then load the new source. Android retains
+  // the existing append/skip/compact path.
+  if (Platform.OS == 'ios' && await TrackPlayer.getCurrentTrack() != null) {
+    await TrackPlayer.reset()
+    clearTracks()
+  }
+
   await TrackPlayer.add(tracks).then(() => list.push(...tracks))
   const queue = await TrackPlayer.getQueue() as LX.Player.Track[]
-  await TrackPlayer.skip(queue.findIndex(t => t.id == track.id))
+  const trackIndex = queue.findIndex(t => t.id == track.id)
+  const currentTrackIndex = await TrackPlayer.getCurrentTrack()
+  if (currentTrackIndex != trackIndex) await TrackPlayer.skip(trackIndex)
   global.lx.playerTrackId = track.id
 
   if (!isTempTrack(track.id as string)) {
@@ -215,7 +233,7 @@ export const loadTrackPlayerResource = async(musicInfo: LX.Player.PlayMusic, url
     if (time > 0) await seekToTime(time)
   }
 
-  if (queue.length > tracks.length) {
+  if (Platform.OS != 'ios' && queue.length > tracks.length) {
     const removeCount = queue.length - tracks.length
     void TrackPlayer.remove(Array(removeCount).fill(null).map((_, i) => i)).then(() => list.splice(0, list.length - removeCount))
   }

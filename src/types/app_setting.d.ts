@@ -22,6 +22,11 @@ declare global {
       | 'loudness'
 
     interface AppSetting {
+      'keyboard.enabled': boolean
+      'keyboard.playback': boolean
+      'keyboard.seek': boolean
+      'keyboard.selection': boolean
+      'keyboard.navigation': boolean
       version: string
       /**
        * 是否跟随系统切换亮暗主题
@@ -162,7 +167,7 @@ declare global {
       'player.playbackRate': number
 
       /**
-       * 缓存大小设置 unit MB
+       * 缓存大小设置 unit MiB
        */
       'player.cacheSize': string
 
@@ -312,6 +317,11 @@ declare global {
        * 升降声调
        */
       'player.soundEffect.pitchShifter.playbackRate': number
+
+      /**
+       * 是否启用蓝牙完整歌词
+       */
+      'player.isShowBluetoothFullLyric': boolean
 
       /**
        * 播放详情页-是否缩放当前播放的歌词行
@@ -470,4 +480,3 @@ declare global {
     }
   }
 }
-

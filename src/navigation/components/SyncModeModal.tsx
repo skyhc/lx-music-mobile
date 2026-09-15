@@ -9,7 +9,7 @@ import { useI18n } from '@/lang'
 import ModalContent from './ModalContent'
 import syncState from '@/store/sync/state'
 import CheckBox from '@/components/common/CheckBox'
-import { setSyncModeComponentId } from '@/core/sync'
+import { cancelSyncModeForId } from '@/core/sync'
 
 
 const styles = createStyle({
@@ -34,6 +34,7 @@ const styles = createStyle({
   },
   btns: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     // justifyContent: 'center',
     justifyContent: 'flex-start',
     marginTop: 5,
@@ -202,7 +203,7 @@ const DislikeModeModal = () => {
 
 export default ({ componentId }: { componentId: string }) => {
   useEffect(() => {
-    setSyncModeComponentId(componentId)
+    return () => cancelSyncModeForId(componentId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

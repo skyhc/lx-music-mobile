@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import KeyboardShortcuts from './KeyboardShortcuts'
 
 import Theme from '../Theme'
 import Section from '../../components/Section'
@@ -30,6 +31,7 @@ export default memo(() => {
       <IsStartupPushPlayDetailScreen />
       <IsShowBackBtn />
       <IsShowExitBtn />
+      <KeyboardShortcuts />
       <IsAutoHidePlayBar />
       <HidePortraitNavigation />
       <IsHomePageScroll />

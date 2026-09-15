@@ -18,8 +18,8 @@ export default () => {
   return <View style={[styles.bar, { borderTopColor: theme['c-border-background'] }]}>
     {NAV_MENUS.map(({ id, icon }) => <TouchableOpacity key={id} style={styles.tab} accessibilityRole="tab"
       accessibilityLabel={t(id)} accessibilityState={{ selected: activeId == id }} onPress={() => setNavActiveId(id)}>
-      <Icon name={icon} rawSize={18} color={activeId == id ? theme['c-primary-font-active'] : theme['c-font-label']} />
-      <Text size={10} numberOfLines={1} color={activeId == id ? theme['c-primary-font-active'] : theme['c-font-label']}>{t(id)}</Text>
+      <Icon name={icon} rawSize={18} color={activeId == id ? theme['c-primary-font'] : theme['c-font-label']} />
+      <Text size={10} numberOfLines={1} color={activeId == id ? theme['c-primary-font'] : theme['c-font-label']}>{t(id)}</Text>
     </TouchableOpacity>)}
   </View>
 }

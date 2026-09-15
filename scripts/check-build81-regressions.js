@@ -27,7 +27,7 @@ let horizontal = false
 const mocks = { react: { useState: () => [720, () => {}] }, 'react/jsx-runtime': jsxRuntime,
   'react-native': reactNative, './Text': { default: 'Text' }, './SongRowContent': { default: 'SongRowContent' },
   '@/store/theme/hook': { useTheme: () => theme }, '@/utils/hooks': { useHorizontalMode: () => horizontal },
-  '@/utils/songLayout': layout }
+  '@/utils/songLayout': layout, '@/utils/selectionColors': load('src/utils/selectionColors.ts'), '@/utils/playingColor': load('src/utils/playingColor.ts', { './readability': load('src/utils/readability.ts') }) }
 const textOf = v => Array.isArray(v) ? v.map(textOf).join('') : v && typeof v === 'object' ? textOf(v.props?.children) : v ?? ''
 check('native clearance is used once, including zero and already inset content', () => {
   const w = load('src/components/WindowContent.tsx', { 'react/jsx-runtime': jsxRuntime,
@@ -146,6 +146,6 @@ check('Build81 change log and production screenshot phases are committed', () =>
   const shell = source('scripts/run-ios-playback-smoke.sh')
   assert.ok(shell.includes('tablet tabletportrait phone'))
   assert.ok(shell.includes('table favorites list settings menu navhidden'))
-  assert.ok(shell.includes('Native playback records and 36 production-view screenshots'))
+  assert.ok(shell.includes('Native playback records and 54 production-view screenshots'))
 })
 console.log(`${count} Build 81 regression checks passed; native playback and UI screenshots run separately in Actions.`)

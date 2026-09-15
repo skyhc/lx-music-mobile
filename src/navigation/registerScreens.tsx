@@ -1,6 +1,7 @@
 // @flow
 
 import { Navigation } from 'react-native-navigation'
+import { KeyboardScreen } from '@/components/KeyboardScope'
 
 import {
   Home,
@@ -29,9 +30,11 @@ function WrappedComponent(Component: any) {
   return function inject(props: Record<string, any>) {
     const EnhancedComponent = () => (
       <Provider>
+        <KeyboardScreen componentId={props.componentId}>
         <Component
           {...props}
         />
+        </KeyboardScreen>
       </Provider>
     )
 

@@ -1,6 +1,4 @@
 import { LIST_IDS } from '@/config/constant'
-import { getListMusics } from '@/core/list'
-import { userLists } from '@/utils/listManage'
 
 // 构建列表信息对象，用于统一字段位置顺序
 export const buildUserListInfoFull = ({ id, name, source, sourceListId, list, locationUpdateTime }: LX.List.UserListInfoFull) => {
@@ -14,20 +12,10 @@ export const buildUserListInfoFull = ({ id, name, source, sourceListId, list, lo
   }
 }
 
-export const getLocalListData = async(): Promise<LX.Sync.List.ListData> => {
-  return Promise.all([
-    getListMusics(LIST_IDS.DEFAULT),
-    getListMusics(LIST_IDS.LOVE),
-    // eslint-disable-next-line @typescript-eslint/promise-function-async
-    ...userLists.map(l => getListMusics(l.id)),
-  ]).then(([defaultList, loveList, ...userList]) => {
-    return {
-      defaultList,
-      loveList,
-      userList: userLists.map((l, i) => buildUserListInfoFull({ ...l, list: userList[i] })),
-    }
-  })
-}
+// A sync read participates in the same queue as list writes, so reconnection
+// cannot interpret a half-written catalog as user-requested deletions.
+export const getLocalListData = async(): Promise<LX.Sync.List.ListData> => global.list_event.list_data_snapshot()
+
 
 export const setLocalListData = async(listData: LX.Sync.List.ListData) => {
   await global.list_event.list_data_overwrite(listData, true)

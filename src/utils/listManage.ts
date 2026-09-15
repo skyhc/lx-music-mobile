@@ -13,6 +13,13 @@ import { LIST_IDS } from '@/config/constant'
 
 export const userLists: LX.List.UserListInfo[] = []
 export const allMusicList = new Map<string, LX.Music.MusicInfo[]>()
+// Hydrate once. Re-reading AsyncStorage while a queued writer is replacing its
+// metadata key can observe null and erase the live catalog (and sync that
+// accidental deletion to peers). The in-memory catalog owns later updates.
+let catalogLoaded = false
+let catalogRevision = 0
+let catalogLoading: Promise<LX.List.UserListInfo[]> | null = null
+const touchCatalog = () => { catalogLoaded = true; ++catalogRevision }
 const revisions = new Map<string, number>()
 const deletedIds = new Set<string>()
 const bumpRevision = (id: string) => revisions.set(id, (revisions.get(id) ?? 0) + 1)
@@ -21,6 +28,7 @@ export const isListAvailable = (id: string) => !deletedIds.has(id) && (
 )
 
 export const setUserLists = (lists: LX.List.UserListInfo[]) => {
+  touchCatalog()
   for (const list of lists) deletedIds.delete(list.id)
   userLists.splice(0, userLists.length, ...lists)
   return userLists
@@ -95,6 +103,7 @@ const removeUserList = (id: string) => {
 }
 
 const overwriteUserList = (lists: LX.List.UserListInfo[]) => {
+  touchCatalog()
   userLists.splice(0, userLists.length, ...lists)
 }
 
@@ -107,9 +116,17 @@ const overwriteUserList = (lists: LX.List.UserListInfo[]) => {
  * 获取用户列表
  * @returns 所有用户列表
  */
-export const getUserLists = async() => {
-  const lists = await getUserListsFromStore()
-  return setUserLists(lists)
+export const getUserLists = async(): Promise<LX.List.UserListInfo[]> => {
+  if (catalogLoaded) return userLists
+  if (!catalogLoading) {
+    const revision = catalogRevision
+    catalogLoading = getUserListsFromStore().then(lists => {
+      // An explicit restore/mutation can win while the initial read is pending.
+      if (!catalogLoaded && revision == catalogRevision) setUserLists(lists)
+      return userLists
+    }).finally(() => { catalogLoading = null })
+  }
+  return catalogLoading
 }
 
 
@@ -156,6 +173,7 @@ export const userListCreate = ({ name, id, source, sourceListId, position, locat
   locationUpdateTime: number | null
 }) => {
   if (userLists.some(item => item.id == id)) return
+  touchCatalog()
   deletedIds.delete(id)
   bumpRevision(id)
   const newList: LX.List.UserListInfo = {
@@ -169,6 +187,7 @@ export const userListCreate = ({ name, id, source, sourceListId, position, locat
 }
 
 export const userListsRemove = (ids: string[]) => {
+  touchCatalog()
   const changedIds: string[] = []
   for (const id of ids) {
     // Built-in lists cannot be removed; user lists are removable even unopened.
@@ -184,6 +203,7 @@ export const userListsRemove = (ids: string[]) => {
 }
 
 export const userListsUpdate = (listInfos: LX.List.UserListInfo[]) => {
+  touchCatalog()
   for (const info of listInfos) {
     updateList(info)
   }

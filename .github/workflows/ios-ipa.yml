@@ -1,7 +1,7 @@
 name: Build iOS IPA + Xcode Archive
 on:
   push:
-    branches: [ios-adaptation, ipad-landscape, codex/ipad-player-layout-cache-review]
+    branches: [ios-adaptation, ipad-landscape, codex/ipad-player-layout-cache-review, codex/ios-upstream-1.9.0]
     tags: ['v*']
   workflow_dispatch:
 permissions:
@@ -77,6 +77,14 @@ jobs:
           node scripts/check-build80-regressions.js 2>&1 | tee build/checks/build80-regressions.log
           node scripts/check-build81-regressions.js 2>&1 | tee build/checks/build81-regressions.log
           node scripts/check-build82-regressions.js 2>&1 | tee build/checks/build82-regressions.log
+          node scripts/check-build84-regressions.js | tee build/checks/build84.log
+          node scripts/check-build85-regressions.js | tee build/checks/build85.log
+          node scripts/check-build86-regressions.js | tee build/checks/build86.log
+          node scripts/check-build87-regressions.js | tee build/checks/build87.log
+          node scripts/check-track-player-queue.js | tee build/checks/track-player-queue.log
+          node scripts/check-sync-catalog-race.js | tee build/checks/sync-catalog-race.log
+          node scripts/check-settings-preservation.js | tee build/checks/settings-audit.log
+          node scripts/check-upstream190.js 2>&1 | tee build/checks/upstream190.log
           npx tsc --strict --noEmit --skipLibCheck --moduleResolution node --target ES2020 src/plugins/player/cache/DiskAudioCache.ts
       - name: Check full-project TypeScript regressions
         run: node scripts/check-type-regressions.js
@@ -89,6 +97,16 @@ jobs:
           if-no-files-found: ignore
       - name: Install CocoaPods dependencies
         run: cd ios && bundle exec pod install --repo-update
+      - name: Prepare pinned official sync server for native interoperability
+        run: |
+          set -euo pipefail
+          git clone https://github.com/lyswhut/lx-music-sync-server.git build/official-sync
+          git -C build/official-sync checkout --detach d47aca4284a7c4d9ef755df1f44fb0b0a5b2af36
+          test "$(git -C build/official-sync rev-parse HEAD)" = d47aca4284a7c4d9ef755df1f44fb0b0a5b2af36
+          cd build/official-sync
+          npm ci --no-audit --no-fund
+          npm run build
+
       - name: Build simulator app for real playback regression
         shell: bash
         run: |
@@ -96,9 +114,59 @@ jobs:
           xcodebuild -workspace "$IOS_WORKSPACE" -scheme "$IOS_SCHEME" -configuration Release \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build/Simulator \
             ARCHS=arm64 ONLY_ACTIVE_ARCH=YES PRODUCT_BUNDLE_IDENTIFIER="$IOS_BUNDLE_IDENTIFIER" \
+            TARGETED_DEVICE_FAMILY="1,2" IPHONEOS_DEPLOYMENT_TARGET=15.0 \
+            MARKETING_VERSION="$(node -p "require('./package.json').version")" \
+            CURRENT_PROJECT_VERSION="$(node -p "require('./package.json').versionCode")" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee build/checks/simulator-build.log
-      - name: Test real native streaming and offline restart
+          python3 - <<'PYTHON'
+          import plistlib, pathlib
+          info = plistlib.loads(pathlib.Path('build/Simulator/Build/Products/Release-iphonesimulator/LxMusicMobile.app/Info.plist').read_bytes())
+          assert sorted(info['UIDeviceFamily']) == [1, 2], info.get('UIDeviceFamily')
+          print('Simulator app uses the same iPhone+iPad device families as the device archive.')
+          PYTHON
+      - name: Test native authentication, themes, streaming and offline restart
         run: bash scripts/run-ios-playback-smoke.sh
+      - name: Verify and inventory visual evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYTHON'
+          import hashlib, json, os, pathlib
+          root = pathlib.Path('build/checks')
+          images = sorted(root.glob('ui-*.png'))
+          assert len(images) == 54, f'Expected 54 screenshots, got {len(images)}'
+          records = []
+          for image in images:
+              raw = image.read_bytes()
+              assert raw.startswith(b'\x89PNG\r\n\x1a\n') and len(raw) > 1024, image.name
+              report = image.with_suffix('.json')
+              data = json.loads(report.read_text())
+              assert data.get('success'), (image.name, data)
+              records.append({'image': image.name, 'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest(), 'report': report.name})
+          for name in ('system-theme', 'system-theme-restart'):
+              feature = json.loads((root / f'{name}.json').read_text())
+              assert feature.get('success') and feature.get('done'), (name, feature)
+          for phase in ('online', 'offline'):
+              report = json.loads((root / f'playback-{phase}.json').read_text())
+              assert report.get('success') and report.get('done'), (phase, report)
+          (root / 'UI-MANIFEST.json').write_text(json.dumps({'commit': os.environ['GITHUB_SHA'], 'run': os.environ['GITHUB_RUN_ID'], 'count': len(images), 'screenshots': records}, indent=2))
+          print('54 PNG screenshots, their runtime reports and both playback records verified.')
+          PYTHON
+      - name: Upload individual UI screenshots and runtime records
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-evidence-${{ github.sha }}
+          path: |
+            build/checks/ui-*.png
+            build/checks/ui-*.json
+            build/checks/playback-*.json
+            build/checks/UI-MANIFEST.json
+            build/checks/build86-colours.json
+            build/checks/feature-theme-*.png
+            build/checks/system-theme*.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Upload simulator and regression evidence
         if: always()
         uses: actions/upload-artifact@v4

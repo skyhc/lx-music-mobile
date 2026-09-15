@@ -11,7 +11,7 @@ import Text from '@/components/common/Text'
 import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import { useSettingValue } from '@/store/setting/hook'
-import { createStyle } from '@/utils/tools'
+import { createStyle, toast } from '@/utils/tools'
 
 type SyncHistoryItem = Awaited<ReturnType<typeof getSyncHostHistory>>[number]
 
@@ -89,10 +89,9 @@ const HistoryList = forwardRef<HistoryListType, HistoryListProps>(({ onSelect },
   }, [list, onSelect])
 
   const handleRemove = useCallback((index: number) => {
-    void removeSyncHostHistory(index)
-    const newList = [...list]
-    newList.splice(index, 1)
-    setList(newList)
+    void removeSyncHostHistory(index).then(() => {
+      const newList = [...list]; newList.splice(index, 1); setList(newList)
+    }).catch(() => toast('删除历史记录失败'))
   }, [list])
 
 

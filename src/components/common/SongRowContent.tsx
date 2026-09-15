@@ -1,3 +1,5 @@
+import { playingColor } from '@/utils/playingColor'
+import { selectionColors } from '@/utils/selectionColors'
 import { useState } from 'react'
 import { View, StyleSheet } from 'react-native'
 import Text from './Text'
@@ -12,23 +14,27 @@ export interface SongRowProps {
   source?: string
   interval?: string | null
   active?: boolean
+  selected?: boolean
+  surface?: string
   showAlbum?: boolean
   showInterval?: boolean
   header?: boolean
 }
-export default ({ name, singer, album, source, interval, active = false, showAlbum = true, showInterval = true, header = false }: SongRowProps) => {
+export default ({ name, singer, album, source, interval, active = false, selected: isSelected = false, surface, showAlbum = true, showInterval = true, header = false }: SongRowProps) => {
   const theme = useTheme()
   const horizontal = useHorizontalMode()
   const [width, setWidth] = useState(0)
   const columns = songColumns(width, horizontal, showAlbum, showInterval)
-  const color = active ? theme['c-primary-font'] : theme['c-font']
-  const secondary = header ? color : active ? theme['c-primary-font'] : theme['c-font-label']
+  const selected = selectionColors(theme)
+  const playing = playingColor(theme, surface)
+  const color = active ? playing : isSelected ? selected.text : theme['c-font']
+  const secondary = header || active || isSelected ? color : theme['c-font-label']
   const weight = header ? '600' : '400'
   if (header && columns.compact) return null
   const title = <View style={styles.titleRow}>
     <Text size={columns.compact ? 16 : 14} numberOfLines={1} color={color}
       style={{ flexShrink: 1, fontWeight: weight }}>{name}</Text>
-    {!header && source ? <Text testID="song-source" size={10} color={theme['c-primary-font']}
+    {!header && source ? <Text testID="song-source" size={10} color={active ? playing : isSelected ? selected.text : theme['c-primary-font']}
       accessibilityLabel={`音源 ${source}`} style={styles.source}>{source.toLowerCase()}</Text> : null}
   </View>
   return <View style={styles.row} onLayout={e => setWidth(e.nativeEvent.layout.width)}>
