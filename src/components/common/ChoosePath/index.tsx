@@ -1,4 +1,5 @@
-import { useState, useRef, forwardRef, useImperativeHandle } from 'react'
+import { useState, useRef, forwardRef, useImperativeHandle, useCallback } from 'react'
+import { Platform, InteractionManager } from 'react-native'
 // import { StyleSheet, View, Text, StatusBar, ScrollView } from 'react-native'
 
 // import { useGetter, useDispatch } from '@/store'
@@ -39,7 +40,23 @@ export default forwardRef<ChoosePathType, ChoosePathProps>(({
   const readOptions = useRef<ReadOptions>(initReadOptions as ReadOptions)
   const isUnmounted = useUnmounted()
 
-  const handleOpenExternalStorage = async(options: ReadOptions) => {
+  const isPickerCancelled = (err: any) => {
+    const code = typeof err?.code == 'string' ? err.code.toLowerCase() : ''
+    const message = typeof err?.message == 'string' ? err.message.toLowerCase() : ''
+    return code == 'picker_cancelled' ||
+      code == 'picker_canceled' ||
+      message.includes('document selection was cancelled') ||
+      message.includes('document selection was canceled') ||
+      message.includes('cancelled') ||
+      message.includes('canceled')
+  }
+  const isPickerPresentingError = (err: any) => {
+    const message = typeof err?.message == 'string' ? err.message.toLowerCase() : ''
+    return message.includes('did not finish presenting') ||
+      (message.includes('picker') && message.includes('present'))
+  }
+
+  const handleOpenExternalStorage = useCallback(async(options: ReadOptions) => {
     return checkStoragePermissions().then(isGranted => {
       readOptions.current = options
       if (isGranted) {
@@ -48,47 +65,71 @@ export default forwardRef<ChoosePathType, ChoosePathProps>(({
         confirmAlertRef.current?.setVisible(true)
       }
     })
-  }
+  }, [])
+
+  const handleSelectFile = useCallback((options: ReadOptions, retryCount = 0) => {
+    const run = () => {
+      void selectFile({
+        extTypes: options.filter,
+        toPath: TEMP_FILE_PATH,
+      }).then((file) => {
+        // console.log(file)
+        if (!file || isUnmounted.current) return
+        const filePath = file.data ?? file.path
+        if (!filePath) return
+        if (options.filter && !options.filter.some(ext => filePath.toLowerCase().endsWith('.' + ext))) {
+          toast(t('storage_file_no_match'), 'long')
+          void unlink(filePath)
+          return
+        }
+        onConfirm(filePath)
+      }).catch(err => {
+        if (isUnmounted.current) return
+        if (Platform.OS == 'ios' && isPickerCancelled(err)) return
+        if (Platform.OS == 'ios' && isPickerPresentingError(err) && retryCount < 1) {
+          setTimeout(() => {
+            handleSelectFile(options, retryCount + 1)
+          }, 300)
+          return
+        }
+        log.warn('open document failed: ' + err.message)
+        if (Platform.OS == 'ios') {
+          toast(t('platform_feature_not_supported'), 'long')
+          return
+        }
+        void confirmDialog({
+          message: t('storage_file_no_select_file_failed_tip'),
+          bgClose: false,
+        }).then((confirm) => {
+          if (!confirm) {
+            toast(t('disagree_tip'), 'long')
+            return
+          }
+          updateSetting({ 'common.useSystemFileSelector': false })
+          void handleOpenExternalStorage(options)
+        })
+      })
+    }
+
+    if (Platform.OS == 'ios') {
+      void InteractionManager.runAfterInteractions(() => {
+        requestAnimationFrame(run)
+      })
+    } else {
+      run()
+    }
+  }, [handleOpenExternalStorage, isUnmounted, onConfirm, t])
 
   useImperativeHandle(ref, () => ({
     show(options) {
-      if (!settingState.setting['common.useSystemFileSelector'] || options.dirOnly) {
-        // if (options.isPersist) {
+      if (Platform.OS == 'ios' && options.dirOnly) {
+        toast(t('platform_feature_not_supported'), 'long')
+        return
+      }
+      if (Platform.OS == 'android' && (!settingState.setting['common.useSystemFileSelector'] || options.dirOnly)) {
         void handleOpenExternalStorage(options)
-        // } else {
-        //   void selectManagedFolder().then((dir) => {
-        //     if (!dir || isUnmounted.current) return
-        //     listRef.current?.show(options.title, dir.path, options.dirOnly, options.filter)
-        //   })
-        // }
       } else {
-        void selectFile({
-          extTypes: options.filter,
-          toPath: TEMP_FILE_PATH,
-        }).then((file) => {
-          // console.log(file)
-          if (!file || isUnmounted.current) return
-          if (options.filter && !options.filter.some(ext => file.data.toLowerCase().endsWith('.' + ext))) {
-            toast(t('storage_file_no_match'), 'long')
-            void unlink(file.data)
-            return
-          }
-          onConfirm(file.data)
-        }).catch(err => {
-          if (isUnmounted.current) return
-          log.warn('open document failed: ' + err.message)
-          void confirmDialog({
-            message: t('storage_file_no_select_file_failed_tip'),
-            bgClose: false,
-          }).then((confirm) => {
-            if (!confirm) {
-              toast(t('disagree_tip'), 'long')
-              return
-            }
-            updateSetting({ 'common.useSystemFileSelector': false })
-            void handleOpenExternalStorage(options)
-          })
-        })
+        handleSelectFile(options)
       }
     },
   }))

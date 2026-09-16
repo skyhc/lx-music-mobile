@@ -3,6 +3,7 @@ import { useI18n } from '@/lang'
 import Menu, { type Menus, type MenuType, type Position } from '@/components/common/Menu'
 import { hasDislike } from '@/core/dislikeList'
 import { existsFile } from '@/utils/fs'
+import { hasSongResourceCache } from '@/core/music/cache'
 
 export interface SelectInfo {
   musicInfo: LX.Music.MusicInfo
@@ -23,6 +24,7 @@ export interface ListMenuProps {
   onChangePosition: (selectInfo: SelectInfo) => void
   onToggleSource: (selectInfo: SelectInfo) => void
   onMusicSourceDetail: (selectInfo: SelectInfo) => void
+  onRemoveCache: (selectInfo: SelectInfo) => void
   onDislikeMusic: (selectInfo: SelectInfo) => void
   onRemove: (selectInfo: SelectInfo) => void
 }
@@ -37,6 +39,9 @@ export type {
 const hasEditMetadata = async(musicInfo: LX.Music.MusicInfo) => {
   if (musicInfo.source != 'local') return false
   return existsFile(musicInfo.meta.filePath)
+}
+const hasUrlCache = async(musicInfo: LX.Music.MusicInfo) => {
+  return hasSongResourceCache(musicInfo)
 }
 export default forwardRef<ListMenuType, ListMenuProps>((props, ref) => {
   const t = useI18n()
@@ -59,8 +64,12 @@ export default forwardRef<ListMenuType, ListMenuProps>((props, ref) => {
     },
   }))
 
+  const menuVersion = useRef(0)
   const handleSetMenu = (musicInfo: LX.Music.MusicInfo) => {
+    const version = ++menuVersion.current
     let edit_metadata = false
+    let has_url_cache = false
+    const isLocal = musicInfo.source == 'local'
     const menu = [
       { action: 'play', label: t('play') },
       { action: 'playLater', label: t('play_later') },
@@ -70,26 +79,31 @@ export default forwardRef<ListMenuType, ListMenuProps>((props, ref) => {
       { action: 'changePosition', label: t('change_position') },
       { action: 'toggleSource', label: t('toggle_source') },
       { action: 'copyName', label: t('copy_name') },
-      { action: 'musicSourceDetail', disabled: musicInfo.source == 'local', label: t('music_source_detail') },
+      { action: 'musicSourceDetail', disabled: isLocal, label: t('music_source_detail') },
+      { action: 'removeCache', disabled: !has_url_cache, label: t('list_remove_cache') },
       // { action: 'musicSearch', label: t('music_search') },
       { action: 'dislike', disabled: hasDislike(musicInfo), label: t('dislike') },
       { action: 'remove', label: t('delete') },
     ]
-    if (musicInfo.source == 'local') menu.splice(5, 0, { action: 'editMetadata', disabled: !edit_metadata, label: t('edit_metadata') })
+    if (isLocal) menu.splice(5, 0, { action: 'editMetadata', disabled: !edit_metadata, label: t('edit_metadata') })
     setMenus(menu)
-    void Promise.all([hasEditMetadata(musicInfo)]).then(([_edit_metadata]) => {
+    void Promise.all([isLocal ? hasEditMetadata(musicInfo) : Promise.resolve(false), hasUrlCache(musicInfo)]).then(([_edit_metadata, _has_url_cache]) => {
+      if (version != menuVersion.current) return
       // console.log(_edit_metadata)
       let isUpdated = false
       if (edit_metadata != _edit_metadata) {
         edit_metadata = _edit_metadata
+        menu[menu.findIndex(m => m.action == 'editMetadata')].disabled = !edit_metadata
+        isUpdated ||= true
+      }
+      if (has_url_cache != _has_url_cache) {
+        has_url_cache = _has_url_cache
+        menu[menu.findIndex(m => m.action == 'removeCache')].disabled = !has_url_cache
         isUpdated ||= true
       }
 
-      if (isUpdated) {
-        menu[menu.findIndex(m => m.action == 'editMetadata')].disabled = !edit_metadata
-        setMenus([...menu])
-      }
-    })
+      if (isUpdated) setMenus([...menu])
+    }).catch(error => { console.warn('Could not inspect song cache', String(error)) })
   }
 
   const handleMenuPress = ({ action }: typeof menus[number]) => {
@@ -133,6 +147,9 @@ export default forwardRef<ListMenuType, ListMenuProps>((props, ref) => {
       case 'musicSourceDetail':
         props.onMusicSourceDetail(selectInfo)
         // setVIsibleMusicPosition(true)
+        break
+      case 'removeCache':
+        props.onRemoveCache(selectInfo)
         break
       case 'dislike':
         props.onDislikeMusic(selectInfo)

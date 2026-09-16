@@ -36,4 +36,3 @@ const styles = createStyle({
     marginTop: 5,
   },
 })
-

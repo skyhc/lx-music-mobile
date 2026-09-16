@@ -2,7 +2,7 @@ import { useCallback, useRef } from 'react'
 
 import listState from '@/store/list/state'
 import ListMenu, { type ListMenuType, type Position, type SelectInfo } from './ListMenu'
-import { handleDislikeMusic, handlePlay, handlePlayLater, handleRemove, handleShare, handleShowMusicSourceDetail, handleUpdateMusicInfo, handleUpdateMusicPosition } from './listAction'
+import { clearMusicUrl, handleDislikeMusic, handlePlay, handlePlayLater, handleRemove, handleShare, handleShowMusicSourceDetail, handleUpdateMusicInfo, handleUpdateMusicPosition } from './listAction'
 import List, { type ListType } from './List'
 import ListMusicAdd, { type MusicAddModalType as ListMusicAddType } from '@/components/MusicAddModal'
 import ListMusicMultiAdd, { type MusicMultiAddModalType as ListAddMultiType } from '@/components/MusicMultiAddModal'
@@ -17,7 +17,7 @@ import MetadataEditModal, { type MetadataEditType, type MetadataEditProps } from
 import MusicToggleModal, { type MusicToggleModalType } from './MusicToggleModal'
 
 
-export default () => {
+export default ({ listSelector }: { listSelector?: React.ReactNode }) => {
   // const t = useI18n()
   const activeListRef = useRef<ActiveListType>(null)
   const listMusicSearchRef = useRef<ListMusicSearchType>(null)
@@ -122,7 +122,7 @@ export default () => {
   return (
     <View style={styles.container}>
       <View style={{ zIndex: 2 }}>
-        <ActiveList ref={activeListRef} onShowSearchBar={handleShowSearch} onScrollToTop={hancelScrollToTop} />
+        <ActiveList listSelector={listSelector} ref={activeListRef} onShowSearchBar={handleShowSearch} onScrollToTop={hancelScrollToTop} />
         <MultipleModeBar
           ref={multipleModeBarRef}
           onSwitchMode={hancelSwitchSelectMode}
@@ -164,6 +164,7 @@ export default () => {
         onEditMetadata={handleEditMetadata}
         onChangePosition={info => musicPositionModalRef.current?.show(info)}
         onToggleSource={info => musicToggleModalRef.current?.show(info)}
+        onRemoveCache={info => { void clearMusicUrl(info.musicInfo) }}
       />
       <MetadataEditModal
         ref={metadataEditTypeRef}

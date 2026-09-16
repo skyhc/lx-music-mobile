@@ -56,9 +56,13 @@ export const TEMP_FILE_PATH = temporaryDirectoryPath + '/tempFile'
 //   // return windowSize
 // }
 
-export const checkStoragePermissions = async() => PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE)
+export const checkStoragePermissions = async() => {
+  if (!isAndroid) return true
+  return PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE)
+}
 
 export const requestStoragePermission = async() => {
+  if (!isAndroid) return true
   const isGranted = await checkStoragePermissions()
   if (isGranted) return isGranted
 
@@ -105,6 +109,10 @@ export const requestStoragePermission = async() => {
  * @param position 位置
  */
 export const toast = (message: string, duration: 'long' | 'short' = 'short', position: 'top' | 'center' | 'bottom' = 'bottom') => {
+  if (!isAndroid) {
+    console.log(`[toast:${duration}:${position}] ${message}`)
+    return
+  }
   let _duration
   switch (duration) {
     case 'long':
@@ -147,7 +155,7 @@ export const assertApiSupport = (source: LX.Source): boolean => {
 // }
 
 export const exitApp = () => {
-  BackHandler.exitApp()
+  if (isAndroid) BackHandler.exitApp()
 }
 
 export const handleSaveFile = async(path: string, data: any) => {
@@ -219,7 +227,7 @@ export const tipDialog = async({
   btnText = global.i18n.t('dialog_confirm'),
   bgClose = true,
 }) => {
-  return new Promise<void>(resolve => {
+  return new Promise<void>((resolve) => {
     Alert.alert(title, message, [
       {
         text: btnText,
@@ -368,7 +376,8 @@ export const onAppearanceChange = (callback: (colorScheme: Parameters<Parameters
 let isSupportedAutoTheme: boolean | null = null
 export const getIsSupportedAutoTheme = () => {
   if (isSupportedAutoTheme == null) {
-    const osVerNum = parseInt(osVer)
+    // Release is Android-only; iOS exposes the OS version via Platform.Version.
+    const osVerNum = parseInt(Platform.OS == 'ios' ? String(Platform.Version) : osVer, 10)
     isSupportedAutoTheme = isAndroid
       ? osVerNum >= 5
       : osVerNum >= 13
@@ -504,6 +513,14 @@ export const trasformeStyle = <T extends Style>(styles: T): T => {
         newStyle.marginRight = newStyle.marginLeft = scaleSizeW(v)
         newStyle.marginBottom = newStyle.marginTop = scaleSizeH(v)
         break
+      case 'top':
+      case 'bottom':
+        newStyle[p] = Platform.OS == 'ios' ? scaleSizeH(v) : setSpText(v)
+        break
+      case 'left':
+      case 'right':
+        newStyle[p] = Platform.OS == 'ios' ? scaleSizeW(v) : setSpText(v)
+        break
       default:
         // @ts-expect-error
         if (trasformeProps.includes(p)) newStyle[p] = setSpText(v)
@@ -535,6 +552,7 @@ export interface RowInfo {
 export type RowInfoType = 'full' | 'medium'
 
 export const getRowInfo = (type: RowInfoType = 'full'): RowInfo => {
+  if (Platform.OS == 'ios') return { rowNum: 1, rowWidth: '100%' }
   const win = windowSizeTools.getSize()
   let isMultiRow = isHorizontalMode(win.width, win.height)
   if (type == 'medium' && win.width / win.height < 1.8) isMultiRow = false

@@ -1,3 +1,4 @@
+import { Platform } from 'react-native'
 import { memo, useRef } from 'react'
 
 import { View, StyleSheet } from 'react-native'
@@ -11,7 +12,10 @@ import { scaleSizeH } from '@/utils/pixelRatio'
 import { HEADER_HEIGHT as _HEADER_HEIGHT, NAV_SHEAR_NATIVE_IDS } from '@/config/constant'
 import commonState from '@/store/common/state'
 import SettingPopup, { type SettingPopupType } from '../../components/SettingPopup'
+import SoundEffectPopup, { type SoundEffectPopupType } from '../../components/SoundEffectPopup'
 import { useStatusbarHeight } from '@/store/common/hook'
+import { useSetting } from '@/store/setting/hook'
+import { isSoundEffectActive } from '@/plugins/player/soundEffect'
 import Btn from './Btn'
 import TimeoutExitBtn from './TimeoutExitBtn'
 
@@ -33,13 +37,20 @@ const Title = () => {
 
 export default memo(() => {
   const popupRef = useRef<SettingPopupType>(null)
-  const statusBarHeight = useStatusbarHeight()
+  const soundEffectPopupRef = useRef<SoundEffectPopupType>(null)
+  const reportedStatusBarHeight = useStatusbarHeight()
+  const statusBarHeight = Platform.OS == 'ios' ? 0 : reportedStatusBarHeight
+  const theme = useTheme()
+  const setting = useSetting()
 
   const back = () => {
     void pop(commonState.componentIds.playDetail!)
   }
   const showSetting = () => {
     popupRef.current?.show()
+  }
+  const showSoundEffect = () => {
+    soundEffectPopupRef.current?.show()
   }
 
   return (
@@ -49,8 +60,10 @@ export default memo(() => {
         <Btn icon="chevron-left" onPress={back} />
         <Title />
         <TimeoutExitBtn />
-        <Btn icon="slider" onPress={showSetting} />
+        <Btn icon="slider" color={isSoundEffectActive(setting) ? theme['c-primary-font-active'] : undefined} onPress={showSoundEffect} />
+        <Btn icon="setting" size={16} onPress={showSetting} />
       </View>
+      <SoundEffectPopup ref={soundEffectPopupRef} layoutMode="stacked" />
       <SettingPopup ref={popupRef} direction="vertical" />
     </View>
   )

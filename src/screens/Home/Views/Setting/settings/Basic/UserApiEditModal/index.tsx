@@ -8,6 +8,8 @@ import Dialog, { type DialogType } from '@/components/common/Dialog'
 import Button from '@/components/common/Button'
 import List from './List'
 import ImportBtn from './ImportBtn'
+import ScriptImportExport, { type ScriptImportExportType } from './ScriptImportExport'
+import ScriptImportOnline, { type ScriptImportOnlineType } from './ScriptImportOnline'
 
 // interface UrlInputType {
 //   setText: (text: string) => void
@@ -63,6 +65,8 @@ export interface UserApiEditModalType {
 
 export default forwardRef<UserApiEditModalType, {}>((props, ref) => {
   const dialogRef = useRef<DialogType>(null)
+  const scriptImportExportRef = useRef<ScriptImportExportType>(null)
+  const scriptImportOnlineRef = useRef<ScriptImportOnlineType>(null)
   // const sourceSelectorRef = useRef<SourceSelectorType>(null)
   // const inputRef = useRef<UrlInputType>(null)
   const [visible, setVisible] = useState(false)
@@ -95,6 +99,21 @@ export default forwardRef<UserApiEditModalType, {}>((props, ref) => {
     dialogRef.current?.setVisible(false)
   }
 
+  const handleImportAction = (action: 'local' | 'online') => {
+    switch (action) {
+      case 'local':
+        requestAnimationFrame(() => {
+          scriptImportExportRef.current?.import()
+        })
+        break
+      case 'online':
+        requestAnimationFrame(() => {
+          scriptImportOnlineRef.current?.show()
+        })
+        break
+    }
+  }
+
   const openFAQPage = () => {
     void openUrl('https://lyswhut.github.io/lx-music-doc/mobile/custom-source')
   }
@@ -102,30 +121,34 @@ export default forwardRef<UserApiEditModalType, {}>((props, ref) => {
   return (
     visible
       ? (
-          <Dialog ref={dialogRef} bgHide={false}>
-            <View style={styles.content}>
-              {/* <UrlInput ref={inputRef} /> */}
-              <Text size={16} style={styles.title}>{t('user_api_title')}</Text>
-              <List />
-              <View style={styles.tips}>
-                <Text style={styles.tipsText} size={12}>
-                  {t('user_api_readme')}
-                </Text>
-                <TouchableOpacity onPress={openFAQPage}>
-                  <Text style={{ ...styles.tipsText, textDecorationLine: 'underline' }} size={12} color={theme['c-primary-font']}>FAQ</Text>
-                </TouchableOpacity>
-                <View>
-                  <Text style={styles.tipsText} size={12}>{t('user_api_note')}</Text>
+          <>
+            <Dialog ref={dialogRef} bgHide={false}>
+              <View style={styles.content}>
+                {/* <UrlInput ref={inputRef} /> */}
+                <Text size={16} style={styles.title}>{t('user_api_title')}</Text>
+                <List />
+                <View style={styles.tips}>
+                  <Text style={styles.tipsText} size={12}>
+                    {t('user_api_readme')}
+                  </Text>
+                  <TouchableOpacity onPress={openFAQPage}>
+                    <Text style={{ ...styles.tipsText, textDecorationLine: 'underline' }} size={12} color={theme['c-primary-font']}>FAQ</Text>
+                  </TouchableOpacity>
+                  <View>
+                    <Text style={styles.tipsText} size={12}>{t('user_api_note')}</Text>
+                  </View>
                 </View>
               </View>
-            </View>
-            <View style={styles.btns}>
-              <Button style={{ ...styles.btn, backgroundColor: theme['c-button-background'] }} onPress={handleCancel}>
-                <Text size={14} color={theme['c-button-font']}>{t('close')}</Text>
-              </Button>
-              <ImportBtn btnStyle={{ ...styles.btn, backgroundColor: theme['c-button-background'] }} />
-            </View>
-          </Dialog>
+              <View style={styles.btns}>
+                <Button style={{ ...styles.btn, backgroundColor: theme['c-button-background'] }} onPress={handleCancel}>
+                  <Text size={14} color={theme['c-button-font']}>{t('close')}</Text>
+                </Button>
+                <ImportBtn btnStyle={{ ...styles.btn, backgroundColor: theme['c-button-background'] }} onImportAction={handleImportAction} />
+              </View>
+            </Dialog>
+            <ScriptImportExport ref={scriptImportExportRef} />
+            <ScriptImportOnline ref={scriptImportOnlineRef} />
+          </>
         ) : null
   )
 })

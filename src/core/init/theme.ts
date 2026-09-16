@@ -1,39 +1,54 @@
-
+import { AppState, NativeModules, Platform } from 'react-native'
 import { getAppearance, getIsSupportedAutoTheme, onAppearanceChange } from '@/utils/tools'
-import { setShouldUseDarkColors, applyTheme } from '@/core/theme'
-import { getTheme } from '@/theme/themes/index'
+import { setShouldUseDarkColors, refreshTheme } from '@/core/theme'
 import settingState from '@/store/setting/state'
-import StatusBar from '@/components/common/StatusBar'
-// import { Dimensions, PixelRatio } from 'react-native'
+import { applyNavigationAppearance } from '@/navigation/appearance'
+import themeState from '@/store/theme/state'
+import { isAutoTheme } from '@/theme/systemTheme'
 
-
-export default async(setting: LX.AppSetting) => {
-  if (getIsSupportedAutoTheme()) {
-    setShouldUseDarkColors(getAppearance() == 'dark')
-
-    onAppearanceChange(color => {
-      setShouldUseDarkColors((color ?? 'light') == 'dark')
-      if (settingState.setting['common.isAutoTheme']) void getTheme().then(applyTheme)
-    })
+let disposeTheme: (() => void) | undefined
+export default async(_setting: LX.AppSetting) => {
+  disposeTheme?.()
+  let disposed = false
+  let appearanceRevision = 0
+  const appearance = () => applyNavigationAppearance(themeState.theme.isDark, isAutoTheme(settingState.setting))
+  const readSystem = async() => {
+    const revision = ++appearanceRevision
+    let dark = getAppearance() == 'dark'
+    if (Platform.OS == 'ios' && NativeModules.LXWindowAppearance?.getSystemDark) {
+      // A fixed light/dark window may override Appearance's reported value.
+      // UIWindowScene retains the real system preference independently.
+      dark = await NativeModules.LXWindowAppearance.getSystemDark().catch(() => dark)
+    }
+    if (disposed || revision != appearanceRevision) return
+    const changed = themeState.shouldUseDarkColors != dark
+    setShouldUseDarkColors(dark)
+    if (changed && isAutoTheme(settingState.setting)) await refreshTheme()
   }
-
-  applyTheme(await getTheme())
-
-  global.state_event.on('themeUpdated', (theme) => {
-    StatusBar.setBarStyle(theme.isDark ? 'light-content' : 'dark-content')
+  const configUpdated: typeof global.state_event.configUpdated = keys => {
+    if (!keys.some(key => ['theme.id', 'theme.lightId', 'theme.darkId', 'common.isAutoTheme', 'theme.hideBgDark'].includes(key))) return
+    void readSystem().then(() => { if (!disposed) return refreshTheme() }).catch(() => {})
+    appearance()
+  }
+  const subscription = getIsSupportedAutoTheme()
+    ? onAppearanceChange(() => { void readSystem().catch(() => {}) }) : undefined
+  const appState = AppState.addEventListener('change', state => {
+    if (state == 'active') { appearance(); void readSystem().catch(() => {}) }
   })
-  // onDimensionChange(({ window }) => {
-  //   let screenW = window.width
-  //   let screenH = window.height
-  //   if (screenW > screenH) {
-  //     const temp = screenW
-  //     screenW = screenH
-  //     screenH = temp
-  //   }
-  //   global.lx.windowInfo.screenW = screenW
-  //   global.lx.windowInfo.screenH = screenH
-  //   global.lx.windowInfo.screenPxW = PixelRatio.getPixelSizeForLayoutSize(screenW)
-  //   global.lx.windowInfo.screenPxH = PixelRatio.getPixelSizeForLayoutSize(screenH)
-  //   console.log('change', global.lx.windowInfo)
-  // })
+  global.state_event.on('configUpdated', configUpdated)
+  global.state_event.on('themeUpdated', appearance)
+  global.state_event.on('componentIdsUpdated', appearance)
+  const cleanup = () => {
+    disposed = true
+    appearanceRevision++
+    subscription?.remove()
+    appState.remove()
+    global.state_event.off('configUpdated', configUpdated)
+    global.state_event.off('themeUpdated', appearance)
+    global.state_event.off('componentIdsUpdated', appearance)
+  }
+  disposeTheme = cleanup
+  await readSystem()
+  if (!disposed) { await refreshTheme(); appearance() }
+  return cleanup
 }

@@ -1,9 +1,13 @@
+import useSongKeyboard from '@/utils/hooks/useSongKeyboard'
+import { usePlayMusicInfo } from '@/store/player/hook'
+import SongTableHeader from '@/components/common/SongTableHeader'
 import { useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react'
-import { FlatList, type FlatListProps, RefreshControl, View } from 'react-native'
+import { FlatList, type FlatListProps, RefreshControl, View, Platform } from 'react-native'
 
 // import { useMusicList } from '@/store/list/hook'
 import ListItem, { ITEM_HEIGHT } from './ListItem'
-import { createStyle, getRowInfo, type RowInfoType } from '@/utils/tools'
+import { createStyle, type RowInfoType } from '@/utils/tools'
+import { getResponsiveRowInfo } from '@/utils/layout'
 import type { Position } from './ListMenu'
 import type { SelectMode } from './MultipleModeBar'
 import { useTheme } from '@/store/theme/hook'
@@ -13,6 +17,7 @@ import { useI18n } from '@/lang'
 import Text from '@/components/common/Text'
 import { handlePlay } from './listAction'
 import { useSettingValue } from '@/store/setting/hook'
+import { useWindowSize } from '@/utils/hooks'
 
 type FlatListType = FlatListProps<LX.Music.MusicInfoOnline>
 
@@ -28,7 +33,7 @@ export interface ListProps {
   onLoadMore: () => void
   onPlayList?: (index: number) => void
   progressViewOffset?: number
-  ListHeaderComponent?: FlatListType['ListEmptyComponent']
+  ListHeaderComponent?: FlatListType['ListHeaderComponent']
   checkHomePagerIdle: boolean
   rowType?: RowInfoType
 }
@@ -68,8 +73,11 @@ const List = forwardRef<ListType, ListProps>(({
   const selectedListRef = useRef<LX.Music.MusicInfoOnline[]>([])
   const [visibleMultiSelect, setVisibleMultiSelect] = useState(false)
   const [status, setStatus] = useState<Status>('idle')
-  const rowInfo = useRef(getRowInfo(rowType))
-  const isShowAlbumName = useSettingValue('list.isShowAlbumName')
+  const { width: windowWidth } = useWindowSize()
+  const rowInfo = useMemo(() => Platform.OS == 'ios' ? { rowNum: 1, rowWidth: '100%' as const } : getResponsiveRowInfo(windowWidth, rowType), [rowType, windowWidth])
+  const columnCount = rowInfo.rowNum ?? 1
+  const showAlbumPreference = useSettingValue('list.isShowAlbumName')
+  const isShowAlbumName = Platform.OS == 'ios' || showAlbumPreference
   const isShowInterval = useSettingValue('list.isShowInterval')
   // const currentListIdRef = useRef('')
   // console.log('render music list')
@@ -180,6 +188,11 @@ const List = forwardRef<ListType, ListProps>(({
   }
 
 
+  const playing = usePlayMusicInfo()
+  const keyboardId = useSongKeyboard(currentList, handlePress, index => {
+    flatListRef.current?.scrollToIndex({ index: Math.floor(index / columnCount), viewPosition: 0.4, animated: false })
+  }, playing.musicInfo?.id)
+
   const renderItem: FlatListType['renderItem'] = ({ item, index }) => (
     <ListItem
       item={item}
@@ -189,14 +202,15 @@ const List = forwardRef<ListType, ListProps>(({
       onLongPress={handleLongPress}
       onShowMenu={onShowMenu}
       selectedList={selectedList}
-      rowInfo={rowInfo.current}
+      focused={item.id == keyboardId}
+      rowInfo={rowInfo}
       isShowAlbumName={isShowAlbumName}
       isShowInterval={isShowInterval}
     />
   )
   const getkey: FlatListType['keyExtractor'] = item => item.id
   const getItemLayout: FlatListType['getItemLayout'] = (data, index) => {
-    return { length: ITEM_HEIGHT, offset: ITEM_HEIGHT * index, index }
+    return { length: ITEM_HEIGHT, offset: ITEM_HEIGHT * Math.floor(index / columnCount), index }
   }
   const refreshControl = useMemo(() => (
     <RefreshControl
@@ -229,12 +243,16 @@ const List = forwardRef<ListType, ListProps>(({
     )
   }, [onLoadMore, status, visibleMultiSelect])
 
+  const detailHeader = typeof ListHeaderComponent == 'function' ? <ListHeaderComponent /> : ListHeaderComponent
   return (
+    <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+    {Platform.OS == 'ios' ? <>{detailHeader}<SongTableHeader showAlbum={isShowAlbumName} showInterval={isShowInterval} /></> : null}
     <FlatList
+      key={`columns-${columnCount}`}
       ref={flatListRef}
       style={styles.list}
       data={currentList}
-      numColumns={rowInfo.current.rowNum}
+      numColumns={columnCount}
       horizontal={false}
       maxToRenderPerBatch={4}
       // updateCellsBatchingPeriod={80}
@@ -249,10 +267,11 @@ const List = forwardRef<ListType, ListProps>(({
       onEndReachedThreshold={0.5}
       onEndReached={handleLoadMore}
       progressViewOffset={progressViewOffset}
-      ListHeaderComponent={ListHeaderComponent}
+      ListHeaderComponent={Platform.OS == 'ios' ? undefined : ListHeaderComponent}
       refreshControl={refreshControl}
       ListFooterComponent={footerComponent}
     />
+    </View>
   )
 })
 

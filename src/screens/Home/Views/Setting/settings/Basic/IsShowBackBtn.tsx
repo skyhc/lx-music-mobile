@@ -2,7 +2,7 @@ import { updateSetting } from '@/core/common'
 import { useI18n } from '@/lang'
 import { createStyle } from '@/utils/tools'
 import { memo } from 'react'
-import { View } from 'react-native'
+import { View, Platform } from 'react-native'
 import { useSettingValue } from '@/store/setting/hook'
 
 
@@ -17,7 +17,7 @@ export default memo(() => {
 
   return (
     <View style={styles.content}>
-      <CheckBoxItem check={showBackBtn} label={t('setting_basic_show_back_btn')} onChange={setShowBackBtn} />
+      <CheckBoxItem disabled={Platform.OS == 'ios'} helpDesc={Platform.OS == 'ios' ? 'iOS 不提供 Android 式返回桌面接口；设置值保留，可用系统手势返回桌面。' : undefined} check={showBackBtn} label={t('setting_basic_show_back_btn')} onChange={setShowBackBtn} />
     </View>
   )
 })

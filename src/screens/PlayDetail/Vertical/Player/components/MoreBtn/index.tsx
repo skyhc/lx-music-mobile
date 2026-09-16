@@ -1,3 +1,5 @@
+import { Platform } from 'react-native'
+import PlaylistBtn from '@/screens/PlayDetail/Horizontal/components/PlaylistBtn'
 import { createStyle } from '@/utils/tools'
 import { View } from 'react-native'
 import PlayModeBtn from './PlayModeBtn'
@@ -8,7 +10,7 @@ import CommentBtn from './CommentBtn'
 export default () => {
   return (
     <View style={styles.container}>
-      <DesktopLyricBtn />
+      {Platform.OS == 'ios' ? <PlaylistBtn /> : <DesktopLyricBtn />}
       <MusicAddBtn />
       <PlayModeBtn />
       <CommentBtn />

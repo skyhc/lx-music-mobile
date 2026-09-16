@@ -1,3 +1,4 @@
+import { getMusicCacheRevision, invalidateMusicCacheRevision, serializeMusicCacheWrite } from './musicCacheRevision'
 import { getData, saveData, getAllKeys, removeDataMultiple, saveDataMultiple, removeData, getDataMultiple } from '@/plugins/storage'
 import { DEFAULT_SETTING, LIST_IDS, storageDataPrefix, type NAV_ID_Type } from '@/config/constant'
 import { throttle } from './common'
@@ -339,12 +340,27 @@ export const removeListMusics = async(ids: string[]): Promise<void> => {
   // delaySaveListScrollPosition(global.lx.listScrollPosition)
 }
 
-
+export const qualitys: LX.Quality[] = ['128k', '320k', 'flac', 'flac24bit']
+export const hasMusicUrlByMusic = async(musicInfo: LX.Music.MusicInfo) => {
+  return getDataMultiple(qualitys.map(q => `${storageDataPrefix.musicUrl}${musicInfo.id}_${q}`)).then((urls) => {
+    return urls.some(([, url]) => !!url)
+  })
+}
+export const clearMusicUrlByMusic = async(musicInfo: LX.Music.MusicInfo) => {
+  invalidateMusicCacheRevision(musicInfo.id)
+  await serializeMusicCacheWrite(async() => removeDataMultiple(qualitys.map(q => `${storageDataPrefix.musicUrl}${musicInfo.id}_${q}`)))
+}
 export const getMusicUrl = async(musicInfo: LX.Music.MusicInfo, type: LX.Quality) => getData<string>(`${storageDataPrefix.musicUrl}${musicInfo.id}_${type}`).then((url) => url ?? '')
-export const saveMusicUrl = async(musicInfo: LX.Music.MusicInfo, type: LX.Quality, url: string) => saveData(`${storageDataPrefix.musicUrl}${musicInfo.id}_${type}`, url)
+export const saveMusicUrl = async(musicInfo: LX.Music.MusicInfo, type: LX.Quality, url: string, revision = getMusicCacheRevision(musicInfo.id)) => serializeMusicCacheWrite(async() => {
+  if (revision != getMusicCacheRevision(musicInfo.id)) return
+  await saveData(`${storageDataPrefix.musicUrl}${musicInfo.id}_${type}`, url)
+})
 export const clearMusicUrl = async(keys?: string[]) => {
-  if (!keys) keys = (await getAllKeys()).filter(key => key.startsWith(storageDataPrefix.musicUrl))
-  await removeDataMultiple(keys)
+  invalidateMusicCacheRevision()
+  await serializeMusicCacheWrite(async() => {
+    const targets = keys ?? (await getAllKeys()).filter(key => key.startsWith(storageDataPrefix.musicUrl))
+    await removeDataMultiple(targets)
+  })
 }
 
 export const getLyric = async(musicInfo: LX.Music.MusicInfo) => getData<LX.Music.LyricInfo>(`${storageDataPrefix.lyric}${musicInfo.id}`).then(lrcInfo => lrcInfo ?? { lyric: '' })

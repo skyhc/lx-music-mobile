@@ -5,7 +5,14 @@ import { View } from 'react-native'
 import Input, { type InputType } from '@/components/common/Input'
 import { createStyle, toast } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
-import { cancelTimeoutExit, getTimeoutExitTime, onTimeUpdate, startTimeoutExit, stopTimeoutExit, useTimeoutExitTimeInfo } from '@/core/player/timeoutExit'
+import {
+  cancelTimeoutExit,
+  getTimeoutExitTime,
+  onTimeUpdate,
+  startTimeoutExit,
+  stopTimeoutExit,
+  useTimeoutExitTimeInfo,
+} from '@/core/player/timeoutExit'
 import { useI18n } from '@/lang'
 import CheckBox from './common/CheckBox'
 import { useSettingValue } from '@/store/setting/hook'
@@ -14,10 +21,8 @@ import settingState from '@/store/setting/state'
 
 const MAX_MIN = 1440
 const rxp = /([1-9]\d*)/
+
 const formatTime = (time: number) => {
-  // let d = parseInt(time / 86400)
-  // d = d ? d.toString() + ':' : ''
-  // time = time % 86400
   let h = Math.trunc(time / 3600)
   let hStr = h ? h.toString() + ':' : ''
   time = time % 3600
@@ -25,32 +30,28 @@ const formatTime = (time: number) => {
   const s = Math.trunc(time % 60).toString().padStart(2, '0')
   return `${hStr}${m}:${s}`
 }
+
 const Status = () => {
   const theme = useTheme()
   const t = useI18n()
   const exitTimeInfo = useTimeoutExitTimeInfo()
+  const statusText = exitTimeInfo.time < 0
+    ? t('timeout_exit_tip_off')
+    : t('timeout_exit_tip_on', { time: formatTime(exitTimeInfo.time) })
   return (
     <View style={styles.tip}>
-      {
-      exitTimeInfo.time < 0
-        ? (
-            <Text>{t('timeout_exit_tip_off')}</Text>
-          )
-        : (
-            <Text>{t('timeout_exit_tip_on', { time: formatTime(exitTimeInfo.time) })}</Text>
-          )
-      }
+      <Text>{statusText}</Text>
       {exitTimeInfo.isPlayedStop ? <Text color={theme['c-font-label']} size={13}>{t('timeout_exit_btn_wait_tip')}</Text> : null}
     </View>
   )
 }
-
 
 interface TimeInputType {
   setText: (text: string) => void
   getText: () => string
   focus: () => void
 }
+
 const TimeInput = forwardRef<TimeInputType, {}>((props, ref) => {
   const theme = useTheme()
   const [text, setText] = useState('')
@@ -80,7 +81,6 @@ const TimeInput = forwardRef<TimeInputType, {}>((props, ref) => {
   )
 })
 
-
 const Setting = () => {
   const t = useI18n()
   const timeoutExitPlayed = useSettingValue('player.timeoutExitPlayed')
@@ -96,37 +96,50 @@ const Setting = () => {
 }
 
 export const useTimeInfo = () => {
-  const [exitTimeInfo, setExitTimeInfo] = useState({
+  const [exitTimeInfo, setExitTimeInfo] = useState<{
+    cancelText: string
+    confirmText: string
+    isPlayedStop: boolean
+    active: boolean
+    mode: 'off' | 'timer'
+  }>({
     cancelText: '',
     confirmText: '',
     isPlayedStop: false,
     active: false,
+    mode: 'off' as const,
   })
   const t = useI18n()
 
   useEffect(() => {
     let active: boolean | null = null
-    const remove = onTimeUpdate((time, isPlayedStop) => {
-      if (time < 0) {
+    const remove = onTimeUpdate(({ time, isPlayedStop, mode, active: isActive }) => {
+      if (!isActive) {
         if (active) {
           setExitTimeInfo({
-            cancelText: isPlayedStop ? t('timeout_exit_btn_wait_cancel') : '',
+            cancelText: '',
             confirmText: '',
             isPlayedStop,
             active: false,
+            mode,
           })
           active = false
         }
       } else {
-        if (active !== true) {
-          setExitTimeInfo({
-            cancelText: t('timeout_exit_btn_cancel'),
-            confirmText: t('timeout_exit_btn_update'),
-            isPlayedStop,
-            active: true,
-          })
-          active = true
-        }
+        const cancelText = isPlayedStop
+          ? t('timeout_exit_btn_wait_cancel')
+          : mode == 'timer'
+            ? t('timeout_exit_btn_cancel')
+            : ''
+        const confirmText = mode == 'timer' ? t('timeout_exit_btn_update') : ''
+        setExitTimeInfo({
+          cancelText,
+          confirmText,
+          isPlayedStop,
+          active: true,
+          mode,
+        })
+        active = true
       }
     })
 
@@ -141,11 +154,13 @@ export const useTimeInfo = () => {
 export interface TimeoutExitEditModalType {
   show: () => void
 }
+
 interface TimeoutExitEditModalProps {
+  position?: 'center' | 'left'
   timeInfo: ReturnType<typeof useTimeInfo>
 }
 
-export default forwardRef<TimeoutExitEditModalType, TimeoutExitEditModalProps>(({ timeInfo }, ref) => {
+export default forwardRef<TimeoutExitEditModalType, TimeoutExitEditModalProps>(({ timeInfo, position }, ref) => {
   const alertRef = useRef<ConfirmAlertType>(null)
   const timeInputRef = useRef<TimeInputType>(null)
   const [visible, setVisible] = useState(false)
@@ -155,11 +170,9 @@ export default forwardRef<TimeoutExitEditModalType, TimeoutExitEditModalProps>((
     alertRef.current?.setVisible(true)
     requestAnimationFrame(() => {
       if (settingState.setting['player.timeoutExit']) timeInputRef.current?.setText(settingState.setting['player.timeoutExit'])
-      //   setTimeout(() => {
-      //     timeInputRef.current?.focus()
-      //   }, 300)
     })
   }
+
   useImperativeHandle(ref, () => ({
     show() {
       if (visible) handleShow()
@@ -181,14 +194,13 @@ export default forwardRef<TimeoutExitEditModalType, TimeoutExitEditModalProps>((
     stopTimeoutExit()
     toast(t('timeout_exit_tip_cancel'))
   }
+
   const handleConfirm = () => {
     let timeStr = timeInputRef.current?.getText() ?? ''
     if (rxp.test(timeStr)) {
-      // if (timeStr != RegExp.$1) toast(t('input_error'))
       timeStr = RegExp.$1
       if (parseInt(timeStr) > MAX_MIN) {
         toast(t('timeout_exit_tip_max', { num: MAX_MIN }))
-        // timeStr = timeStr.substring(0, timeStr.length - 1)
         return
       }
     } else {
@@ -206,22 +218,25 @@ export default forwardRef<TimeoutExitEditModalType, TimeoutExitEditModalProps>((
 
   return (
     visible
-      ? <ConfirmAlert
-          ref={alertRef}
-          cancelText={timeInfo.cancelText}
-          confirmText={timeInfo.confirmText}
-          onCancel={handleCancel}
-          onConfirm={handleConfirm}
-        >
-          <View style={styles.alertContent}>
-            <Status />
-            <View style={styles.inputContent}>
-              <TimeInput ref={timeInputRef} />
-              <Text style={styles.inputLabel}>{t('timeout_exit_min')}</Text>
+      ? (
+          <ConfirmAlert
+            position={position}
+            ref={alertRef}
+            cancelText={timeInfo.cancelText}
+            confirmText={timeInfo.confirmText}
+            onCancel={handleCancel}
+            onConfirm={handleConfirm}
+          >
+            <View style={styles.alertContent}>
+              <Status />
+              <View style={styles.inputContent}>
+                <TimeInput ref={timeInputRef} />
+                <Text style={styles.inputLabel}>{t('timeout_exit_min')}</Text>
+              </View>
+              <Setting />
             </View>
-            <Setting />
-          </View>
-        </ConfirmAlert>
+          </ConfirmAlert>
+        )
       : null
   )
 })
@@ -246,13 +261,8 @@ const styles = createStyle({
   input: {
     flexGrow: 1,
     flexShrink: 1,
-    // borderRadius: 4,
-    // paddingTop: 2,
-    // paddingBottom: 2,
   },
   inputLabel: {
     marginLeft: 8,
   },
 })
-
-

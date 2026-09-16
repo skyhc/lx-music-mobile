@@ -6,11 +6,14 @@ import { createStyle } from '@/utils/tools'
 // import { useComponentIds } from '@/store/common/hook'
 import { useTheme } from '@/store/theme/hook'
 import { useSettingValue } from '@/store/setting/hook'
-import { AnimatedColorText } from '@/components/common/Text'
+import Text, { AnimatedColorText } from '@/components/common/Text'
 import { setSpText } from '@/utils/pixelRatio'
 import playerState from '@/store/player/state'
 import { scrollTo } from '@/utils/scroll'
 import PlayLine, { type PlayLineType } from '../components/PlayLine'
+import KaraokeLine from '../components/KaraokeLine'
+import { normalizeExtendedLyricText } from '../components/lyricText'
+import { markTimeoutExitInteraction } from '@/core/player/timeoutExit'
 // import { screenkeepAwake } from '@/utils/nativeModules/utils'
 // import { log } from '@/utils/log'
 // import { toast } from '@/utils/tools'
@@ -60,9 +63,11 @@ interface LineProps {
   line: Line
   lineNum: number
   activeLine: number
+  activeWordIndex: number
+  activeWordProgress: number
   onLayout: (lineNum: number, height: number, width: number) => void
 }
-const LrcLine = memo(({ line, lineNum, activeLine, onLayout }: LineProps) => {
+const LrcLine = memo(({ line, lineNum, activeLine, activeWordIndex, activeWordProgress, onLayout }: LineProps) => {
   const theme = useTheme()
   const lrcFontSize = useSettingValue('playDetail.vertical.style.lrcFontSize')
   const textAlign = useSettingValue('playDetail.style.align')
@@ -72,12 +77,12 @@ const LrcLine = memo(({ line, lineNum, activeLine, onLayout }: LineProps) => {
   const colors = useMemo(() => {
     const active = activeLine == lineNum
     return active ? [
-      theme['c-primary'],
-      theme['c-primary-alpha-200'],
+      theme['c-primary-dark-200'],
+      theme['c-450'],
       1,
     ] as const : [
-      theme['c-350'],
-      theme['c-300'],
+      theme['c-450'],
+      theme['c-450'],
       0.6,
     ] as const
   }, [activeLine, lineNum, theme])
@@ -91,32 +96,55 @@ const LrcLine = memo(({ line, lineNum, activeLine, onLayout }: LineProps) => {
   // https://stackoverflow.com/a/72822360
   return (
     <View style={styles.line} onLayout={handleLayout}>
-      <AnimatedColorText style={{
-        ...styles.lineText,
-        textAlign,
-        lineHeight,
-      }} textBreakStrategy="simple" color={colors[0]} opacity={colors[2]} size={size}>{line.text}</AnimatedColorText>
+      {
+        lineNum == activeLine && line.words?.length
+          ? (
+              <Text style={{
+                ...styles.lineText,
+                textAlign,
+                lineHeight,
+                opacity: colors[2],
+              }} size={size}>
+                <KaraokeLine words={line.words} activeWordIndex={activeWordIndex} activeWordProgress={activeWordProgress} size={size} playedColor={colors[0]} inactiveColor={colors[1]} />
+              </Text>
+            )
+          : (
+              <AnimatedColorText style={{
+                ...styles.lineText,
+                textAlign,
+                lineHeight,
+              }} textBreakStrategy="simple" color={colors[0]} opacity={colors[2]} size={size}>{line.text}</AnimatedColorText>
+            )
+      }
       {
         line.extendedLyrics.map((lrc, index) => {
+          const text = normalizeExtendedLyricText(lrc)
+          if (!text) return null
           return (<AnimatedColorText style={{
             ...styles.lineTranslationText,
             textAlign,
             lineHeight: lineHeight * 0.8,
-          }} textBreakStrategy="simple" key={index} color={colors[1]} opacity={colors[2]} size={size * 0.8}>{lrc}</AnimatedColorText>)
+          }} textBreakStrategy="simple" key={index} color={colors[1]} opacity={colors[2]} size={size * 0.8}>{text}</AnimatedColorText>)
         })
       }
     </View>
   )
 }, (prevProps, nextProps) => {
-  return prevProps.line === nextProps.line &&
-    prevProps.activeLine != nextProps.lineNum &&
-    nextProps.activeLine != nextProps.lineNum
+  if (prevProps.line !== nextProps.line) return false
+  const wasActive = prevProps.activeLine == prevProps.lineNum
+  const isActive = nextProps.activeLine == nextProps.lineNum
+  if (wasActive || isActive) {
+    return prevProps.activeLine == nextProps.activeLine &&
+      prevProps.activeWordIndex == nextProps.activeWordIndex &&
+      prevProps.activeWordProgress == nextProps.activeWordProgress
+  }
+  return true
 })
 const wait = async() => new Promise(resolve => setTimeout(resolve, 100))
 
 export default () => {
   const lyricLines = useLrcSet()
-  const { line } = useLrcPlay()
+  const { line, wordIndex, wordProgress } = useLrcPlay()
   const flatListRef = useRef<FlatList>(null)
   const playLineRef = useRef<PlayLineType>(null)
   const isPauseScrollRef = useRef(true)
@@ -294,12 +322,13 @@ export default () => {
 
   const handlePlayLine = useCallback((time: number) => {
     playLineRef.current?.setVisible(false)
+    markTimeoutExitInteraction()
     global.app_event.setProgress(time)
   }, [])
 
   const renderItem: FlatListType['renderItem'] = ({ item, index }) => {
     return (
-      <LrcLine line={item} lineNum={index} activeLine={line} onLayout={handleLineLayout} />
+      <LrcLine line={item} lineNum={index} activeLine={line} activeWordIndex={wordIndex} activeWordProgress={wordProgress} onLayout={handleLineLayout} />
     )
   }
   const getkey: FlatListType['keyExtractor'] = (item, index) => `${index}${item.text}`

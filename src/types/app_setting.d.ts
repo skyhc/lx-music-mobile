@@ -3,8 +3,30 @@ import type { I18n } from '@/lang/i18n'
 declare global {
   namespace LX {
     type AddMusicLocationType = 'top' | 'bottom'
+    type SoundEffectPresetId =
+      | 'none'
+      | 'pop'
+      | 'dance'
+      | 'rock'
+      | 'classical'
+      | 'vocal'
+      | 'slow'
+      | 'electronic'
+      | 'subwoofer'
+      | 'soft'
+      | 'custom'
+      | 'slowSong'
+      | 'bass'
+      | 'speech'
+      | 'deep'
+      | 'loudness'
 
     interface AppSetting {
+      'keyboard.enabled': boolean
+      'keyboard.playback': boolean
+      'keyboard.seek': boolean
+      'keyboard.selection': boolean
+      'keyboard.navigation': boolean
       version: string
       /**
        * 是否跟随系统切换亮暗主题
@@ -40,6 +62,9 @@ declare global {
        * 是否在键盘弹出时隐藏播放栏
        */
       'common.autoHidePlayBar': boolean
+
+      /** Hide only the compact/portrait bottom tabs, keeping the main menu accessible. */
+      'common.hidePortraitNavigation': boolean
 
       /**
        * 抽屉组件弹出方向
@@ -142,7 +167,7 @@ declare global {
       'player.playbackRate': number
 
       /**
-       * 缓存大小设置 unit MB
+       * 缓存大小设置 unit MiB
        */
       'player.cacheSize': string
 
@@ -150,6 +175,8 @@ declare global {
        * 定时暂停播放-倒计时时间
        */
       'player.timeoutExit': string
+      'player.timeoutExitCustomMinutes': string
+      'player.timeoutExitTimerType': 'preset' | 'custom'
 
       /**
        * 定时暂停播放-是否等待歌曲播放完毕再暂停
@@ -195,6 +222,101 @@ declare global {
        * 是否启用蓝牙歌词
        */
       'player.isShowBluetoothLyric': boolean
+
+      /**
+       * 是否启用音效
+       */
+      'player.soundEffect.enabled': boolean
+
+      /**
+       * 当前音效预设
+       */
+      'player.soundEffect.preset': SoundEffectPresetId
+
+      /**
+       * 31Hz EQ 增益
+       */
+      'player.soundEffect.eq.31': number
+
+      /**
+       * 62Hz EQ 增益
+       */
+      'player.soundEffect.eq.62': number
+
+      /**
+       * 125Hz EQ 增益
+       */
+      'player.soundEffect.eq.125': number
+
+      /**
+       * 250Hz EQ 增益
+       */
+      'player.soundEffect.eq.250': number
+
+      /**
+       * 500Hz EQ 增益
+       */
+      'player.soundEffect.eq.500': number
+
+      /**
+       * 1kHz EQ 增益
+       */
+      'player.soundEffect.eq.1000': number
+
+      /**
+       * 2kHz EQ 增益
+       */
+      'player.soundEffect.eq.2000': number
+
+      /**
+       * 4kHz EQ 增益
+       */
+      'player.soundEffect.eq.4000': number
+
+      /**
+       * 8kHz EQ 增益
+       */
+      'player.soundEffect.eq.8000': number
+
+      /**
+       * 16kHz EQ 增益
+       */
+      'player.soundEffect.eq.16000': number
+
+      /**
+       * 环境音效文件名
+       */
+      'player.soundEffect.convolution.fileName': string
+
+      /**
+       * 环境音效原始输出增益
+       */
+      'player.soundEffect.convolution.mainGain': number
+
+      /**
+       * 环境音效输出增益
+       */
+      'player.soundEffect.convolution.sendGain': number
+
+      /**
+       * 3D 立体环绕是否启用
+       */
+      'player.soundEffect.panner.enable': boolean
+
+      /**
+       * 3D 立体环绕声音距离
+       */
+      'player.soundEffect.panner.soundR': number
+
+      /**
+       * 3D 立体环绕速度
+       */
+      'player.soundEffect.panner.speed': number
+
+      /**
+       * 升降声调
+       */
+      'player.soundEffect.pitchShifter.playbackRate': number
 
       /**
        * 是否启用蓝牙完整歌词
@@ -358,4 +480,3 @@ declare global {
     }
   }
 }
-

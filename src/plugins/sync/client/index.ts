@@ -1,72 +1,38 @@
 import handleAuth from './auth'
-import { connect as socketConnect, disconnect as socketDisconnect, sendSyncStatus, sendSyncMessage } from './client'
-// import { getSyncHost } from '@/utils/data'
-import log from '../log'
+import { connect as socketConnect, disconnect as socketDisconnect, sendSyncStatus } from './client'
 import { parseUrl } from './utils'
 import { SYNC_CODE } from '../constants'
+import { removeSyncModeEvent } from '@/core/sync'
+import { atSyncStage, resetSyncDiagnostic } from '../diagnostics'
 
 let connectId = 0
-
-const handleConnect = async(host: string, authCode?: string) => {
-  // const hostInfo = await getSyncHost()
-  // console.log(hostInfo)
-  // if (!hostInfo || !hostInfo.host || !hostInfo.port) throw new Error(SYNC_CODE.unknownServiceAddress)
-  const id = connectId
-  const urlInfo = parseUrl(host)
-  await disconnectServer(false)
-  if (id != connectId) return
-  const keyInfo = await handleAuth(urlInfo, authCode)
-  if (id != connectId) return
-  socketConnect(urlInfo, keyInfo)
-}
-const handleDisconnect = async() => {
-  await socketDisconnect()
-}
-
-const connectServer = async(host: string, authCode?: string) => {
-  sendSyncStatus({
-    status: false,
-    message: SYNC_CODE.connecting,
-  })
-  const id = connectId
-  return handleConnect(host, authCode).catch(async err => {
+let authController: AbortController | null = null
+export const connectServer = async(host: string, authCode?: string) => {
+  const id = ++connectId
+  authController?.abort()
+  const controller = new AbortController()
+  authController = controller
+  resetSyncDiagnostic()
+  try {
+    removeSyncModeEvent()
+    await socketDisconnect()
     if (id != connectId) return
-    sendSyncStatus({
-      status: false,
-      message: err.message,
-    })
-    switch (err.message) {
-      case SYNC_CODE.connectServiceFailed:
-      case SYNC_CODE.missingAuthCode:
-        break
-      default:
-        log.r_warn(err.message)
-        break
-    }
-
-    return Promise.reject(err)
-  })
+    sendSyncStatus({ status: false, message: SYNC_CODE.connecting })
+    const url = parseUrl(host)
+    const key = await handleAuth(url, authCode?.trim(), controller.signal)
+    if (id != connectId) return
+    await atSyncStage('WebSocket 握手初始化', () => socketConnect(url, key))
+  } catch (error: any) {
+    if (id != connectId || controller.signal.aborted) return
+    sendSyncStatus({ status: false, message: error?.message || SYNC_CODE.connectServiceFailed })
+    throw error
+  } finally { if (authController === controller) authController = null }
 }
-
-const disconnectServer = async(isResetStatus = true) => handleDisconnect().then(() => {
-  log.info('disconnect...')
-  if (isResetStatus) {
-    connectId++
-    sendSyncStatus({
-      status: false,
-      message: '',
-    })
-  }
-}).catch((err: any) => {
-  log.error(`disconnect error: ${err.message as string}`)
-  sendSyncMessage(err.message as string)
-})
-
-export {
-  connectServer,
-  disconnectServer,
+export const disconnectServer = async(isResetStatus = true) => {
+  ++connectId
+  authController?.abort(); authController = null
+  removeSyncModeEvent()
+  await socketDisconnect()
+  if (isResetStatus) sendSyncStatus({ status: false, message: '' })
 }
-
-export {
-  getStatus,
-} from './client'
+export { getStatus, hasClientConnection } from './client'

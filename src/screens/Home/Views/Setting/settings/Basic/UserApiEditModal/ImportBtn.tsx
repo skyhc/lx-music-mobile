@@ -1,10 +1,9 @@
-import { useMemo, useRef } from 'react'
+import { useMemo } from 'react'
+import { ActionSheetIOS, Platform, TouchableOpacity } from 'react-native'
 
 import DorpDownMenu, { type DorpDownMenuProps as _DorpDownMenuProps } from '@/components/common/DorpDownMenu'
 import Text from '@/components/common/Text'
 import { useI18n } from '@/lang'
-import ScriptImportExport, { type ScriptImportExportType } from './ScriptImportExport'
-import ScriptImportOnline, { type ScriptImportOnlineType } from './ScriptImportOnline'
 import { state } from '@/store/userApi'
 import { tipDialog } from '@/utils/tools'
 
@@ -12,14 +11,13 @@ import { useTheme } from '@/store/theme/hook'
 
 interface BtnProps {
   btnStyle?: _DorpDownMenuProps<any[]>['btnStyle']
+  onImportAction?: (action: 'local' | 'online') => void
 }
 
 
-export default ({ btnStyle }: BtnProps) => {
+export default ({ btnStyle, onImportAction }: BtnProps) => {
   const t = useI18n()
   const theme = useTheme()
-  const scriptImportExportRef = useRef<ScriptImportExportType>(null)
-  const scriptImportOnlineRef = useRef<ScriptImportOnlineType>(null)
 
   const importTypes = useMemo(() => {
     return [
@@ -30,7 +28,7 @@ export default ({ btnStyle }: BtnProps) => {
 
   type DorpDownMenuProps = _DorpDownMenuProps<typeof importTypes>
 
-  const handleAction: DorpDownMenuProps['onPress'] = ({ action }) => {
+  const handleImportAction = (action: 'local' | 'online') => {
     if (state.list.length > 20) {
       void tipDialog({
         message: t('user_api_max_tip'),
@@ -39,13 +37,40 @@ export default ({ btnStyle }: BtnProps) => {
       return
     }
 
-    if (action == 'local') {
-      scriptImportExportRef.current?.import()
-    } else {
-      scriptImportOnlineRef.current?.show()
-    }
+    onImportAction?.(action)
   }
 
+  const handleAction: DorpDownMenuProps['onPress'] = ({ action }) => {
+    handleImportAction(action)
+  }
+
+  const handleShowActionSheet = () => {
+    ActionSheetIOS.showActionSheetWithOptions({
+      options: [
+        t('user_api_btn_import_local'),
+        t('user_api_btn_import_online'),
+        t('cancel'),
+      ],
+      cancelButtonIndex: 2,
+    }, index => {
+      switch (index) {
+        case 0:
+          handleImportAction('local')
+          break
+        case 1:
+          handleImportAction('online')
+          break
+      }
+    })
+  }
+
+  if (Platform.OS == 'ios') {
+    return (
+      <TouchableOpacity style={btnStyle} onPress={handleShowActionSheet}>
+        <Text size={14} color={theme['c-button-font']}>{t('user_api_btn_import')}</Text>
+      </TouchableOpacity>
+    )
+  }
 
   return (
     <DorpDownMenu
@@ -55,8 +80,6 @@ export default ({ btnStyle }: BtnProps) => {
       onPress={handleAction}
     >
       <Text size={14} color={theme['c-button-font']}>{t('user_api_btn_import')}</Text>
-      <ScriptImportExport ref={scriptImportExportRef} />
-      <ScriptImportOnline ref={scriptImportOnlineRef} />
     </DorpDownMenu>
   )
 }

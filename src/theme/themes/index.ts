@@ -1,3 +1,4 @@
+import { selectSystemTheme } from '@/theme/systemTheme'
 /* eslint-disable @typescript-eslint/no-var-requires */
 import { getUserTheme, saveUserTheme } from '@/utils/data'
 import themes from '@/theme/themes/themes'
@@ -109,29 +110,9 @@ export const buildActiveThemeColors = (theme: LX.Theme): LX.ActiveTheme => {
 // }
 // type IDS = LocalTheme['id']
 export const getTheme = async() => {
-  // fs.promises.readdir()
-  const shouldUseDarkColors = themeState.shouldUseDarkColors
-  // let themeId = settingState.setting['theme.id'] == 'auto'
-  //   ? shouldUseDarkColors
-  //     ? settingState.setting['theme.darkId']
-  //     : settingState.setting['theme.lightId']
-  //   // : 'china_ink'
-  //   : settingState.setting['theme.id']
-  let themeId = settingState.setting['common.isAutoTheme'] && shouldUseDarkColors
-    ? 'black'
-    : settingState.setting['theme.id']
-  // themeId = 'naruto'
-  // themeId = 'pink'
-  // themeId = 'black'
-  let theme: LocalTheme | LX.Theme | undefined = themes.find(theme => theme.id == themeId)
-  if (!theme) {
-    userThemes = await getUserTheme()
-    theme = userThemes.find(theme => theme.id == themeId)
-    if (!theme) {
-      themeId = settingState.setting['theme.id'] == 'auto' && shouldUseDarkColors ? 'black' : 'green'
-      theme = themes.find(theme => theme.id == themeId) as LX.Theme
-    }
-  }
-
-  return theme
+  const info = await getAllThemes()
+  const theme = selectSystemTheme<LX.Theme>([...info.themes, ...info.userThemes], settingState.setting, themeState.shouldUseDarkColors)
+  // buildActiveThemeColors resolves variables/paths in extInfo. Never mutate
+  // the stored palette when changing system appearance repeatedly.
+  return { ...theme, config: { ...theme.config, themeColors: { ...theme.config.themeColors }, extInfo: { ...theme.config.extInfo } } }
 }

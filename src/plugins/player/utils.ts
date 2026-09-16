@@ -1,20 +1,59 @@
-import TrackPlayer, { Capability, Event, RepeatMode, State } from 'react-native-track-player'
+import { stopAudioCacheObservation } from './cache'
+import { getAudioCacheSize, clearAudioCache } from './cache'
+import TrackPlayer, { Capability, RepeatMode, State } from 'react-native-track-player'
 import BackgroundTimer from 'react-native-background-timer'
 import { playMusic as handlePlayMusic } from './playList'
+import { destroyTrackPlayerCore } from './trackPlayerCore'
 import { existsFile, moveFile, privateStorageDirectoryPath, temporaryDirectoryPath } from '@/utils/fs'
 import { toast } from '@/utils/tools'
+import { NativeModules, Platform } from 'react-native'
+import { getAccuratePosition, seekToTime } from './seek'
+import {
+  getNativeFlacDuration,
+  getNativeFlacPosition,
+  isNativeFlacActive,
+  getNativeFlacState,
+  pauseNativeFlacPlayback,
+  resetNativeFlacPlayback,
+  resumeNativeFlacPlayback,
+  seekNativeFlacPlayback,
+  setNativeFlacRate,
+  setNativeFlacVolume,
+  stopNativeFlacPlayback,
+} from './nativeFlac'
+import { onUnifiedPlayerEvent } from './engine'
 // import { PlayerMusicInfo } from '@/store/modules/player/playInfo'
 
 
 export { useBufferProgress } from './hook'
 
+const NativeTrackPlayerModule = NativeModules.TrackPlayerModule as {
+  updateNowPlayingMetadata?: (metadata: {
+    title?: string
+    artist?: string
+    album?: string
+    artwork?: string
+    duration?: number
+    elapsedTime?: number
+    isLiveStream?: boolean
+  }) => Promise<void>
+  getPosition?: () => Promise<number>
+  getDuration?: () => Promise<number>
+  getCacheSize?: () => Promise<number>
+  clearCache?: () => Promise<void>
+}
+
 const emptyIdRxp = /\/\/default$/
 const tempIdRxp = /\/\/default$|\/\/default\/\/restorePlay$/
 export const isEmpty = (trackId = global.lx.playerTrackId) => {
+  if (Platform.OS == 'ios' && isNativeFlacActive()) return false
   // console.log(trackId)
   return !trackId || emptyIdRxp.test(trackId)
 }
-export const isTempId = (trackId = global.lx.playerTrackId) => !trackId || tempIdRxp.test(trackId)
+export const isTempId = (trackId = global.lx.playerTrackId) => {
+  if (Platform.OS == 'ios' && isNativeFlacActive()) return false
+  return !trackId || tempIdRxp.test(trackId)
+}
 
 // export const replacePlayTrack = async(newTrack, oldTrack) => {
 //   console.log('replaceTrack')
@@ -106,17 +145,19 @@ export const isTempId = (trackId = global.lx.playerTrackId) => !trackId || tempI
 //   },
 // }
 
-const playMusic = ((fn: (musicInfo: LX.Player.PlayMusic, url: string, time: number) => void, delay = 800) => {
+const playMusic = ((fn: (musicInfo: LX.Player.PlayMusic, url: string, time: number, quality?: LX.Quality | null) => void, delay = 800) => {
   let delayTimer: number | null = null
   let isDelayRun = false
   let timer: number | null = null
   let _musicInfo: LX.Player.PlayMusic | null = null
   let _url = ''
   let _time = 0
-  return (musicInfo: LX.Player.PlayMusic, url: string, time: number) => {
+  let _quality: LX.Quality | null = null
+  return (musicInfo: LX.Player.PlayMusic, url: string, time: number, quality?: LX.Quality | null) => {
     _musicInfo = musicInfo
     _url = url
     _time = time
+    _quality = quality ?? null
     if (timer) {
       BackgroundTimer.clearTimeout(timer)
       timer = null
@@ -131,43 +172,74 @@ const playMusic = ((fn: (musicInfo: LX.Player.PlayMusic, url: string, time: numb
         let musicInfo = _musicInfo
         let url = _url
         let time = _time
+        let quality = _quality
         _musicInfo = null
         _url = ''
         _time = 0
+        _quality = null
         isDelayRun = false
-        fn(musicInfo!, url, time)
+        fn(musicInfo!, url, time, quality)
       }, delay)
     } else {
       isDelayRun = true
-      fn(musicInfo, url, time)
+      fn(musicInfo, url, time, quality ?? null)
       delayTimer = BackgroundTimer.setTimeout(() => {
         delayTimer = null
         isDelayRun = false
       }, 500)
     }
   }
-})((musicInfo, url, time) => {
-  handlePlayMusic(musicInfo, url, time)
+})((musicInfo, url, time, quality) => {
+  handlePlayMusic(musicInfo, url, time, quality)
 })
 
-export const setResource = (musicInfo: LX.Player.PlayMusic, url: string, duration?: number) => {
-  playMusic(musicInfo, url, duration ?? 0)
+export const setResource = (musicInfo: LX.Player.PlayMusic, url: string, duration?: number, quality?: LX.Quality | null) => {
+  playMusic(musicInfo, url, duration ?? 0, quality)
 }
 
-export const setPlay = async() => TrackPlayer.play()
-export const getPosition = async() => TrackPlayer.getPosition()
-export const getDuration = async() => TrackPlayer.getDuration()
+export const setPlay = async() => {
+  if (Platform.OS == 'ios' && isNativeFlacActive()) return resumeNativeFlacPlayback()
+  return TrackPlayer.play()
+}
+export const getPosition = async() => {
+  if (Platform.OS == 'ios' && isNativeFlacActive()) return getNativeFlacPosition()
+  return getAccuratePosition()
+}
+export const getDuration = async() => {
+  if (Platform.OS == 'ios' && isNativeFlacActive()) return getNativeFlacDuration()
+  if (Platform.OS == 'ios' && typeof NativeTrackPlayerModule?.getDuration == 'function') {
+    return NativeTrackPlayerModule.getDuration()
+  }
+  return TrackPlayer.getDuration()
+}
 export const setStop = async() => {
+  stopAudioCacheObservation()
+  if (Platform.OS == 'ios' && isNativeFlacActive()) {
+    global.lx.playerTrackId = ''
+    return stopNativeFlacPlayback()
+  }
   await TrackPlayer.stop()
-  if (!isEmpty()) await TrackPlayer.skipToNext()
+  if (Platform.OS != 'ios' && !isEmpty()) await TrackPlayer.skipToNext()
 }
 export const setLoop = async(loop: boolean) => TrackPlayer.setRepeatMode(loop ? RepeatMode.Off : RepeatMode.Track)
 
-export const setPause = async() => TrackPlayer.pause()
+export const setPause = async() => {
+  if (Platform.OS == 'ios' && isNativeFlacActive()) return pauseNativeFlacPlayback()
+  return TrackPlayer.pause()
+}
 // export const skipToNext = () => TrackPlayer.skipToNext()
-export const setCurrentTime = async(time: number) => TrackPlayer.seekTo(time)
-export const setVolume = async(num: number) => TrackPlayer.setVolume(num)
-export const setPlaybackRate = async(num: number) => TrackPlayer.setRate(num)
+export const setCurrentTime = async(time: number) => {
+  if (Platform.OS == 'ios' && isNativeFlacActive()) return seekNativeFlacPlayback(time)
+  return seekToTime(time)
+}
+export const setVolume = async(num: number) => {
+  if (Platform.OS == 'ios' && isNativeFlacActive()) return setNativeFlacVolume(num)
+  return TrackPlayer.setVolume(num)
+}
+export const setPlaybackRate = async(num: number) => {
+  if (Platform.OS == 'ios' && isNativeFlacActive()) return setNativeFlacRate(num)
+  return TrackPlayer.setRate(num)
+}
 export interface NowPlayingTitles {
   title?: string
   artist?: string
@@ -175,19 +247,38 @@ export interface NowPlayingTitles {
   lyric?: string
 }
 export const updateNowPlayingTitles = async(titles: NowPlayingTitles) => {
-  console.log('set playing titles', titles)
+  // iOS metadata stays with the existing NowPlaying coordinator, not the
+  // Android Bluetooth-title bridge introduced by the upstream dependency.
+  if (Platform.OS == 'ios') return
   return TrackPlayer.updateNowPlayingTitles(titles)
 }
 
 export const resetPlay = async() => Promise.all([setPause(), setCurrentTime(0)])
 
-export const isCached = async(url: string) => TrackPlayer.isCached(url)
-export const getCacheSize = async() => TrackPlayer.getCacheSize()
-export const clearCache = async() => TrackPlayer.clearCache()
+export const isCached = async(url: string) => Platform.OS == 'ios'
+  ? /^file:\/\//i.test(url) && await existsFile(decodeURIComponent(url.replace(/^file:\/\//i, '')))
+  : TrackPlayer.isCached(url)
+export const getCacheSize = async() => {
+  if (Platform.OS == 'ios') {
+    const legacy = typeof NativeTrackPlayerModule?.getCacheSize == 'function' ? await NativeTrackPlayerModule.getCacheSize() : 0
+    return legacy + await getAudioCacheSize()
+  }
+  return TrackPlayer.getCacheSize()
+}
+export const clearCache = async() => {
+  if (Platform.OS == 'ios') {
+    await clearAudioCache()
+    if (typeof NativeTrackPlayerModule?.clearCache == 'function') await NativeTrackPlayerModule.clearCache()
+    return
+  }
+  return TrackPlayer.clearCache()
+}
 export const migratePlayerCache = async() => {
-  const newCachePath = privateStorageDirectoryPath + '/TrackPlayer'
+  // Android's TrackPlayer directory migration is not an iOS audio cache.
+  if (Platform.OS == 'ios') return
+  const newCachePath = temporaryDirectoryPath + '/TrackPlayer'
   if (await existsFile(newCachePath)) return
-  const oldCachePath = temporaryDirectoryPath + '/TrackPlayer'
+  const oldCachePath = privateStorageDirectoryPath + '/TrackPlayer'
   if (!await existsFile(oldCachePath)) return
   let timeout: number | null = BackgroundTimer.setTimeout(() => {
     timeout = null
@@ -199,45 +290,109 @@ export const migratePlayerCache = async() => {
 }
 
 export const destroy = async() => {
+  stopAudioCacheObservation()
   if (global.lx.playerStatus.isIniting || !global.lx.playerStatus.isInitialized) return
-  await TrackPlayer.destroy()
-  global.lx.playerStatus.isInitialized = false
+  try {
+    if (Platform.OS == 'ios') await resetNativeFlacPlayback().catch(() => {})
+    await destroyTrackPlayerCore()
+    // Keep the active cache lease for reloadConfig snapshot/restore.
+    // It is released when the next resource opens or on the next app launch.
+  } finally {
+    global.lx.playerStatus.isInitialized = false
+  }
 }
 
 type PlayStatus = 'None' | 'Ready' | 'Playing' | 'Paused' | 'Stopped' | 'Buffering' | 'Connecting'
 
+type NativePlayerState = 'idle' | 'loading' | 'playing' | 'paused' | 'buffering' | 'stopped'
+
+const mapNativeFlacPlayStatus = (state: NativePlayerState): PlayStatus => {
+  switch (state) {
+    case 'loading':
+      return 'Connecting'
+    case 'buffering':
+      return 'Buffering'
+    case 'playing':
+      return 'Playing'
+    case 'paused':
+      return 'Paused'
+    case 'stopped':
+      return 'Stopped'
+    case 'idle':
+    default:
+      return 'None'
+  }
+}
+
 export const onStateChange = async(listener: (state: PlayStatus) => void) => {
-  const sub = TrackPlayer.addEventListener(Event.PlaybackState, state => {
-    let _state: PlayStatus
-    switch (state) {
-      case State.Ready:
-        _state = 'Ready'
+  const removeUnifiedListener = onUnifiedPlayerEvent((event) => {
+    switch (event.type) {
+      case 'state':
+        switch (event.state) {
+          case 'loading':
+            listener('Connecting')
+            break
+          case 'buffering':
+            listener('Buffering')
+            break
+          case 'playing':
+            listener('Playing')
+            break
+          case 'paused':
+            listener('Paused')
+            break
+          case 'stopped':
+            listener('Stopped')
+            break
+          case 'idle':
+          default:
+            listener('None')
+            break
+        }
         break
-      case State.Playing:
-        _state = 'Playing'
+      case 'ended':
+        listener('Stopped')
         break
-      case State.Paused:
-        _state = 'Paused'
-        break
-      case State.Stopped:
-        _state = 'Stopped'
-        break
-      case State.Buffering:
-        _state = 'Buffering'
-        break
-      case State.Connecting:
-        _state = 'Connecting'
-        break
-      case State.None:
-      default:
-        _state = 'None'
+      case 'error':
+        listener('Paused')
         break
     }
-    listener(_state)
   })
+  if (Platform.OS == 'ios' && isNativeFlacActive()) {
+    void getNativeFlacState().then((state) => {
+      listener(mapNativeFlacPlayStatus(state))
+    }).catch(() => {})
+  } else {
+    void TrackPlayer.getState().then((state) => {
+      switch (state) {
+        case State.Ready:
+          listener('Ready')
+          break
+        case State.Playing:
+          listener('Playing')
+          break
+        case State.Paused:
+          listener('Paused')
+          break
+        case State.Stopped:
+          listener('Stopped')
+          break
+        case State.Buffering:
+          listener('Buffering')
+          break
+        case State.Connecting:
+          listener('Connecting')
+          break
+        case State.None:
+        default:
+          listener('None')
+          break
+      }
+    }).catch(() => {})
+  }
 
   return () => {
-    sub.remove()
+    removeUnifiedListener()
   }
 }
 
@@ -248,46 +403,58 @@ export const onStateChange = async(listener: (state: PlayStatus) => void) => {
  */
 // export const playState = callback => TrackPlayer.addEventListener('playback-state', callback)
 
-export const updateOptions = async(options = {
-  // Whether the player should stop running when the app is closed on Android
-  // stopWithApp: true,
+const defaultUpdateOptions = Platform.OS == 'ios'
+  ? {
+      capabilities: [
+        Capability.Play,
+        Capability.Pause,
+        Capability.SeekTo,
+        Capability.SkipToNext,
+        Capability.SkipToPrevious,
+      ],
+    }
+  : {
+      // Whether the player should stop running when the app is closed on Android
+      // stopWithApp: true,
 
-  // An array of media controls capabilities
-  // Can contain CAPABILITY_PLAY, CAPABILITY_PAUSE, CAPABILITY_STOP, CAPABILITY_SEEK_TO,
-  // CAPABILITY_SKIP_TO_NEXT, CAPABILITY_SKIP_TO_PREVIOUS, CAPABILITY_SET_RATING
-  capabilities: [
-    Capability.Play,
-    Capability.Pause,
-    Capability.Stop,
-    Capability.SeekTo,
-    Capability.SkipToNext,
-    Capability.SkipToPrevious,
-  ],
+      // An array of media controls capabilities
+      // Can contain CAPABILITY_PLAY, CAPABILITY_PAUSE, CAPABILITY_STOP, CAPABILITY_SEEK_TO,
+      // CAPABILITY_SKIP_TO_NEXT, CAPABILITY_SKIP_TO_PREVIOUS, CAPABILITY_SET_RATING
+      capabilities: [
+        Capability.Play,
+        Capability.Pause,
+        Capability.Stop,
+        Capability.SeekTo,
+        Capability.SkipToNext,
+        Capability.SkipToPrevious,
+      ],
 
-  notificationCapabilities: [
-    Capability.Play,
-    Capability.Pause,
-    Capability.Stop,
-    Capability.SkipToNext,
-    Capability.SkipToPrevious,
-  ],
+      notificationCapabilities: [
+        Capability.Play,
+        Capability.Pause,
+        Capability.Stop,
+        Capability.SkipToNext,
+        Capability.SkipToPrevious,
+      ],
 
-  // // An array of capabilities that will show up when the notification is in the compact form on Android
-  compactCapabilities: [
-    Capability.Play,
-    Capability.Pause,
-    Capability.Stop,
-    Capability.SkipToNext,
-  ],
+      // // An array of capabilities that will show up when the notification is in the compact form on Android
+      compactCapabilities: [
+        Capability.Play,
+        Capability.Pause,
+        Capability.Stop,
+        Capability.SkipToNext,
+      ],
 
-  // Icons for the notification on Android (if you don't like the default ones)
-  // playIcon: require('./play-icon.png'),
-  // pauseIcon: require('./pause-icon.png'),
-  // stopIcon: require('./stop-icon.png'),
-  // previousIcon: require('./previous-icon.png'),
-  // nextIcon: require('./next-icon.png'),
-  // icon: notificationIcon, // The notification icon
-}) => {
+      // Icons for the notification on Android (if you don't like the default ones)
+      // playIcon: require('./play-icon.png'),
+      // pauseIcon: require('./pause-icon.png'),
+      // stopIcon: require('./stop-icon.png'),
+      // previousIcon: require('./previous-icon.png'),
+      // nextIcon: require('./next-icon.png'),
+      // icon: notificationIcon, // The notification icon
+    }
+
+export const updateOptions = async(options = defaultUpdateOptions) => {
   return TrackPlayer.updateOptions(options)
 }
 

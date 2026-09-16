@@ -1,6 +1,7 @@
 import { updateListMusics } from '@/core/list'
 import { setMaxplayTime, setNowPlayTime } from '@/core/player/progress'
-import { setCurrentTime, getDuration, getPosition } from '@/plugins/player'
+import { getTimelineDuration } from '@/core/player/timeline'
+import { setCurrentTime, getDuration, getPosition } from '@/plugins/player/utils'
 import { formatPlayTime2 } from '@/utils/common'
 import { savePlayInfo } from '@/utils/data'
 import { throttleBackgroundTimer } from '@/utils/tools'
@@ -9,6 +10,8 @@ import playerState from '@/store/player/state'
 import settingState from '@/store/setting/state'
 import { onScreenStateChange } from '@/utils/nativeModules/utils'
 import { AppState } from 'react-native'
+import { createLatestSeek } from '@/core/player/latestSeek'
+import { toast } from '@/utils/tools'
 
 const delaySavePlayInfo = throttleBackgroundTimer(() => {
   void savePlayInfo({
@@ -25,21 +28,42 @@ export default () => {
   let updateTimeout: number | null = null
 
   let isScreenOn = true
+  const seek = createLatestSeek({
+    seek: setCurrentTime,
+    onResult(position) {
+      if (!playerState.musicInfo.id) return
+      setNowPlayTime(position)
+      global.app_event.seekLyric(position)
+    },
+    onError() { toast('调整播放进度失败') },
+  })
+
+  const isRestoringCurrentMusic = () => {
+    const restorePlayInfo = global.lx.restorePlayInfo
+    if (!restorePlayInfo) return false
+    return restorePlayInfo.listId == playerState.playMusicInfo.listId &&
+      restorePlayInfo.index == playerState.playInfo.playIndex
+  }
 
   const getCurrentTime = () => {
-    let id = playerState.musicInfo.id
+    if (seek.busy) return
+    const id = playerState.musicInfo.id
+    const revision = seek.revision
     void getPosition().then(position => {
-      if (!position || id != playerState.musicInfo.id) return
+      if (!Number.isFinite(position) || position < 0 || id != playerState.musicInfo.id ||
+          seek.busy || revision != seek.revision) return
       setNowPlayTime(position)
       if (!playerState.isPlay) return
 
       if (settingState.setting['player.isSavePlayTime'] && !playerState.playMusicInfo.isTempPlay && isScreenOn) {
         delaySavePlayInfo()
       }
-    })
+    }).catch(() => {})
   }
   const getMaxTime = async() => {
-    setMaxplayTime(await getDuration())
+    const duration = await getDuration()
+    const timelineDuration = getTimelineDuration(playerState.playMusicInfo.musicInfo, duration)
+    setMaxplayTime(timelineDuration)
 
     if (playerState.playMusicInfo.musicInfo && 'source' in playerState.playMusicInfo.musicInfo && !playerState.playMusicInfo.musicInfo.interval) {
       // console.log(formatPlayTime2(playProgress.maxPlayTime))
@@ -71,16 +95,16 @@ export default () => {
   }
 
   const setProgress = (time: number, maxTime?: number) => {
-    if (!playerState.musicInfo.id) return
-    // console.log('setProgress', time, maxTime)
-    setNowPlayTime(time)
-    void setCurrentTime(time)
-
-    if (maxTime != null) setMaxplayTime(maxTime)
-
-    // if (!isPlay) audio.play()
+    if (!playerState.musicInfo.id || !Number.isFinite(time)) return
+    if (maxTime != null) setMaxplayTime(getTimelineDuration(playerState.playMusicInfo.musicInfo, maxTime))
+    const duration = playerState.progress.maxPlayTime
+    const target = Math.max(0, duration > 0 ? Math.min(duration, time) : time)
+    // Immediate preview also makes the next relative shortcut accumulate from
+    // the last intended target instead of an old periodic playback snapshot.
+    setNowPlayTime(target)
+    global.app_event.seekLyric(target)
+    seek.request(target)
   }
-
 
   const handlePlay = () => {
     void getMaxTime()
@@ -96,6 +120,7 @@ export default () => {
   }
 
   const handleStop = () => {
+    seek.cancel()
     clearUpdateTimeout()
     setNowPlayTime(0)
     setMaxplayTime(0)
@@ -104,6 +129,7 @@ export default () => {
   }
 
   const handleError = () => {
+    seek.cancel()
     // if (!restorePlayTime) restorePlayTime = getCurrentTime() // 记录出错的播放时间
     // console.log('handleError')
     // prevProgressStatus = 'error'
@@ -113,10 +139,13 @@ export default () => {
 
 
   const handleSetPlayInfo = () => {
+    seek.cancel()
     // restorePlayTime = playProgress.nowPlayTime
     // void setCurrentTime(playerState.progress.nowPlayTime)
     // setMaxplayTime(playProgress.maxPlayTime)
     handlePause()
+    // Skip the startup restore transition so we don't overwrite saved progress with 0.
+    if (isRestoringCurrentMusic()) return
     if (!playerState.playMusicInfo.isTempPlay) {
       void savePlayInfo({
         time: playerState.progress.nowPlayTime,
@@ -160,7 +189,7 @@ export default () => {
   }
 
   // 修复在某些设备上屏幕状态改变事件未触发导致的进度条未更新的问题
-  AppState.addEventListener('change', (state) => {
+  const appStateSubscription = AppState.addEventListener('change', (state) => {
     if (state == 'active' && !isScreenOn) handleScreenStateChanged('ON')
   })
 
@@ -177,5 +206,18 @@ export default () => {
   global.app_event.on('musicToggled', handleSetPlayInfo)
   global.state_event.on('configUpdated', handleConfigUpdated)
 
-  onScreenStateChange(handleScreenStateChanged)
+  const removeScreenListener = onScreenStateChange(handleScreenStateChanged)
+  return () => {
+    seek.cancel()
+    clearUpdateTimeout()
+    appStateSubscription.remove()
+    removeScreenListener()
+    global.app_event.off('play', handlePlay)
+    global.app_event.off('pause', handlePause)
+    global.app_event.off('stop', handleStop)
+    global.app_event.off('error', handleError)
+    global.app_event.off('setProgress', setProgress)
+    global.app_event.off('musicToggled', handleSetPlayInfo)
+    global.state_event.off('configUpdated', handleConfigUpdated)
+  }
 }

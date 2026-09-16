@@ -3,6 +3,13 @@ import state from './state'
 
 type PlayerMusicInfoKeys = keyof LX.Player.MusicInfo
 const musicInfoKeys: PlayerMusicInfoKeys[] = Object.keys(state.musicInfo) as PlayerMusicInfoKeys[]
+const calcProgress = (currentTime: number, totalTime: number) => {
+  if (!totalTime) return 0
+  const progress = currentTime / totalTime
+  if (progress < 0) return 0
+  if (progress > 1) return 1
+  return progress
+}
 
 export default {
   updatePlayIndex(playIndex: number, playerPlayIndex: number) {
@@ -44,14 +51,14 @@ export default {
   setNowPlayTime(time: number) {
     state.progress.nowPlayTime = time
     state.progress.nowPlayTimeStr = formatPlayTime2(time)
-    state.progress.progress = state.progress.maxPlayTime ? time / state.progress.maxPlayTime : 0
+    state.progress.progress = calcProgress(time, state.progress.maxPlayTime)
 
     global.state_event.playProgressChanged({ ...state.progress })
   },
   setMaxplayTime(time: number) {
     state.progress.maxPlayTime = time
     state.progress.maxPlayTimeStr = formatPlayTime2(time)
-    state.progress.progress = time ? state.progress.nowPlayTime / time : 0
+    state.progress.progress = calcProgress(state.progress.nowPlayTime, time)
 
     global.state_event.playProgressChanged({ ...state.progress })
   },
@@ -60,7 +67,7 @@ export default {
     state.progress.nowPlayTimeStr = formatPlayTime2(currentTime)
     state.progress.maxPlayTime = totalTime
     state.progress.maxPlayTimeStr = formatPlayTime2(totalTime)
-    state.progress.progress = totalTime ? state.progress.nowPlayTime / currentTime : 0
+    state.progress.progress = calcProgress(currentTime, totalTime)
 
     global.state_event.playProgressChanged({ ...state.progress })
   },
@@ -81,15 +88,19 @@ export default {
     global.state_event.playPlayedListChanged({ ...state.playedList })
   },
   addTempPlayList(list: LX.Player.TempPlayListItem[]) {
-    const topList: Array<{ listId: string | null, musicInfo: LX.Music.MusicInfo | LX.Download.ListItem }> = []
+    const topList: LX.Player.PlayMusicInfo[] = []
     const bottomList = list.filter(({ isTop, ...musicInfo }) => {
       if (isTop) {
-        topList.push(musicInfo)
+        topList.push({
+          musicInfo: musicInfo.musicInfo,
+          listId: musicInfo.listId,
+          isTempPlay: true,
+        })
         return false
       }
       return true
     })
-    if (topList.length) arrUnshift(state.tempPlayList, topList.map(({ musicInfo, listId }) => ({ musicInfo, listId, isTempPlay: true })))
+    if (topList.length) arrUnshift(state.tempPlayList, topList)
     if (bottomList.length) arrPush(state.tempPlayList, bottomList.map(({ musicInfo, listId }) => ({ musicInfo, listId, isTempPlay: true })))
 
     global.state_event.playTempPlayListChanged({ ...state.tempPlayList })

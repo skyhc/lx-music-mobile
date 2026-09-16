@@ -47,7 +47,7 @@ const handler: LX.Sync.ClientSyncHandlerDislikeActions<LX.Sync.Socket> = {
     socket.moduleReadys.dislike = true
     registerEvent(socket)
     socket.onClose(() => {
-      unregisterEvent()
+      unregisterEvent(socket)
     })
   },
 }

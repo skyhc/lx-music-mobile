@@ -1,6 +1,9 @@
+import { LIST_IDS } from '@/config/constant'
+import useSongKeyboard from '@/utils/hooks/useSongKeyboard'
+import SongTableHeader from '@/components/common/SongTableHeader'
 import { playList } from '@/core/player/player'
 import { useMemo, useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react'
-import { FlatList, type NativeScrollEvent, type NativeSyntheticEvent, type FlatListProps } from 'react-native'
+import { Platform, View, FlatList, type NativeScrollEvent, type NativeSyntheticEvent, type FlatListProps } from 'react-native'
 
 import listState from '@/store/list/state'
 import playerState from '@/store/player/state'
@@ -57,7 +60,8 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
   const currentListIdRef = useRef('')
   const waitJumpListPositionRef = useRef(false)
   const rowInfo = useRef(getRowInfo())
-  const isShowAlbumName = useSettingValue('list.isShowAlbumName')
+  const showAlbumPreference = useSettingValue('list.isShowAlbumName')
+  const isShowAlbumName = Platform.OS == 'ios' || showAlbumPreference
   const isShowInterval = useSettingValue('list.isShowInterval')
   // console.log('render music list')
 
@@ -103,6 +107,7 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
   useEffect(() => {
     let isUpdateingList = true
     const updateList = (id: string) => {
+      if (id != LIST_IDS.TEMP && !listState.allList.some(list => list.id == id)) id = LIST_IDS.DEFAULT
       if (currentListIdRef.current == id) return
       isUpdateingList = true
       setList([])
@@ -249,6 +254,10 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
   }
 
 
+  const keyboardId = useSongKeyboard(currentList, handlePress, index => {
+    flatListRef.current?.scrollToIndex({ index: Math.floor(index / (rowInfo.current.rowNum ?? 1)), viewPosition: 0.4, animated: false })
+  }, playerState.playMusicInfo.musicInfo?.id)
+
   const renderItem: FlatListType['renderItem'] = ({ item, index }) => (
     <ListItem
       item={item}
@@ -258,6 +267,7 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
       onLongPress={handleLongPress}
       onShowMenu={onShowMenu}
       selectedList={selectedList}
+      focused={item.id == keyboardId}
       rowInfo={rowInfo.current}
       isShowAlbumName={isShowAlbumName}
       isShowInterval={isShowInterval}
@@ -269,6 +279,8 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
   }
 
   return (
+    <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+    {Platform.OS == 'ios' ? <SongTableHeader showAlbum={isShowAlbumName} showInterval={isShowInterval} /> : null}
     <FlatList
       ref={flatListRef}
       onScroll={handleScroll}
@@ -283,9 +295,10 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
       initialNumToRender={12}
       renderItem={renderItem}
       keyExtractor={getkey}
-      extraData={activeIndex}
+      extraData={[activeIndex, keyboardId, selectedList]}
       getItemLayout={getItemLayout}
     />
+    </View>
   )
 })
 

@@ -1,9 +1,11 @@
-import { init as initLyricPlayer, toggleTranslation, toggleRoma, play, pause, stop, setLyric, setPlaybackRate } from '@/core/lyric'
+import { init as initLyricPlayer, toggleTranslation, toggleRoma, play, pause, stop, setLyric, setPlaybackRate, seek, onLyricPlay } from '@/core/lyric'
 import { updateSetting } from '@/core/common'
 import { onDesktopLyricPositionChange, showDesktopLyric, onLyricLinePlay, showRemoteLyric } from '@/core/desktopLyric'
 import playerState from '@/store/player/state'
 import { updateNowPlayingTitles } from '@/plugins/player/utils'
+import { updateMetaData } from '@/plugins/player'
 import { setLastLyric } from '@/core/player/playInfo'
+import { Platform } from 'react-native'
 
 const updateRemoteLyric = async(lrc?: string) => {
   setLastLyric(lrc)
@@ -53,12 +55,25 @@ export default async(setting: LX.AppSetting) => {
       void updateRemoteLyric(text)
     }
   })
+  if (Platform.OS == 'ios') {
+    let prevLyric: string | undefined
+    onLyricPlay((line, text) => {
+      const lyric = text || undefined
+      if (lyric === prevLyric) return
+      prevLyric = lyric
+      void updateRemoteLyric(lyric)
+      if (playerState.playMusicInfo.musicInfo) {
+        void updateMetaData(playerState.musicInfo, playerState.isPlay, lyric, true)
+      }
+    })
+  }
 
 
   global.app_event.on('play', play)
   global.app_event.on('pause', pause)
   global.app_event.on('stop', stop)
   global.app_event.on('error', pause)
+  global.app_event.on('seekLyric', seek)
   global.app_event.on('musicToggled', stop)
   global.app_event.on('lyricUpdated', setLyric)
 }

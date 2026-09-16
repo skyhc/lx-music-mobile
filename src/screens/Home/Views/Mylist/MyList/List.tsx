@@ -18,7 +18,8 @@ type FlatListType = FlatListProps<LX.List.MyListInfo>
 
 const ITEM_HEIGHT = scaleSizeH(40)
 
-const ListItem = memo(({ item, index, activeId, onPress, onShowMenu }: {
+const ListItem = memo(({ item, index, activeId, onPress, onShowMenu, compact = false }: {
+  compact?: boolean
   onPress: (item: LX.List.MyListInfo) => void
   index: number
   activeId: string
@@ -45,7 +46,7 @@ const ListItem = memo(({ item, index, activeId, onPress, onShowMenu }: {
   }
 
   return (
-    <View style={{ ...styles.listItem, height: ITEM_HEIGHT }}>
+    <View style={{ ...styles.listItem, height: ITEM_HEIGHT, ...(compact ? { width: 150 } : {}) }}>
       {
         active
           ? <Icon style={styles.listActiveIcon} name="chevron-right" size={12} color={theme['c-primary-font']} />
@@ -61,7 +62,7 @@ const ListItem = memo(({ item, index, activeId, onPress, onShowMenu }: {
     </View>
   )
 }, (prevProps, nextProps) => {
-  return !!(prevProps.item === nextProps.item &&
+  return !!(prevProps.compact === nextProps.compact && prevProps.item === nextProps.item &&
     prevProps.index === nextProps.index &&
     prevProps.item.name == nextProps.item.name &&
     prevProps.activeId != nextProps.item.id &&
@@ -70,7 +71,8 @@ const ListItem = memo(({ item, index, activeId, onPress, onShowMenu }: {
 })
 
 
-export default ({ onShowMenu }: {
+export default ({ onShowMenu, compact = false }: {
+  compact?: boolean
   onShowMenu: (info: { listInfo: LX.List.MyListInfo, index: number }, position: Position) => void
 }) => {
   const flatListRef = useRef<FlatList>(null)
@@ -87,7 +89,7 @@ export default ({ onShowMenu }: {
 
 
   const handleScroll = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
-    void saveListPosition(LIST_SCROLL_POSITION_KEY, nativeEvent.contentOffset.y)
+    void saveListPosition(compact ? `${LIST_SCROLL_POSITION_KEY}_compact` : LIST_SCROLL_POSITION_KEY, compact ? nativeEvent.contentOffset.x : nativeEvent.contentOffset.y)
   }
 
   const showMenu = (listInfo: LX.List.MyListInfo, index: number, position: Position) => {
@@ -95,15 +97,16 @@ export default ({ onShowMenu }: {
   }
 
   useEffect(() => {
-    void getListPosition(LIST_SCROLL_POSITION_KEY).then((offset) => {
+    void getListPosition(compact ? `${LIST_SCROLL_POSITION_KEY}_compact` : LIST_SCROLL_POSITION_KEY).then((offset) => {
       flatListRef.current?.scrollToOffset({ offset, animated: false })
     })
-  }, [])
+  }, [compact])
 
   const renderItem: FlatListType['renderItem'] = ({ item, index }) => (
     <ListItem
       key={item.id}
       item={item}
+      compact={compact}
       index={index}
       activeId={activeListId}
       onPress={handleToggleList}
@@ -117,9 +120,12 @@ export default ({ onShowMenu }: {
 
   return (
     <FlatList
+      key={compact ? 'compact' : 'sidebar'}
       ref={flatListRef}
+      horizontal={compact}
+      showsHorizontalScrollIndicator={false}
       onScroll={handleScroll}
-      style={styles.container}
+      style={compact ? { flexGrow: 0, height: ITEM_HEIGHT + 4 } : styles.container}
       data={allList}
       maxToRenderPerBatch={9}
       // updateCellsBatchingPeriod={80}
@@ -129,7 +135,7 @@ export default ({ onShowMenu }: {
       renderItem={renderItem}
       keyExtractor={getkey}
       // extraData={activeIndex}
-      getItemLayout={getItemLayout}
+      getItemLayout={compact ? undefined : getItemLayout}
     />
   )
 }

@@ -52,6 +52,7 @@ const styles = createStyle({
 })
 
 export interface ConfirmAlertProps {
+  position?: 'center' | 'left'
   onCancel?: () => void
   onHide?: () => void
   onConfirm?: () => void
@@ -74,6 +75,7 @@ export interface ConfirmAlertType {
 
 export default forwardRef<ConfirmAlertType, ConfirmAlertProps>(({
   onHide,
+  position,
   onCancel,
   onConfirm = () => {},
   keyHide,
@@ -105,7 +107,7 @@ export default forwardRef<ConfirmAlertType, ConfirmAlertProps>(({
   }
 
   return (
-    <Dialog onHide={onHide} keyHide={keyHide} bgHide={bgHide} closeBtn={closeBtn} title={title} ref={dialogRef}>
+    <Dialog position={position} onHide={onHide} keyHide={keyHide} bgHide={bgHide} closeBtn={closeBtn} title={title} ref={dialogRef}>
       <View style={styles.main}>
         <ScrollView style={styles.content} keyboardShouldPersistTaps={'always'}>
           {children ?? <Text>{text}</Text>}

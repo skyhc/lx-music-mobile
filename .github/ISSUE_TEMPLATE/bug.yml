@@ -1,58 +1,38 @@
-name: 🐞 报告错误
-description: 报告一个错误（Bug），请先查看常见问题及搜索 Issue 列表中有无你要提的问题。
-title: "[Bug]: "
+name: iOS / iPadOS 问题反馈
+description: 报告本社区移植版的问题；请先搜索本仓库 Issues。
+title: "[iOS Bug]: "
 body:
-- type: checkboxes
-  id: check-answer
-  attributes:
-    label: 解决方案检查
-    description: 请确保你已完成以下所有操作
-    options:
-      - label: 我已阅读 [常见问题](https://lyswhut.github.io/lx-music-doc/mobile/faq)，但没有找到解决方案。
-        required: true
-      - label: 我已搜索 [Issue 列表](https://github.com/lyswhut/lx-music-mobile/issues?q=is%3Aissue+)，但没有发现类似的问题。
-        required: true
-- type: textarea
-  id: expected-behavior
-  attributes:
-    label: 预期行为
-    description: 对期望发生的事情的清晰简明描述。
-  validations:
-    required: true
-- type: textarea
-  id: actual-behavior
-  attributes:
-    label: 实际行为
-    description: 对实际发生的事情的清晰简明描述。
-  validations:
-    required: true
-- type: input
-  id: version
-  attributes:
-    label: LX Music 版本
-    description: 你使用什么版本的 LX Music？
-    placeholder: 例如 1.6.0 arm64-v8a
-  validations:
-    required: true
-- type: input
-  id: last-known-working-version
-  attributes:
-    label: 最后正常的版本
-    description: 如果有，请在此处填写最后正常的版本。
-    placeholder: 1.5.0 arm64-v8a
-- type: input
-  id: operating-system-version
-  attributes:
-    label: 操作系统版本
-    description: |
-      你使用什么版本的操作系统？
-      在 Android 上，通常单击「系统设置 > 关于」。
-      各类厂商定制 Android 系统的位置可能有所不同。
-    placeholder: 例如 Android 15
-  validations:
-    required: true
-- type: textarea
-  id: additional-information
-  attributes:
-    label: 附加信息
-    description: 如果你的问题需要进一步解释，或者你所遇到的问题不容易重现，请在此处添加更多信息。（直接把图片/视频拖到编辑框即可添加图片/视频）
+  - type: markdown
+    attributes:
+      value: "请勿上传证书私钥、配对密码、音源密钥或私人歌单。本仓库为 skyhc 维护的社区移植，不是上游官方 iOS 应用。"
+  - type: input
+    id: version
+    attributes:
+      label: 应用版本与 Build
+      placeholder: 例如 1.9.0 / Build87
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: 设备型号与系统版本
+      placeholder: 例如 iPad Pro / iPadOS 26，或 iPhone / iOS 18
+    validations:
+      required: true
+  - type: input
+    id: install
+    attributes:
+      label: 安装方式与窗口状态
+      placeholder: 自行签名方式、全屏 / 分屏 / 浮动窗口、横屏 / 竖屏
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤、预期结果与实际结果
+      description: 音频问题请附格式、是否缓存及是否使用外接键盘；主题问题请附系统外观和主题模式。
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 截图或脱敏日志
+      description: 请删除凭证、个人地址及私人数据后再提交。

@@ -11,7 +11,7 @@ export const getRandom = (min: number, max: number): number => Math.floor(Math.r
 export const sizeFormate = (size: number): string => {
   // https://gist.github.com/thomseddon/3511330
   if (!size) return '0 B'
-  let units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let units = ['B', 'KiB', 'MiB', 'GiB', 'TiB']
   let number = Math.floor(Math.log(size) / Math.log(1024))
   return `${(size / Math.pow(1024, Math.floor(number))).toFixed(2)} ${units[number]}`
 }
@@ -62,6 +62,20 @@ export const formatPlayTime = (time: number) => {
   let m = Math.trunc(time / 60)
   let s = Math.trunc(time % 60)
   return m == 0 && s == 0 ? '--/--' : numFix(m) + ':' + numFix(s)
+}
+
+export const parsePlayTime = (time?: string | null) => {
+  if (!time) return 0
+  const parts = time.trim().split(':')
+  if (!parts.length || parts.some(part => !/^\d+$/.test(part))) return 0
+
+  let total = 0
+  let unit = 1
+  while (parts.length) {
+    total += parseInt(parts.pop()!, 10) * unit
+    unit *= 60
+  }
+  return total
 }
 
 export const formatPlayTime2 = (time: number) => {

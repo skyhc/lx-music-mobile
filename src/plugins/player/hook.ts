@@ -1,5 +1,13 @@
 import { useEffect, useState, useRef } from 'react'
 import TrackPlayer, { State, Event } from 'react-native-track-player'
+import {
+  getNativeFlacBufferedPosition,
+  getNativeFlacDuration,
+  getNativeFlacPosition,
+  isNativeFlacActive,
+  onNativeFlacPlayerEvent,
+} from './nativeFlac'
+import { getUnifiedPlaybackState, onUnifiedPlayerEvent } from './engine'
 
 /** Get current playback state and subsequent updatates  */
 export const usePlaybackState = () => {
@@ -7,17 +15,68 @@ export const usePlaybackState = () => {
 
   useEffect(() => {
     async function setPlayerState() {
-      const playerState = await TrackPlayer.getState()
-      setState(playerState)
+      const unifiedState = await getUnifiedPlaybackState()
+      switch (unifiedState) {
+        case 'loading':
+          setState(State.Connecting)
+          break
+        case 'buffering':
+          setState(State.Buffering)
+          break
+        case 'playing':
+          setState(State.Playing)
+          break
+        case 'paused':
+          setState(State.Paused)
+          break
+        case 'stopped':
+          setState(State.Stopped)
+          break
+        case 'idle':
+        default:
+          setState(State.None)
+          break
+      }
     }
 
     void setPlayerState()
 
-    const sub = TrackPlayer.addEventListener(Event.PlaybackState, data => {
-      setState(data.state as State)
+    const removeUnifiedListener = onUnifiedPlayerEvent((event) => {
+      if (event.type == 'ended') {
+        setState(State.Stopped)
+        return
+      }
+      if (event.type == 'error') {
+        setState(State.Paused)
+        return
+      }
+      if (event.type != 'state') return
+      switch (event.state) {
+        case 'loading':
+          setState(State.Connecting)
+          break
+        case 'buffering':
+          setState(State.Buffering)
+          break
+        case 'playing':
+          setState(State.Playing)
+          break
+        case 'paused':
+          setState(State.Paused)
+          break
+        case 'stopped':
+          setState(State.Stopped)
+          break
+        case 'idle':
+        default:
+          setState(State.None)
+          break
+      }
     })
 
-    return () => { sub.remove() }
+    return () => {
+      removeUnifiedListener()
+    }
   }, [])
 
   return state
@@ -79,11 +138,17 @@ export function useProgress(updateInterval: number) {
   }, [])
 
   const getProgress = async() => {
-    const [position, duration, buffered] = await Promise.all([
-      TrackPlayer.getPosition(),
-      TrackPlayer.getDuration(),
-      TrackPlayer.getBufferedPosition(),
-    ])
+    const [position, duration, buffered] = isNativeFlacActive()
+      ? await Promise.all([
+        getNativeFlacPosition(),
+        getNativeFlacDuration(),
+        getNativeFlacBufferedPosition(),
+      ])
+      : await Promise.all([
+        TrackPlayer.getPosition(),
+        TrackPlayer.getDuration(),
+        TrackPlayer.getBufferedPosition(),
+      ])
     // After the asynchronous code is executed, if the component has been uninstalled, do not update the status
     if (isUnmountedRef.current) return
 
@@ -119,18 +184,32 @@ export function useBufferProgress() {
     let isUnmounted = false
     let preBuffered = 0
     let duration = 0
-    let interval: NodeJS.Timer | null = null
+    let interval: ReturnType<typeof setInterval> | null = null
 
     const clearItv = () => {
       if (!interval) return
       clearInterval(interval)
       interval = null
     }
+    const resetBuffer = () => {
+      clearItv()
+      preBuffered = 0
+      duration = 0
+      if (!isUnmounted) setProgress(0)
+    }
     const updateBuffer = async() => {
-      const buffered = await (duration ? TrackPlayer.getBufferedPosition() : Promise.all([TrackPlayer.getBufferedPosition(), TrackPlayer.getDuration()]).then(([buffered, _duration]) => {
-        duration = _duration
-        return buffered
-      }))
+      const buffered = await (isNativeFlacActive()
+        ? Promise.all([
+          getNativeFlacBufferedPosition(),
+          duration ? Promise.resolve(duration) : getNativeFlacDuration(),
+        ]).then(([buffered, _duration]) => {
+          duration = _duration
+          return buffered
+        })
+        : (duration ? TrackPlayer.getBufferedPosition() : Promise.all([TrackPlayer.getBufferedPosition(), TrackPlayer.getDuration()]).then(([buffered, _duration]) => {
+            duration = _duration
+            return buffered
+          })))
       // console.log('updateBuffer', buffered, duration, buffered > 0, buffered == duration)
       // After the asynchronous code is executed, if the component has been uninstalled, do not update the status
       if (buffered > 0 && buffered == duration) clearItv()
@@ -140,6 +219,7 @@ export function useBufferProgress() {
     }
 
     const sub = TrackPlayer.addEventListener(Event.PlaybackState, data => {
+      if (isNativeFlacActive()) return
       switch (data.state) {
         case State.None:
           // console.log('state', 'None')
@@ -172,14 +252,47 @@ export function useBufferProgress() {
         //   break
       }
     })
+    const removeNativeFlacListener = onNativeFlacPlayerEvent((event) => {
+      switch (event.type) {
+        case 'state':
+          switch (event.state) {
+            case 'loading':
+            case 'buffering':
+            case 'playing':
+              clearItv()
+              duration = event.duration ?? duration
+              interval = setInterval(updateBuffer, 1000)
+              void updateBuffer()
+              break
+            case 'paused':
+              clearItv()
+              void updateBuffer()
+              break
+            case 'idle':
+            case 'stopped':
+              resetBuffer()
+              break
+          }
+          break
+        case 'ended':
+          resetBuffer()
+          break
+        case 'error':
+          clearItv()
+          void updateBuffer()
+          break
+      }
+    })
 
     void updateBuffer()
+    if (isNativeFlacActive()) void updateBuffer()
     void TrackPlayer.getState().then((state) => {
-      if (state == State.Buffering) interval = setInterval(updateBuffer, 1000)
+      if (!isNativeFlacActive() && state == State.Buffering) interval = setInterval(updateBuffer, 1000)
     })
     return () => {
       isUnmounted = true
       sub.remove()
+      removeNativeFlacListener()
       clearItv()
     }
   }, [])

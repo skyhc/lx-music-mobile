@@ -3,9 +3,12 @@ import { pause, playNext } from '@/core/player/player'
 import { setStatusText, setIsPlay } from '@/core/player/playStatus'
 // import { resetPlayerMusicInfo } from '@/core/player/playInfo'
 import { setStop } from '@/plugins/player'
-import { delayUpdateMusicInfo } from '@/plugins/player/playList'
+import { delayUpdateMusicInfo, updateMetaData } from '@/plugins/player/playList'
+import { soundEffectController } from '@/plugins/player/soundEffect'
 import playerState from '@/store/player/state'
 import settingState from '@/store/setting/state'
+import { onHeadphonesDisconnected } from '@/utils/nativeModules/utils'
+import { Platform } from 'react-native'
 
 
 export default async(setting: LX.AppSetting) => {
@@ -25,7 +28,6 @@ export default async(setting: LX.AppSetting) => {
     }
     // resetPlayerMusicInfo()
     // global.app_event.stop()
-    global.app_event.setProgress(0)
     setStatusText(global.i18n.t('player__end'))
     void playNext(true)
     // })
@@ -44,6 +46,11 @@ export default async(setting: LX.AppSetting) => {
     }
   }
 
+  const refreshNowPlaying = () => {
+    if (!playerState.playMusicInfo.musicInfo) return
+    void updateMetaData(playerState.musicInfo, playerState.isPlay, playerState.lastLyric, true)
+  }
+
   const handleConfigUpdated: typeof global.state_event.configUpdated = (keys, settings) => {
     if (keys.includes('player.togglePlayMethod')) {
       const newValue = settings['player.togglePlayMethod']
@@ -51,6 +58,7 @@ export default async(setting: LX.AppSetting) => {
       const playMusicInfo = playerState.playMusicInfo
       if (newValue == 'random' && playMusicInfo.musicInfo && !playMusicInfo.isTempPlay) addPlayedList({ ...(playMusicInfo as LX.Player.PlayMusicInfo) })
     }
+    if (keys.some(soundEffectController.isSettingKey)) void soundEffectController.applyCurrentConfig()
   }
 
 
@@ -60,5 +68,15 @@ export default async(setting: LX.AppSetting) => {
   global.app_event.on('stop', setStopStatus)
   global.app_event.on('playerEnded', handleEnded)
   global.app_event.on('picUpdated', updatePic)
+  global.app_event.on('musicToggled', refreshNowPlaying)
+  global.app_event.on('lyricUpdated', refreshNowPlaying)
   global.state_event.on('configUpdated', handleConfigUpdated)
+  void soundEffectController.applyCurrentConfig()
+
+  if (Platform.OS == 'ios') {
+    onHeadphonesDisconnected(() => {
+      if (!playerState.isPlay) return
+      void pause()
+    })
+  }
 }

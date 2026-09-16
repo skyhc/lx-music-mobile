@@ -1,3 +1,4 @@
+import { markLibraryInitialized, LOCAL_LIBRARY_ID } from '@/utils/libraryBootstrap'
 import Event from './Event'
 
 import { saveUserList, removeListMusics, saveListMusics } from '@/utils/data'
@@ -16,6 +17,9 @@ import {
   listMusicUpdatePosition,
   listMusicClear,
   allMusicList,
+  isListAvailable,
+  getUserLists,
+  getListMusics,
 } from '@/utils/listManage'
 import { LIST_IDS } from '@/config/constant'
 import { setActiveList, setUserList } from '@/core/list'
@@ -62,6 +66,33 @@ const fixListIdType = (lists: LX.List.UserListInfo[] | LX.List.UserListInfoFull[
 
 
 export class ListEvent extends Event {
+  private mutationTail: Promise<void> = Promise.resolve()
+  private runMutation<T>(task: () => Promise<T>): Promise<T> {
+    const result = this.mutationTail.then(async() => {
+      await getUserLists()
+      return task()
+    })
+    this.mutationTail = result.then(() => {}, () => {})
+    return result
+  }
+
+  /** A detached protocol snapshot, ordered after all earlier durable mutations. */
+  async list_data_snapshot(): Promise<LX.Sync.List.ListData> {
+    return this.runMutation(async() => {
+      const metadata = userLists.map(info => ({ ...info }))
+      const [defaultList, loveList, ...songs] = await Promise.all([
+        getListMusics(LIST_IDS.DEFAULT), getListMusics(LIST_IDS.LOVE),
+        ...metadata.map(info => getListMusics(info.id)),
+      ])
+      const userList = metadata.map(({ id, name, source, sourceListId, locationUpdateTime }, index) => ({
+        id, name, source, sourceListId, locationUpdateTime, list: songs[index],
+      }))
+      // Keep the upstream field order used by snapshot hashing. Do not expose
+      // live arrays to a later async RPC compression or serialization step.
+      return JSON.parse(JSON.stringify({ defaultList, loveList, userList })) as LX.Sync.List.ListData
+    })
+  }
+
   /**
    * 现有歌曲列表更改时触发的事件
    * @param ids
@@ -76,20 +107,22 @@ export class ListEvent extends Event {
    * @param isRemote 是否属于远程操作
    */
   async list_data_overwrite(listData: MakeOptional<LX.List.ListDataFull, 'tempList'>, isRemote: boolean = false) {
-    fixListIdType(listData.userList)
-    const oldIds = userLists.map(l => l.id)
-    const changedIds = listDataOverwrite(listData)
-    await updateUserList(userLists)
-    // await checkUpdateList(changedIds)
-    const removedList = oldIds.filter(id => !allMusicList.has(id))
-    if (removedList.length) await removeListMusics(removedList)
-    const allListIds = [LIST_IDS.DEFAULT, LIST_IDS.LOVE, ...userLists.map(l => l.id)]
-    if (changedIds.includes(LIST_IDS.TEMP)) allListIds.push(LIST_IDS.TEMP)
-    await saveListMusics([...allListIds.map(id => ({ id, musics: allMusicList.get(id) as LX.List.ListMusics }))])
+    return this.runMutation(async() => {
+      fixListIdType(listData.userList)
+      const oldIds = userLists.map(l => l.id)
+      const changedIds = listDataOverwrite(listData)
+      await updateUserList(userLists)
+      // await checkUpdateList(changedIds)
+      const removedList = oldIds.filter(id => !userLists.some(list => list.id == id))
+      if (removedList.length) await removeListMusics(removedList)
+      const allListIds = [LIST_IDS.DEFAULT, LIST_IDS.LOVE, ...userLists.map(l => l.id)]
+      if (changedIds.includes(LIST_IDS.TEMP)) allListIds.push(LIST_IDS.TEMP)
+      await saveListMusics([...allListIds.map(id => ({ id, musics: allMusicList.get(id) as LX.List.ListMusics }))])
 
-    global.app_event.myListMusicUpdate(changedIds)
-    this.emit('list_data_overwrite', listData, isRemote)
-    checkListExist(changedIds)
+      global.app_event.myListMusicUpdate(changedIds)
+      this.emit('list_data_overwrite', listData, isRemote)
+      checkListExist(changedIds)
+    })
   }
 
   /**
@@ -99,14 +132,16 @@ export class ListEvent extends Event {
    * @param isRemote 是否属于远程操作
    */
   async list_create(position: number, lists: LX.List.UserListInfo[], isRemote: boolean = false) {
-    // const changedIds: string[] = []
-    fixListIdType(lists)
-    for (const list of lists) {
-      userListCreate({ ...list, position })
-      // changedIds.push(list.id)
-    }
-    await updateUserList(userLists)
-    this.emit('list_create', position, lists, isRemote)
+    return this.runMutation(async() => {
+      // const changedIds: string[] = []
+      fixListIdType(lists)
+      for (const list of lists) {
+        userListCreate({ ...list, position })
+        // changedIds.push(list.id)
+      }
+      await updateUserList(userLists)
+      this.emit('list_create', position, lists, isRemote)
+    })
   }
 
   /**
@@ -115,13 +150,17 @@ export class ListEvent extends Event {
    * @param isRemote 是否属于远程操作
    */
   async list_remove(ids: string[], isRemote: boolean = false) {
-    const changedIds = userListsRemove(ids)
-    await updateUserList(userLists)
-    await removeListMusics(ids)
-    this.emit('list_remove', ids, isRemote)
-    global.app_event.myListMusicUpdate(changedIds)
+    return this.runMutation(async() => {
+      ids = ids.filter(id => userLists.some(list => list.id == id))
+      if (ids.includes(LOCAL_LIBRARY_ID)) await markLibraryInitialized()
+      const changedIds = userListsRemove(ids)
+      await updateUserList(userLists)
+      await removeListMusics(ids)
+      this.emit('list_remove', ids, isRemote)
+      global.app_event.myListMusicUpdate(changedIds)
 
-    checkListExist(changedIds)
+      checkListExist(changedIds)
+    })
   }
 
   /**
@@ -130,9 +169,11 @@ export class ListEvent extends Event {
    * @param isRemote 是否属于远程操作
    */
   async list_update(lists: LX.List.UserListInfo[], isRemote: boolean = false) {
-    userListsUpdate(lists)
-    await updateUserList(userLists)
-    this.emit('list_update', lists, isRemote)
+    return this.runMutation(async() => {
+      userListsUpdate(lists)
+      await updateUserList(userLists)
+      this.emit('list_update', lists, isRemote)
+    })
   }
 
   /**
@@ -142,9 +183,11 @@ export class ListEvent extends Event {
    * @param isRemote 是否属于远程操作
    */
   async list_update_position(position: number, ids: string[], isRemote: boolean = false) {
-    userListsUpdatePosition(position, ids)
-    await updateUserList(userLists)
-    this.emit('list_update_position', position, ids, isRemote)
+    return this.runMutation(async() => {
+      userListsUpdatePosition(position, ids)
+      await updateUserList(userLists)
+      this.emit('list_update_position', position, ids, isRemote)
+    })
   }
 
   /**
@@ -154,9 +197,12 @@ export class ListEvent extends Event {
    * @param isRemote 是否属于远程操作
    */
   async list_music_overwrite(listId: string, musicInfos: LX.Music.MusicInfo[], isRemote: boolean = false) {
-    const changedIds = await listMusicOverwrite(listId, musicInfos)
-    await checkUpdateList(changedIds)
-    this.emit('list_music_overwrite', listId, musicInfos, isRemote)
+    return this.runMutation(async() => {
+      if (!isListAvailable(listId)) throw new Error('列表已移除')
+      const changedIds = await listMusicOverwrite(listId, musicInfos)
+      await checkUpdateList(changedIds)
+      this.emit('list_music_overwrite', listId, musicInfos, isRemote)
+    })
   }
 
   /**
@@ -167,9 +213,12 @@ export class ListEvent extends Event {
    * @param isRemote 是否属于远程操作
    */
   async list_music_add(listId: string, musicInfos: LX.Music.MusicInfo[], addMusicLocationType: LX.AddMusicLocationType, isRemote: boolean = false) {
-    const changedIds = await listMusicAdd(listId, musicInfos, addMusicLocationType)
-    await checkUpdateList(changedIds)
-    this.emit('list_music_add', listId, musicInfos, addMusicLocationType, isRemote)
+    return this.runMutation(async() => {
+      if (!isListAvailable(listId)) throw new Error('列表已移除')
+      const changedIds = await listMusicAdd(listId, musicInfos, addMusicLocationType)
+      await checkUpdateList(changedIds)
+      this.emit('list_music_add', listId, musicInfos, addMusicLocationType, isRemote)
+    })
   }
 
   /**
@@ -181,9 +230,12 @@ export class ListEvent extends Event {
    * @param isRemote 是否属于远程操作
    */
   async list_music_move(fromId: string, toId: string, musicInfos: LX.Music.MusicInfo[], addMusicLocationType: LX.AddMusicLocationType, isRemote: boolean = false) {
-    const changedIds = await listMusicMove(fromId, toId, musicInfos, addMusicLocationType)
-    await checkUpdateList(changedIds)
-    this.emit('list_music_move', fromId, toId, musicInfos, addMusicLocationType, isRemote)
+    return this.runMutation(async() => {
+      if (!isListAvailable(fromId) || !isListAvailable(toId)) throw new Error('列表已移除')
+      const changedIds = await listMusicMove(fromId, toId, musicInfos, addMusicLocationType)
+      await checkUpdateList(changedIds)
+      this.emit('list_music_move', fromId, toId, musicInfos, addMusicLocationType, isRemote)
+    })
   }
 
   /**
@@ -194,10 +246,13 @@ export class ListEvent extends Event {
    * @param isRemote 是否属于远程操作
    */
   async list_music_remove(listId: string, ids: string[], isRemote: boolean = false) {
-    const changedIds = await listMusicRemove(listId, ids)
-    // console.log(changedIds)
-    await checkUpdateList(changedIds)
-    this.emit('list_music_remove', listId, ids, isRemote)
+    return this.runMutation(async() => {
+      if (!isListAvailable(listId)) throw new Error('列表已移除')
+      const changedIds = await listMusicRemove(listId, ids)
+      // console.log(changedIds)
+      await checkUpdateList(changedIds)
+      this.emit('list_music_remove', listId, ids, isRemote)
+    })
   }
 
   /**
@@ -206,9 +261,12 @@ export class ListEvent extends Event {
    * @param isRemote 是否属于远程操作
    */
   async list_music_update(musicInfos: LX.List.ListActionMusicUpdate, isRemote: boolean = false) {
-    const changedIds = await listMusicUpdateInfo(musicInfos)
-    await checkUpdateList(changedIds)
-    this.emit('list_music_update', musicInfos, isRemote)
+    return this.runMutation(async() => {
+      musicInfos = musicInfos.filter(info => isListAvailable(info.id))
+      const changedIds = await listMusicUpdateInfo(musicInfos)
+      await checkUpdateList(changedIds)
+      this.emit('list_music_update', musicInfos, isRemote)
+    })
   }
 
   /**
@@ -217,9 +275,12 @@ export class ListEvent extends Event {
    * @param isRemote 是否属于远程操作
    */
   async list_music_clear(ids: string[], isRemote: boolean = false) {
-    const changedIds = await listMusicClear(ids)
-    await checkUpdateList(changedIds)
-    this.emit('list_music_clear', ids, isRemote)
+    return this.runMutation(async() => {
+      ids = ids.filter(isListAvailable)
+      const changedIds = await listMusicClear(ids)
+      await checkUpdateList(changedIds)
+      this.emit('list_music_clear', ids, isRemote)
+    })
   }
 
   /**
@@ -230,9 +291,12 @@ export class ListEvent extends Event {
    * @param isRemote 是否属于远程操作
    */
   async list_music_update_position(listId: string, position: number, ids: string[], isRemote: boolean = false) {
-    const changedIds = await listMusicUpdatePosition(listId, position, ids)
-    await checkUpdateList(changedIds)
-    this.emit('list_music_update_position', listId, position, ids, isRemote)
+    return this.runMutation(async() => {
+      if (!isListAvailable(listId)) throw new Error('列表已移除')
+      const changedIds = await listMusicUpdatePosition(listId, position, ids)
+      await checkUpdateList(changedIds)
+      this.emit('list_music_update_position', listId, position, ids, isRemote)
+    })
   }
 }
 

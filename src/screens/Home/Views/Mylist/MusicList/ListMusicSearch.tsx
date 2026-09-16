@@ -10,12 +10,14 @@ import { View } from 'react-native'
 import { scaleSizeH } from '@/utils/pixelRatio'
 import { getListMusics } from '@/core/list'
 import listState from '@/store/list/state'
+import { BorderWidths } from '@/theme'
+import { useI18n } from '@/lang'
 
 type SearchTipListProps = _SearchTipListProps<LX.Music.MusicInfo>
 interface ListMusicSearchProps {
   onScrollToInfo: (info: LX.Music.MusicInfo) => void
 }
-export const ITEM_HEIGHT = scaleSizeH(46)
+export const ITEM_HEIGHT = scaleSizeH(56)
 
 export interface ListMusicSearchType {
   search: (keyword: string, height: number) => void
@@ -33,21 +35,26 @@ export default forwardRef<ListMusicSearchType, ListMusicSearchProps>(({ onScroll
   const [visible, setVisible] = useState(false)
   const currentListIdRef = useRef('')
   const currentKeywordRef = useRef('')
+  const currentSearchIdRef = useRef(0)
   const theme = useTheme()
+  const t = useI18n()
 
   const handleShowList = (keyword: string, height: number) => {
     searchTipListRef.current?.setHeight(height)
     currentKeywordRef.current = keyword
+    const searchId = ++currentSearchIdRef.current
     const id = currentListIdRef.current = listState.activeListId
     if (keyword) {
       void getListMusics(id).then(list => {
+        if (currentListIdRef.current != id || currentKeywordRef.current != keyword || currentSearchIdRef.current != searchId) return
         debounceSearchList(keyword, list, (list) => {
-          if (currentListIdRef.current != id) return
+          if (currentListIdRef.current != id || currentKeywordRef.current != keyword || currentSearchIdRef.current != searchId) return
           searchTipListRef.current?.setList(list)
         })
       })
     } else {
-      searchTipListRef.current?.setList([])
+      currentSearchIdRef.current = searchId
+      searchTipListRef.current?.hide()
     }
   }
 
@@ -64,7 +71,8 @@ export default forwardRef<ListMusicSearchType, ListMusicSearchProps>(({ onScroll
     hide() {
       currentKeywordRef.current = ''
       currentListIdRef.current = ''
-      searchTipListRef.current?.setList([])
+      currentSearchIdRef.current++
+      searchTipListRef.current?.hide()
     },
   }))
 
@@ -72,9 +80,12 @@ export default forwardRef<ListMusicSearchType, ListMusicSearchProps>(({ onScroll
     const updateList = (id: string) => {
       currentListIdRef.current = id
       if (!currentKeywordRef.current) return
+      const keyword = currentKeywordRef.current
+      const searchId = ++currentSearchIdRef.current
       void getListMusics(listState.activeListId).then(list => {
-        debounceSearchList(currentKeywordRef.current, list, (list) => {
-          if (currentListIdRef.current != id) return
+        if (currentListIdRef.current != id || currentKeywordRef.current != keyword || currentSearchIdRef.current != searchId) return
+        debounceSearchList(keyword, list, (list) => {
+          if (currentListIdRef.current != id || currentKeywordRef.current != keyword || currentSearchIdRef.current != searchId) return
           searchTipListRef.current?.setList(list)
         })
       })
@@ -95,7 +106,14 @@ export default forwardRef<ListMusicSearchType, ListMusicSearchProps>(({ onScroll
 
   const renderItem = ({ item, index }: { item: LX.Music.MusicInfo, index: number }) => {
     return (
-      <Button style={styles.item} onPress={() => { onScrollToInfo(item) }} key={index}>
+      <Button
+        style={{
+          ...styles.item,
+          borderTopColor: theme['c-border-background'],
+          borderTopWidth: index ? BorderWidths.normal2 : 0,
+        }}
+        onPress={() => { onScrollToInfo(item) }}
+        key={index}>
         <View style={styles.itemName}>
           <Text numberOfLines={1}>{item.name}</Text>
           <Text style={styles.subName} numberOfLines={1} size={12} color={theme['c-font-label']}>{item.singer} ({item.meta.albumName})</Text>
@@ -114,7 +132,9 @@ export default forwardRef<ListMusicSearchType, ListMusicSearchProps>(({ onScroll
       ? <SearchTipList
           ref={searchTipListRef}
           renderItem={renderItem}
-          onPressBg={() => searchTipListRef.current?.setList([])}
+          onPressBg={() => searchTipListRef.current?.hide()}
+          hideWhenEmpty={false}
+          ListEmptyComponent={<View style={styles.empty}><Text color={theme['c-font-label']}>{t('no_item')}</Text></View>}
           keyExtractor={getkey}
           getItemLayout={getItemLayout}
         />
@@ -130,7 +150,6 @@ const styles = createStyle({
     alignItems: 'center',
     paddingLeft: 15,
     paddingRight: 15,
-    // backgroundColor: 'rgba(0, 0, 0, 0.2)',
   },
   itemName: {
     flexGrow: 1,
@@ -142,6 +161,13 @@ const styles = createStyle({
   itemSource: {
     flexGrow: 0,
     flexShrink: 0,
+  },
+  empty: {
+    paddingTop: 15,
+    paddingBottom: 15,
+    paddingLeft: 15,
+    paddingRight: 15,
+    alignItems: 'center',
   },
 })
 
