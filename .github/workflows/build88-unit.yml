@@ -5,6 +5,9 @@ on:
     paths:
       - 'src/**'
       - 'scripts/check-player-bar-theme.js'
+      - 'scripts/check-mylist-location.js'
+      - 'scripts/check-build81-regressions.js'
+      - 'scripts/check-build82-regressions.js'
       - '.github/workflows/build88-unit.yml'
   workflow_dispatch:
 permissions:
@@ -21,3 +24,6 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: node scripts/check-player-bar-theme.js
+      - run: node scripts/check-build81-regressions.js
+      - run: node scripts/check-build82-regressions.js
+      - run: node scripts/check-mylist-location.js

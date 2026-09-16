@@ -77,6 +77,7 @@ jobs:
           node scripts/check-build80-regressions.js 2>&1 | tee build/checks/build80-regressions.log
           node scripts/check-build81-regressions.js 2>&1 | tee build/checks/build81-regressions.log
           node scripts/check-build82-regressions.js 2>&1 | tee build/checks/build82-regressions.log
+          node scripts/check-mylist-location.js 2>&1 | tee build/checks/mylist-location.log
           node scripts/check-build84-regressions.js | tee build/checks/build84.log
           node scripts/check-build85-regressions.js | tee build/checks/build85.log
           node scripts/check-build86-regressions.js | tee build/checks/build86.log

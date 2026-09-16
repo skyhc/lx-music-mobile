@@ -162,7 +162,8 @@ check('landscape library/chart omit the generic duplicate header row', () => {
   }).default
   for (id of ['nav_love','nav_top']) assert.equal(Header().type, 'StatusBar')
   id = 'nav_search'; assert.equal(Header().type, 'Fragment')
-  assert.ok(source('src/screens/Home/Views/Mylist/MusicList/ActiveList.tsx').includes("sidebarOwnsTitle ? '回到顶部' : currentListName"))
+  // The sidebar still owns the list name; the toolbar now exposes locate-playing.
+  require('./check-mylist-location').assertSidebarLibraryToolbar()
 })
 check('scene-owned window is installed before the single RNN bridge starts', () => {
   const native = source('ios/LxMusicMobile/AppDelegate.mm')

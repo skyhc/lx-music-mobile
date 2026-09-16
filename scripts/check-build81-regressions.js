@@ -78,9 +78,9 @@ check('layout switches without restart; narrow windows never keep table mode', (
 check('compact library selector replaces rather than duplicates the title toolbar', () => {
   assert.ok(source('src/screens/Home/Views/Mylist/index.tsx').includes('listSelector={sidebar ? undefined : <MyList compact />}'))
   assert.ok(source('src/screens/Home/Views/Mylist/MusicList/index.tsx').includes('<ActiveList listSelector={listSelector}'))
-  const active = source('src/screens/Home/Views/Mylist/MusicList/ActiveList.tsx')
-  assert.ok(active.indexOf('if (listSelector) return') < active.indexOf("{sidebarOwnsTitle ? '回到顶部' : currentListName}"))
-  assert.ok(active.includes('accessibilityLabel="搜索当前列表"'))
+  // Preserve the no-duplicate-toolbar contract by rendering it and invoking its callbacks.
+  // Build88 intentionally replaces the obsolete top-scroll action with locate-playing.
+  require('./check-mylist-location').assertCompactLibraryToolbar()
 })
 check('online, library and player queue share row geometry and compact renderer', () => {
   for (const file of ['src/components/OnlineList/ListItem.tsx','src/screens/Home/Views/Mylist/MusicList/ListItem.tsx',
