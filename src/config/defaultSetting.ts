@@ -64,6 +64,7 @@ const defaultSetting: LX.AppSetting = {
 
   // 'playDetail.isZoomActiveLrc': false,
   // 'playDetail.isShowLyricProgressSetting': false,
+  'playDetail.coverStyle': 'square',
   'playDetail.style.align': 'left',
   'playDetail.vertical.style.lrcFontSize': 210,
   'playDetail.horizontal.style.lrcFontSize': 220,

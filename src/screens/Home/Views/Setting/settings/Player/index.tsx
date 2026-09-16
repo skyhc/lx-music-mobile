@@ -13,6 +13,7 @@ import IsShowLyricTranslation from './IsShowLyricTranslation'
 import IsShowLyricRoma from './IsShowLyricRoma'
 import IsS2T from './IsS2T'
 import MaxCache from './MaxCache'
+import CoverStyle from './CoverStyle'
 import { useI18n } from '@/lang'
 import { isDesktopLyricSupported } from '@/utils/nativeModules/lyricDesktop'
 
@@ -22,6 +23,7 @@ export default memo(() => {
 
   return (
     <Section title={t('setting_player')}>
+      <CoverStyle />
       <IsSavePlayTime />
       <IsAutoCleanPlayedList />
       <IsHandleAudioFocus />

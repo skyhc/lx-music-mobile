@@ -4,7 +4,7 @@ import { usePlayerMusicInfo } from '@/store/player/hook'
 import { useNavigationComponentDidAppear } from '@/navigation'
 import { NAV_SHEAR_NATIVE_IDS } from '@/config/constant'
 import { createStyle } from '@/utils/tools'
-import Image from '@/components/common/Image'
+import PlayerCover from '@/components/player/PlayerCover'
 import commonState from '@/store/common/state'
 
 export default memo(({ componentId }: { componentId: string }) => {
@@ -26,8 +26,7 @@ export default memo(({ componentId }: { componentId: string }) => {
   return (
     <View style={styles.container} onLayout={handleLayout}>
       <View style={{ elevation: animated ? 3 : 0, borderRadius: 4 }}>
-        <Image url={pic} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_pic}
-          style={{ width: size, height: size, borderRadius: 2 }} />
+        <PlayerCover url={pic} componentId={componentId} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_pic} size={size} />
       </View>
     </View>
   )

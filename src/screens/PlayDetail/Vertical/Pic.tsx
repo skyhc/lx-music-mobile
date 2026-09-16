@@ -7,12 +7,12 @@ import { useWindowSize } from '@/utils/hooks'
 import { NAV_SHEAR_NATIVE_IDS } from '@/config/constant'
 import { useNavigationComponentDidAppear } from '@/navigation'
 import { HEADER_HEIGHT } from './components/Header'
-import Image from '@/components/common/Image'
+import PlayerCover from '@/components/player/PlayerCover'
 import { useStatusbarHeight } from '@/store/common/hook'
 import commonState from '@/store/common/state'
 
 
-export default ({ componentId }: { componentId: string }) => {
+export default ({ componentId, active = true }: { componentId: string, active?: boolean }) => {
   const musicInfo = usePlayerMusicInfo()
   const { width: winWidth, height: winHeight } = useWindowSize()
   const statusBarHeight = useStatusbarHeight()
@@ -40,7 +40,7 @@ export default ({ componentId }: { componentId: string }) => {
   return (
     <View style={styles.container}>
       <View style={{ ...styles.content, elevation: animated ? 3 : 0 }}>
-        <Image url={pic} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_pic} style={style} />
+        <PlayerCover url={pic} componentId={componentId} active={active} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_pic} size={style.width} />
       </View>
     </View>
   )

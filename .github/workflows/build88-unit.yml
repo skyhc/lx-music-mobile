@@ -8,12 +8,13 @@ on:
       - 'scripts/check-mylist-location.js'
       - 'scripts/check-build81-regressions.js'
       - 'scripts/check-build82-regressions.js'
+      - 'scripts/check-build88-cover.js'
       - '.github/workflows/build88-unit.yml'
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  dock-regression:
+  build88-regression:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -27,3 +28,4 @@ jobs:
       - run: node scripts/check-build81-regressions.js
       - run: node scripts/check-build82-regressions.js
       - run: node scripts/check-mylist-location.js
+      - run: node scripts/check-build88-cover.js
