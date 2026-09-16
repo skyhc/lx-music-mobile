@@ -10,6 +10,7 @@ import { createStyle } from '@/utils/tools'
 // import { useSettingValue } from '@/store/setting/hook'
 import { useTheme } from '@/store/theme/hook'
 import { useSettingValue } from '@/store/setting/hook'
+import { playerBarBackground } from '@/theme/playerBar'
 
 
 export default memo(({ isHome = false }: { isHome?: boolean }) => {
@@ -19,7 +20,7 @@ export default memo(({ isHome = false }: { isHome?: boolean }) => {
   const autoHidePlayBar = useSettingValue('common.autoHidePlayBar')
 
   const playerComponent = useMemo(() => (
-    <View style={{ ...styles.container, backgroundColor: theme['c-content-background'] }}>
+    <View testID="player-bottom-bar" style={{ ...styles.container, backgroundColor: playerBarBackground(theme) }}>
       <Pic isHome={isHome} />
       <View style={styles.center}>
         <Title isHome={isHome} />
