@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react'
+import { forwardRef, useImperativeHandle, useMemo, useState } from 'react'
 import { TouchableOpacity, Platform, View } from 'react-native'
 
 import { Icon } from '@/components/common/Icon'
@@ -6,8 +6,6 @@ import { BorderWidths } from '@/theme'
 import { useTheme } from '@/store/theme/hook'
 import { useActiveListId, useListFetching, useMyList } from '@/store/list/hook'
 import { createStyle } from '@/utils/tools'
-import { getListPrevSelectId } from '@/utils/data'
-import { setActiveList } from '@/core/list'
 import Text from '@/components/common/Text'
 import { LIST_IDS } from '@/config/constant'
 import Loading from '@/components/common/Loading'
@@ -17,13 +15,13 @@ import { useSettingValue } from '@/store/setting/hook'
 export interface ActiveListProps {
   listSelector?: React.ReactNode
   onShowSearchBar: () => void
-  onScrollToTop: () => void
+  onLocatePlaying: () => void
 }
 export interface ActiveListType {
   setVisibleBar: (visible: boolean) => void
 }
 
-export default forwardRef<ActiveListType, ActiveListProps>(({ onShowSearchBar, onScrollToTop, listSelector }, ref) => {
+export default forwardRef<ActiveListType, ActiveListProps>(({ onShowSearchBar, onLocatePlaying, listSelector }, ref) => {
   const theme = useTheme()
   const horizontal = useHorizontalMode()
   const sidebarOwnsTitle = Platform.OS == 'ios' && horizontal
@@ -53,19 +51,19 @@ export default forwardRef<ActiveListType, ActiveListProps>(({ onShowSearchBar, o
   }))
 
   const showList = () => {
-    if (Platform.OS == 'ios') onScrollToTop()
+    if (Platform.OS == 'ios') onLocatePlaying()
     else global.app_event.changeLoveListVisible(true)
   }
 
-  useEffect(() => {
-    void getListPrevSelectId().then((id) => {
-      setActiveList(id)
-    })
-  }, [])
+  // List owns initial selection; a second delayed selector read could undo a user jump.
 
   if (listSelector) return <View testID="compact-library-toolbar" pointerEvents={visibleBar ? 'auto' : 'none'}
     style={{ ...styles.currentList, height: 48, opacity: visibleBar ? 1 : 0, borderBottomColor: theme['c-border-background'] }}>
     <View style={{ flex: 1, minWidth: 0 }}>{listSelector}</View>
+    <TouchableOpacity testID="library-locate-playing" accessibilityRole="button" accessibilityLabel="定位当前播放歌曲"
+      style={styles.currentListBtns} onPress={onLocatePlaying}>
+      <Icon color={theme['c-button-font']} name="list-order" />
+    </TouchableOpacity>
     {fetching ? <Loading color={theme['c-button-font']} /> : null}
     <TouchableOpacity accessibilityRole="button" accessibilityLabel="搜索当前列表" style={styles.currentListBtns} onPress={onShowSearchBar}>
       <Icon color={theme['c-button-font']} name="search-2" />
@@ -73,10 +71,10 @@ export default forwardRef<ActiveListType, ActiveListProps>(({ onShowSearchBar, o
   </View>
 
   return (
-    <TouchableOpacity onPress={showList} onLongPress={onScrollToTop} style={{ ...styles.currentList, opacity: visibleBar ? 1 : 0, borderBottomColor: theme['c-border-background'] }}>
+    <TouchableOpacity testID="library-locate-playing" accessibilityRole="button" accessibilityLabel={Platform.OS == 'ios' ? '定位当前播放歌曲' : currentListName} onPress={showList} onLongPress={onLocatePlaying} style={{ ...styles.currentList, opacity: visibleBar ? 1 : 0, borderBottomColor: theme['c-border-background'] }}>
       <Icon style={styles.currentListIcon} color={theme['c-button-font']} name="list-order" size={14} />
       { fetching ? <Loading color={theme['c-button-font']} style={styles.loading} /> : null }
-      <Text style={styles.currentListText} numberOfLines={1} color={theme['c-button-font']}>{sidebarOwnsTitle ? '回到顶部' : currentListName}</Text>
+      <Text style={styles.currentListText} numberOfLines={1} color={theme['c-button-font']}>{sidebarOwnsTitle ? '定位当前播放歌曲' : currentListName}</Text>
       <TouchableOpacity style={styles.currentListBtns} onPress={onShowSearchBar}>
         <Icon color={theme['c-button-font']} name="search-2" />
       </TouchableOpacity>

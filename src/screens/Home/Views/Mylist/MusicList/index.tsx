@@ -57,8 +57,8 @@ export default ({ listSelector }: { listSelector?: React.ReactNode }) => {
     multipleModeBarRef.current?.setSwitchMode(mode)
     listRef.current?.setSelectMode(mode)
   }, [])
-  const hancelScrollToTop = useCallback(() => {
-    listRef.current?.scrollToTop()
+  const handleLocatePlaying = useCallback(() => {
+    global.app_event.jumpListPosition()
   }, [])
 
   const showMenu = useCallback((musicInfo: LX.Music.MusicInfo, index: number, position: Position) => {
@@ -122,7 +122,7 @@ export default ({ listSelector }: { listSelector?: React.ReactNode }) => {
   return (
     <View style={styles.container}>
       <View style={{ zIndex: 2 }}>
-        <ActiveList listSelector={listSelector} ref={activeListRef} onShowSearchBar={handleShowSearch} onScrollToTop={hancelScrollToTop} />
+        <ActiveList listSelector={listSelector} ref={activeListRef} onShowSearchBar={handleShowSearch} onLocatePlaying={handleLocatePlaying} />
         <MultipleModeBar
           ref={multipleModeBarRef}
           onSwitchMode={hancelSwitchSelectMode}

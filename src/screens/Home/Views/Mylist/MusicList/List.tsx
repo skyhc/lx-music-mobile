@@ -5,13 +5,14 @@ import { playList } from '@/core/player/player'
 import { useMemo, useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { Platform, View, FlatList, type NativeScrollEvent, type NativeSyntheticEvent, type FlatListProps } from 'react-native'
 
+import { findMusicIndex, resolveLibraryLocation, type LibraryLocation } from '@/core/listLocation'
 import listState from '@/store/list/state'
 import playerState from '@/store/player/state'
 import { getListPosition, getListPrevSelectId, saveListPosition } from '@/utils/data'
 // import { useMusicList } from '@/store/list/hook'
 import { getListMusics, setActiveList } from '@/core/list'
 import ListItem, { ITEM_HEIGHT } from './ListItem'
-import { createStyle, getRowInfo } from '@/utils/tools'
+import { createStyle, getRowInfo, toast } from '@/utils/tools'
 import { usePlayInfo, usePlayMusicInfo } from '@/store/player/hook'
 import type { Position } from './ListMenu'
 import type { SelectMode } from './MultipleModeBar'
@@ -34,14 +35,14 @@ export interface ListType {
   scrollToTop: () => void
 }
 
-const usePlayIndex = () => {
+const usePlayIndex = (musics: LX.List.ListMusics) => {
   const activeListId = useActiveListId()
   const playMusicInfo = usePlayMusicInfo()
   const playInfo = usePlayInfo()
 
   const playIndex = useMemo(() => {
-    return playMusicInfo.listId == activeListId ? playInfo.playIndex : -1
-  }, [activeListId, playInfo.playIndex, playMusicInfo.listId])
+    return playMusicInfo.listId == activeListId ? findMusicIndex(musics, playMusicInfo.musicInfo?.id ?? '') : -1
+  }, [activeListId, playInfo.playIndex, playMusicInfo.listId, playMusicInfo.musicInfo?.id, musics])
 
   return playIndex
 }
@@ -58,7 +59,9 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
   const [selectedList, setSelectedList] = useState<LX.List.ListMusics>([])
   const selectedListRef = useRef<LX.List.ListMusics>([])
   const currentListIdRef = useRef('')
-  const waitJumpListPositionRef = useRef(false)
+  const waitJumpListPositionRef = useRef<LibraryLocation | null>(null)
+  const displayedListRef = useRef<LX.List.ListMusics>([])
+  const locateGenerationRef = useRef(0)
   const rowInfo = useRef(getRowInfo())
   const showAlbumPreference = useSettingValue('list.isShowAlbumName')
   const isShowAlbumName = Platform.OS == 'ios' || showAlbumPreference
@@ -90,7 +93,9 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
       return selectedListRef.current
     },
     scrollToInfo(info) {
-      void getListMusics(listState.activeListId).then((list) => {
+      const id = listState.activeListId
+      void getListMusics(id).then((list) => {
+        if (currentListIdRef.current != id) return
         const index = list.findIndex(m => m.id == info.id)
         if (index < 0) return
         flatListRef.current?.scrollToIndex({ index: Math.floor(index / (rowInfo.current.rowNum ?? 1)), viewPosition: 0.3, animated: true })
@@ -105,84 +110,138 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
   }))
 
   useEffect(() => {
+    let mounted = true
     let isUpdateingList = true
+    let loadGeneration = 0
+    let jumpAfterLoad = global.lx.jumpMyListPosition
+    global.lx.jumpMyListPosition = false
+    const scrollToMusic = (musicId: string, list: LX.List.ListMusics, animated: boolean) => {
+      const index = findMusicIndex(list, musicId)
+      if (index < 0) return false
+      const row = Math.floor(index / (rowInfo.current.rowNum ?? 1))
+      // Every row has a fixed measured height (also used by getItemLayout).
+      flatListRef.current?.scrollToIndex({ index: row, viewPosition: 0.3, animated })
+      return true
+    }
     const updateList = (id: string) => {
+      if (!mounted) return
       if (id != LIST_IDS.TEMP && !listState.allList.some(list => list.id == id)) id = LIST_IDS.DEFAULT
       if (currentListIdRef.current == id) return
+      if (waitJumpListPositionRef.current?.listId != id) waitJumpListPositionRef.current = null
+      const generation = ++loadGeneration
       isUpdateingList = true
       setList([])
+      displayedListRef.current = []
       currentListIdRef.current = id
       void Promise.all([getListMusics(id), getListPosition(id)]).then(([list, position]) => {
         requestAnimationFrame(() => {
-          if (currentListIdRef.current != id) return
+          if (!mounted || currentListIdRef.current != id || generation != loadGeneration) return
           selectedListRef.current = []
           setSelectedList([])
-          setList([...list])
+          displayedListRef.current = [...list]
+          setList(displayedListRef.current)
           requestAnimationFrame(() => {
+            if (!mounted || currentListIdRef.current != id || generation != loadGeneration) return
             isUpdateingList = false
             listFirstScrollRef.current = true
-            if (waitJumpListPositionRef.current) {
-              waitJumpListPositionRef.current = false
-              if (playerState.playMusicInfo.listId == id && playerState.playInfo.playIndex > -1) {
-                try {
-                  flatListRef.current?.scrollToIndex({ index: Math.floor(playerState.playInfo.playIndex / (rowInfo.current.rowNum ?? 1)), viewPosition: 0.3, animated: false })
-                  return
-                } catch {}
-              }
+            const pending = waitJumpListPositionRef.current
+            waitJumpListPositionRef.current = null
+            if (pending?.listId == id && pending.musicId == playerState.playMusicInfo.musicInfo?.id) {
+              if (scrollToMusic(pending.musicId, displayedListRef.current, false)) return
             }
             flatListRef.current?.scrollToOffset({ offset: position, animated: false })
+            if (jumpAfterLoad) handleJumpPosition()
           })
         })
+      }).catch(() => {
+        if (!mounted || currentListIdRef.current != id || generation != loadGeneration) return
+        isUpdateingList = false
+        waitJumpListPositionRef.current = null
+        toast('读取列表失败，请重试')
       })
     }
     const handleChange = (ids: string[]) => {
       if (!ids.includes(listState.activeListId)) return
       const id = listState.activeListId
+      const generation = ++loadGeneration
       void getListMusics(id).then((list) => {
-        if (currentListIdRef.current != id) return
+        if (!mounted || currentListIdRef.current != id || generation != loadGeneration) return
         selectedListRef.current = []
         setSelectedList([])
-        setList([...list])
+        displayedListRef.current = [...list]
+        setList(displayedListRef.current)
+        requestAnimationFrame(() => {
+          if (!mounted || currentListIdRef.current != id || generation != loadGeneration) return
+          isUpdateingList = false
+          const pending = waitJumpListPositionRef.current
+          waitJumpListPositionRef.current = null
+          if (pending?.listId == id && pending.musicId == playerState.playMusicInfo.musicInfo?.id) {
+            scrollToMusic(pending.musicId, displayedListRef.current, true)
+          }
+          if (jumpAfterLoad) handleJumpPosition()
+        })
+      }).catch(() => {
+        if (!mounted || currentListIdRef.current != id || generation != loadGeneration) return
+        isUpdateingList = false
+        waitJumpListPositionRef.current = null
+        toast('读取列表失败，请重试')
       })
     }
 
     const handleJumpPosition = () => {
-      requestAnimationFrame(() => {
-        const listId = playerState.playMusicInfo.listId
-        if (!listId) return
-        if (listId != listState.activeListId) {
-          setActiveList(listId)
-          if (currentListIdRef.current != listId) waitJumpListPositionRef.current = true
-        } else if (playerState.playInfo.playIndex > -1) {
-          if (isUpdateingList) waitJumpListPositionRef.current = true
-          else {
-            try {
-              flatListRef.current?.scrollToIndex({ index: Math.floor(playerState.playInfo.playIndex / (rowInfo.current.rowNum ?? 1)), viewPosition: 0.3, animated: true })
-            } catch {}
+      jumpAfterLoad = false
+      const musicId = playerState.playMusicInfo.musicInfo?.id
+      const generation = ++locateGenerationRef.current
+      const activeAtRequest = listState.activeListId
+      if (!musicId) { toast('当前没有正在播放的歌曲'); return }
+      const isCurrent = () => mounted && generation == locateGenerationRef.current &&
+        musicId == playerState.playMusicInfo.musicInfo?.id && listState.activeListId == activeAtRequest
+      void resolveLibraryLocation({ musicId, activeListId: activeAtRequest,
+        playingListId: playerState.playMusicInfo.listId,
+        listIds: listState.allList.map(list => list.id), readList: getListMusics, isCurrent,
+      }).then(location => {
+        if (!isCurrent()) return
+        if (!location) { toast('正在播放的歌曲不在我的列表中'); return }
+        if (location.listId == currentListIdRef.current && !isUpdateingList) {
+          if (!scrollToMusic(location.musicId, displayedListRef.current, true)) {
+            waitJumpListPositionRef.current = location
+            handleChange([location.listId])
           }
+        } else {
+          // Set pending before emitting mylistToggled; event delivery is synchronous.
+          waitJumpListPositionRef.current = location
+          if (location.listId != listState.activeListId) setActiveList(location.listId)
+          else if (currentListIdRef.current != location.listId) updateList(location.listId)
         }
-      })
+      }).catch(() => { if (isCurrent()) toast('定位失败，请重试') })
     }
-    if (global.lx.jumpMyListPosition) {
-      global.lx.jumpMyListPosition = false
-      if (playerState.playMusicInfo.listId) {
-        waitJumpListPositionRef.current = true
-        updateList(playerState.playMusicInfo.listId)
-      } else void getListPrevSelectId().then(updateList)
-    } else void getListPrevSelectId().then(updateList)
+    const initialize = (savedId: string) => {
+      if (!mounted) return
+      if (!currentListIdRef.current) {
+        const requested = listState.activeListId || savedId
+        const id = requested == LIST_IDS.TEMP || listState.allList.some(list => list.id == requested)
+          ? requested : LIST_IDS.DEFAULT
+        if (listState.activeListId != id) setActiveList(id)
+        updateList(id)
+      } else if (jumpAfterLoad && !isUpdateingList) handleJumpPosition()
+    }
+    void getListPrevSelectId().then(initialize).catch(() => initialize(LIST_IDS.DEFAULT))
 
     global.state_event.on('mylistToggled', updateList)
     global.app_event.on('myListMusicUpdate', handleChange)
     global.app_event.on('jumpListPosition', handleJumpPosition)
 
     return () => {
+      mounted = false
+      ++locateGenerationRef.current
+      waitJumpListPositionRef.current = null
       global.state_event.off('mylistToggled', updateList)
       global.app_event.off('myListMusicUpdate', handleChange)
       global.app_event.off('jumpListPosition', handleJumpPosition)
     }
   }, [])
 
-  const activeIndex = usePlayIndex()
+  const activeIndex = usePlayIndex(currentList)
   const handlePlay = (index: number) => {
     void playList(listState.activeListId, index)
   }
