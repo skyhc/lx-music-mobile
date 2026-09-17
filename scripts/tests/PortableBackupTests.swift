@@ -110,7 +110,14 @@ private struct Environment {
     try check(try Data(contentsOf: b.paths.documents.appendingPathComponent("用户文件.txt")) == Data("real-user-file".utf8), "real user documents restored")
     try check(try LXFiles.hash(b.paths.documents.appendingPathComponent("own.mp3")) == LXFiles.hash(a.paths.documents.appendingPathComponent("own.mp3")), "multi-chunk encrypted file restores exact SHA256")
     let restoredStorage = try LXStorageSnapshot.read(LXStorageSnapshot.storageURL(support: b.paths.support, bundle: "com.skyhc.lxmusic"))
-    try check(restoredStorage["@portable_path"]!.contains(b.paths.home.path) && !restoredStorage["@portable_path"]!.contains(a.paths.home.path), "sandbox-specific file paths rebase to new container")
+    // AsyncStorage values are JSON text. Foundation may escape slashes; compare
+    // the decoded path exactly rather than searching its serialized spelling.
+    let portablePath = try JSONSerialization.jsonObject(with: Data(restoredStorage["@portable_path"]!.utf8), options: .fragmentsAllowed) as? String
+    try check(portablePath == b.paths.documents.appendingPathComponent("own.mp3").path, "sandbox-specific file paths rebase to new container")
+    let restoredSongs = try JSONSerialization.jsonObject(with: Data(restoredStorage["@list__personal"]!.utf8)) as! [[String: Any]]
+    let restoredMeta = restoredSongs[0]["meta"] as! [String: Any]
+    try check(restoredMeta["filePath"] as? String == b.paths.documents.appendingPathComponent("own.mp3").path, "nested playlist paths rebase to the exact destination")
+    try check(try b.prefs.object()["file"] as? String == b.paths.documents.appendingPathComponent("own.mp3").path, "native preference paths rebase to the exact destination")
     try check(restoredStorage["@user_api__fixture"] == metadata["@user_api__fixture"] && restoredStorage["@sync_auth_key"] == metadata["@sync_auth_key"], "user source data and stored sync credentials survive full backup")
     try check(try b.vault.read("secret-a") == Data("never-plaintext-credential".utf8) && b.vault.read("old-key") == nil, "own WebDAV Keychain values restored alongside matching config")
     try check(try b.prefs.object()["gain"] as? Double == 0.8, "native application preferences restored")
