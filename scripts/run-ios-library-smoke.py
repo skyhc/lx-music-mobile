@@ -39,8 +39,10 @@ def cmd(*args: str, timeout=180, check=True):
 def sim(*args: str, **kwargs): return cmd('/usr/bin/xcrun', 'simctl', *args, **kwargs)
 def save(path: Path, value):
     temporary = path.with_suffix('.writing'); temporary.write_text(json.dumps(value, indent=2, ensure_ascii=False)); temporary.replace(path)
+# Local fixture control must not consult host proxy/PAC configuration.
+CONTROL = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 def control(name: str):
-    with urllib.request.urlopen('http://127.0.0.1:18782/control/' + name, timeout=4) as response:
+    with CONTROL.open('http://127.0.0.1:18782/control/' + name, timeout=4) as response:
         return json.load(response)
 
 
@@ -62,12 +64,17 @@ def main():
         try:
             server = subprocess.Popen([sys.executable, '-u', str(ROOT / 'scripts/library-dav-fixture.py'), str(DAV)], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
             deadline = time.monotonic() + 15
+            last_probe = 'no response'
             while True:
-                if server.poll() is not None: raise RuntimeError('Library DAV fixture exited')
+                if server.poll() is not None:
+                    raise RuntimeError(f'Library DAV fixture exited: code={server.returncode}; {last_probe}')
                 try:
                     if control('health').get('ready'): break
-                except OSError: pass
-                if time.monotonic() > deadline: raise RuntimeError('Library DAV fixture not ready')
+                except (OSError, ValueError) as error:
+                    last_probe = f'{type(error).__name__}: {error}'
+                if time.monotonic() > deadline:
+                    save(OUT / 'library-dav-startup.json', {'childAlive': server.poll() is None, 'lastProbe': last_probe, 'timeoutSeconds': 15})
+                    raise RuntimeError('Library DAV fixture not ready: ' + last_probe)
                 time.sleep(.2)
             runtime = next(r['identifier'] for r in json.loads(sim('list', 'runtimes', '-j'))['runtimes'] if r['isAvailable'] and 'iOS' in r['name'])
             model = next(d['identifier'] for d in json.loads(sim('list', 'devicetypes', '-j'))['devicetypes'] if 'iPad Pro' in d['name'] and '13' in d['name'])

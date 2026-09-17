@@ -6,7 +6,7 @@ headers, credentials, URL queries, or bodies. Host verification independently
 checks persisted upload bytes and conditional resume requests.
 """
 from __future__ import annotations
-import argparse, base64, hashlib, hmac, json, os, threading, time
+import argparse, base64, faulthandler, hashlib, hmac, json, os, socketserver, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit, quote
@@ -197,14 +197,30 @@ class Handler(BaseHTTPRequestHandler):
         self.respond(404)
 
 
+class LoopbackHTTPServer(ThreadingHTTPServer):
+    """This private numeric-loopback fixture does not need reverse DNS."""
+    def server_bind(self):
+        if self.server_address[0] != '127.0.0.1':
+            raise ValueError('Library fixture must bind numeric loopback only')
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
+
+
 def run():
     global ROOT
     parser = argparse.ArgumentParser()
     parser.add_argument('root', type=Path); parser.add_argument('--port', type=int, default=18782)
     args = parser.parse_args(); ROOT = args.root.resolve(); ROOT.mkdir(parents=True, exist_ok=True)
-    server = ThreadingHTTPServer(('127.0.0.1', args.port), Handler)
-    print('Loopback synthetic WebDAV fixture ready', flush=True)
-    server.serve_forever()
+    print('Library fixture startup: arguments and local root ready', flush=True)
+    faulthandler.enable()
+    faulthandler.dump_traceback_later(5, repeat=True)
+    try:
+        with LoopbackHTTPServer(('127.0.0.1', args.port), Handler) as server:
+            print('Loopback synthetic WebDAV fixture ready', flush=True)
+            faulthandler.cancel_dump_traceback_later()
+            server.serve_forever()
+    finally:
+        faulthandler.cancel_dump_traceback_later()
 
 
 if __name__ == '__main__': run()

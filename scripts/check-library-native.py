@@ -9,6 +9,11 @@ entries = [('webdav-core', r'WebDAV core: (\d+) assertions passed', 50), ('resum
            ('portable-backup', r'(\d+) Apple SDK encrypted-backup/restore assertions passed', 30)]
 reports = []
 try:
+    fixture_check = subprocess.run([sys.executable, 'scripts/check-library-fixture.py'], cwd=ROOT,
+                                   text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30)
+    (OUT / 'library-fixture.log').write_text(fixture_check.stdout)
+    print(fixture_check.stdout, flush=True)
+    if fixture_check.returncode: raise RuntimeError('Actual loopback WebDAV fixture integration failed')
     project_check = subprocess.run(['bundle', 'exec', 'ruby', 'scripts/check-native-project-paths.rb'], cwd=ROOT,
                                    text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30)
     (OUT / 'library-native-project-paths.log').write_text(project_check.stdout)
