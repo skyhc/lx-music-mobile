@@ -18,7 +18,7 @@ const entries=[{name:'music.mp3',path:'music.mp3',directory:false,size:100,etag:
 const music=ref.entryMusic('dav',entries[0])
 let count=0
 const check=async(name,fn)=>{await fn();count++;console.log('PASS '+name)}
-function uiFixture(page = 'library') {
+function uiFixture(page = 'webdav') {
   let cursor=0, pending=[], dirty=true, tree;const state=[],refs=[],effects=[],calls=[]
   const cfg={configuration:{schema:1,accounts:[account],audioLimitMB:512},error:'',busy:false}
   const queue={schema:1,enabled:false,initialized:true,quality:'320k',destination:{kind:'local'},jobs:[],error:''}
@@ -37,12 +37,18 @@ function uiFixture(page = 'library') {
     useRef(initial){const i=cursor++;refs[i]??={current:initial};return refs[i]},
     useEffect(fn,deps){const i=cursor++;if(!effects[i]||!deps||deps.some((v,j)=>!Object.is(effects[i].deps?.[j],v))){pending.push(()=>{effects[i]?.cleanup?.();effects[i]={deps,cleanup:fn()}})}}}
   const Native={FlatList:'FlatList',View:'View',ScrollView:'ScrollView',TouchableOpacity:'TouchableOpacity',TextInput:'TextInput',Switch:'Switch',Platform:{OS:'ios'},Alert:{alert(t,m,buttons){call('confirm',t);buttons.find(b=>b.text==='确认')?.onPress()}}}
-  const Component=load(page === 'settings' ? 'src/screens/Home/Views/Setting/settings/Download/index.tsx' : page === 'downloads' ? 'src/screens/Home/Views/Library/Downloads.tsx' : page === 'toolbar' ? 'src/screens/Home/Views/Mylist/MyList/Toolbar.tsx' : 'src/screens/Home/Views/Library/index.tsx',{'react/jsx-runtime':runtime,react,'react-native':Native,
-    '@/components/common/Text':{default:'Text'},'@/store/theme/hook':{useTheme:()=>({'c-main-background':'#161616','c-font':'#eee','c-button-font':'#6af'})},
+  const componentPath=page === 'settings' ? 'src/screens/Home/Views/Setting/settings/Download/index.tsx'
+    : page === 'downloads' ? 'src/screens/Home/Views/Library/Downloads.tsx'
+      : page === 'toolbar' ? 'src/screens/Home/Views/Mylist/MyList/Toolbar.tsx'
+        : page === 'backup' ? 'src/screens/Home/Views/Setting/settings/Backup/EncryptedBackup.tsx'
+          : 'src/screens/Home/Views/Setting/settings/WebDAV/index.tsx'
+  const requested={tab:page === 'downloads' ? 'downloads' : page === 'backup' ? 'backup' : 'webdav',screen:page === 'settings' ? 'download' : page === 'backup' ? 'backup' : 'webdav',listId:'default',revision:0}
+  const Component=load(componentPath,{'react/jsx-runtime':runtime,react,'react-native':Native,
+    '@/components/common/Text':{default:'Text'},'@/store/theme/hook':{useTheme:()=>({'c-main-background':'#161616','c-font':'#eee','c-button-font':'#6af','c-primary-font':'#6af','c-primary':'#6af','c-600':'#aaa','c-border-background':'#555','c-primary-input-background':'#222'})},
     '@/store/list/hook':{useActiveListId:()=> 'personal',useMyList:()=>[{id:'personal',name:'Personal'}]},'@/core/list':{setActiveList:id=>call('activeList',id),getListMusics:async id=>{call('getList',id);return[music]}},
     '@/utils/fs':{selectFile:async()=>({path:'/private/backup.lxbackup'})},'@/utils/nativeModules/utils':{shareFile:async(...args)=>call('share',args)},
     '@/core/library':api,'@/core/library/reference':ref,
-    '@/core/common':{setNavActiveId:id=>call('nav',id)}, '@/core/library/page':{useLibraryPage:()=>({tab:'webdav',listId:'default',revision:0}),openLibraryPage:(...args)=>call('page',args)},
+    '@/core/common':{setNavActiveId:id=>call('nav',id)}, '@/core/library/page':{useLibraryPage:()=>requested,openLibraryPage:(...args)=>call('page',args),openLibrarySettings:(...args)=>call('settingsPage',args)},
     './Downloads':{default:'Downloads'}, '@/components/common/Button':{default:'Button'}, '@/components/MusicAddModal':{default:'MusicAddModal'},
     '../../components/Section':{default:'Section'}, '../../components/SubTitle':{default:'SubTitle'}, '../../components/CheckBoxItem':{default:'CheckBoxItem'} }).default
   function render(){cursor=0;dirty=false;tree=Component(page === 'toolbar' ? {onNew:()=>call('createFromMyLists')} : {});const run=pending;pending=[];run.forEach(f=>f());return tree}
@@ -55,15 +61,19 @@ function uiFixture(page = 'library') {
 }
 ;(async()=>{
   await check('opaque song records round-trip without account credentials or remote authenticated URLs',()=>{assert.equal(ref.decodeLibraryURL(music.meta.filePath).path,'music.mp3');assert.ok(!music.meta.filePath.includes('dav.invalid'));assert.equal(music.source,'local');assert.throws(()=>ref.decodeLibraryURL('https://user:password@server'));assert.equal(ref.supportedAudio('some.html'),false)})
-  await check('shared UI uses theme background and exposes all three real feature sections',async()=>{const f=uiFixture();await f.flush();assert.equal(f.tree.props.style.backgroundColor,'#161616');for(const id of ['library-tab-webdav','library-tab-downloads','library-tab-backup'])assert.ok(f.by(id));f.unmount()})
+  await check('Download, WebDAV and Backup render as separate real feature domains',async()=>{
+    const dav=uiFixture('webdav');await dav.flush();assert.ok(dav.by('webdav-settings'));assert.equal(dav.by('download-records'),undefined);assert.equal(dav.by('encrypted-backup-settings'),undefined);dav.unmount()
+    const downloads=uiFixture('downloads');await downloads.flush();assert.ok(downloads.by('download-records'));assert.equal(downloads.by('webdav-settings'),undefined);assert.equal(downloads.by('encrypted-backup-settings'),undefined);downloads.unmount()
+    const backup=uiFixture('backup');await backup.flush();assert.ok(backup.by('encrypted-backup-settings'));assert.equal(backup.by('download-records'),undefined);assert.equal(backup.by('webdav-settings'),undefined);await backup.press('管理统一WebDAV配置');assert.deepEqual(backup.calls.find(c=>c[0]==='settingsPage'),['settingsPage',['webdav']]);backup.unmount()
+  })
   await check('account editor keeps passwords secure and cache switches independent',async()=>{const f=uiFixture();await f.flush();await f.press('编辑当前账户');assert.equal(f.by('library-account-password').props.secure,true);await f.field('library-directory-cache',false);assert.equal(f.by('library-audio-cache').props.value,true);await f.press('library-account-save');const saved=f.calls.find(c=>c[0]==='saveAccount')[1];assert.equal(saved.directoryCache,false);assert.equal(saved.audioCache,true);assert.ok(!('password'in saved));f.unmount()})
   await check('new account password is passed only when explicitly edited then cleared from UI',async()=>{const f=uiFixture();await f.flush();await f.press('library-account-add');await f.field('library-account-endpoint','https://new.invalid/dav');await f.field('library-account-password','test-password');await f.press('library-account-save');assert.equal(f.calls.find(c=>c[0]==='saveAccount')[1].password,'test-password');assert.equal(f.by('library-account-editor'),undefined);f.unmount()})
   await check('directory selection imports supported audio, not folders/HTML, into selected real list',async()=>{const f=uiFixture();await f.flush();await f.press('全选当前目录音频');await f.press('library-import');const args=f.calls.find(c=>c[0]==='import')[1];assert.equal(args[0],'dav');assert.equal(args[2],'default');assert.deepEqual(args[1].map(e=>e.name),['music.mp3']);f.unmount()})
   await check('manual refresh bypasses directory cache and cache clearing stays separately scoped',async()=>{const f=uiFixture();await f.flush();await f.press('library-directory-refresh');assert.equal(f.calls.filter(c=>c[0]==='browse').at(-1)[1].force,true);await f.press('清除目录缓存');await f.press('清除音频缓存');assert.deepEqual(f.calls.filter(c=>c[0]==='clear').map(c=>c[1]),['directory','audio']);f.unmount()})
   await check('credential edits await cancellation of an older directory operation',async()=>{
     const f=uiFixture(), pending=defer();let cancelled=false
-    f.api.browseDirectory=()=>({promise:pending.promise,cancel:()=>{cancelled=true}})
-    await f.flush();await f.press('编辑当前账户');await f.field('library-account-password','changed-password');await f.press('library-account-save')
+    await f.flush();f.api.browseDirectory=()=>({promise:pending.promise,cancel:()=>{cancelled=true}});await f.press('library-directory-refresh')
+    await f.press('编辑当前账户');await f.field('library-account-password','changed-password');await f.press('library-account-save')
     assert.equal(cancelled,true);assert.ok(!f.calls.some(c=>c[0]==='saveAccount'))
     pending.resolve(entries);await f.flush();assert.equal(f.calls.find(c=>c[0]==='saveAccount')[1].password,'changed-password');f.unmount()
   })
@@ -81,9 +91,9 @@ function uiFixture(page = 'library') {
     const f=uiFixture('toolbar');await f.flush();await f.press('mylist-create');await f.press('mylist-webdav-import');assert.ok(f.calls.some(c=>c[0]==='createFromMyLists'));assert.deepEqual(f.calls.find(c=>c[0]==='page'),['page',['webdav','personal']]);f.unmount()
     const dav=uiFixture();await dav.flush();assert.equal(dav.button('新建歌单并导入'),undefined);assert.ok(!nodes(dav.tree).some(n=>n.props?.label==='新建歌单名称'));dav.unmount()
   })
-  await check('backup rejects mismatched password before calling the native encrypted backup',async()=>{const f=uiFixture();await f.flush();await f.press('library-tab-backup');await f.field('library-backup-password','valid-test-password');await f.press('library-backup-create');assert.ok(!f.calls.some(c=>c[0]==='backup'));assert.ok(f.by('library-message'));f.unmount()})
-  await check('full/playlist selection and secure passphrase invoke actual backup facade and clear inputs',async()=>{const f=uiFixture();await f.flush();await f.press('library-tab-backup');await f.field('library-backup-password','valid-test-password');await f.field('再次输入密码（创建备份时必填）','valid-test-password');await f.press('全部歌单');await f.press('library-backup-create');assert.deepEqual(f.calls.find(c=>c[0]==='backup')[1],['playlists','valid-test-password',true]);assert.equal(f.by('library-backup-password').props.value,'');assert.equal(f.by('library-backup-password').props.secure,true);f.unmount()})
-  await check('restore stages first and requires explicit confirmation before arming cold replacement',async()=>{const f=uiFixture();await f.flush();await f.press('library-tab-backup');await f.press('选择本地加密备份');await f.field('library-backup-password','restore-passphrase');await f.press('library-restore-stage');assert.deepEqual(f.calls.find(c=>c[0]==='stage')[1],['/private/backup.lxbackup','restore-passphrase']);assert.ok(!f.calls.some(c=>c[0]==='arm'));await f.press('library-restore-arm');assert.ok(f.calls.some(c=>c[0]==='confirm'));assert.deepEqual(f.calls.find(c=>c[0]==='arm'),['arm','restore1']);f.unmount()})
+  await check('backup rejects mismatched password before calling the native encrypted backup',async()=>{const f=uiFixture('backup');await f.flush();await f.field('library-backup-password','valid-test-password');await f.press('library-backup-create');assert.ok(!f.calls.some(c=>c[0]==='backup'));assert.ok(f.by('library-message'));f.unmount()})
+  await check('full/playlist selection and secure passphrase invoke actual backup facade and clear inputs',async()=>{const f=uiFixture('backup');await f.flush();await f.field('library-backup-password','valid-test-password');await f.field('再次输入密码（创建备份时必填）','valid-test-password');await f.press('全部歌单');await f.press('library-backup-create');assert.deepEqual(f.calls.find(c=>c[0]==='backup')[1],['playlists','valid-test-password',true]);assert.equal(f.by('library-backup-password').props.value,'');assert.equal(f.by('library-backup-password').props.secure,true);f.unmount()})
+  await check('restore stages first and requires explicit confirmation before arming cold replacement',async()=>{const f=uiFixture('backup');await f.flush();await f.press('选择本地加密备份');await f.field('library-backup-password','restore-passphrase');await f.press('library-restore-stage');assert.deepEqual(f.calls.find(c=>c[0]==='stage')[1],['/private/backup.lxbackup','restore-passphrase']);assert.ok(!f.calls.some(c=>c[0]==='arm'));await f.press('library-restore-arm');assert.ok(f.calls.some(c=>c[0]==='confirm'));assert.deepEqual(f.calls.find(c=>c[0]==='arm'),['arm','restore1']);f.unmount()})
   await check('real queue facade routes fresh online URLs, protected DAV references and local file destinations',async()=>{
     let deps,seq=0;const calls=[],events={},config={schema:1,accounts:[account],audioLimitMB:512},state={enabled:false}
     class Queue{constructor(value){deps=value}subscribe(fn){this.change=fn;return()=>{}}async initialize(){}snapshot(){return state}progress(){}async pauseAll(){calls.push('pauseAll')}async suspend(){calls.push('queueHold');return()=>calls.push('queueRelease')}async enqueue(values){calls.push(['enqueue',plain(values)])}}

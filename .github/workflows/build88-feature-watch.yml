@@ -58,6 +58,7 @@ jobs:
         run: |
           node scripts/check-build88-feature-boundaries.js
           node scripts/check-library-state.js
+          node scripts/check-library-integration.js
           node scripts/check-type-regressions.js
       - name: Install CocoaPods dependencies
         run: cd ios && bundle exec pod install --repo-update
