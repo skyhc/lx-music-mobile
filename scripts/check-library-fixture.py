@@ -18,7 +18,7 @@ def check(condition, message):
 
 def main():
     with tempfile.TemporaryDirectory(prefix='lx-dav-fixture-') as temporary:
-        root = pathlib.Path(temporary); fixture.ROOT = root
+        root = pathlib.Path(temporary).resolve(); fixture.ROOT = root
         (root / 'audio').mkdir(); payload = b'ID3-synthetic-protocol-bytes' * 128
         song = root / 'audio/蓝色 空间.mp3'; song.write_bytes(payload)
         # The original HTTPServer consulted getfqdn before activation. A blocked
@@ -44,7 +44,16 @@ def main():
         try:
             check(json.loads(request('GET', '/control/health', auth=False)[1]) == {'ready': True}, 'actual HTTP health response')
             check(request('GET', '/dav/audio/tone.mp3', auth=False)[0] == 401, 'missing credentials rejected')
+            # macOS temporary directories may be reached through /var symlinks.
+            # The executable canonicalizes ROOT; the imported test must do so too.
+            with tempfile.TemporaryDirectory(prefix='lx-dav-alias-') as aliases:
+                alias = pathlib.Path(aliases) / 'root'; alias.symlink_to(root, target_is_directory=True)
+                fixture.ROOT = alias
+                try:
+                    check(request('PROPFIND', '/dav/audio/', b'', {'Depth': '1'})[0] == 400, 'negative control: noncanonical root fails containment safely')
+                finally: fixture.ROOT = root
             status, raw, _ = request('PROPFIND', '/dav/audio/', b'', {'Depth': '1'})
+            if status != 207 or not raw: raise AssertionError(f'Directory request failed before XML parsing: HTTP {status}, bytes={len(raw)}')
             xml = ElementTree.fromstring(raw)
             check(status == 207 and len(xml.findall('{DAV:}response')) == 2, 'actual XML directory listing with encoded unicode names')
             path = '/dav/audio/%E8%93%9D%E8%89%B2%20%E7%A9%BA%E9%97%B4.mp3'
