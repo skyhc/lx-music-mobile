@@ -1,0 +1,25 @@
+name: Prepare verified UI correction tree
+on:
+  push:
+    branches: [ui/build88-correction-stage]
+permissions:
+  contents: write
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify source edits and create application Git objects only
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .ui-rework/apply.py
+      - name: Retain exact reconstructed tree and file hashes
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-ui-rework-tree
+          path: ui-rework-result.json
+          if-no-files-found: error
+          retention-days: 7
