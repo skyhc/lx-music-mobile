@@ -9,6 +9,11 @@ entries = [('webdav-core', r'WebDAV core: (\d+) assertions passed', 50), ('resum
            ('portable-backup', r'(\d+) Apple SDK encrypted-backup/restore assertions passed', 30)]
 reports = []
 try:
+    project_check = subprocess.run(['bundle', 'exec', 'ruby', 'scripts/check-native-project-paths.rb'], cwd=ROOT,
+                                   text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30)
+    (OUT / 'library-native-project-paths.log').write_text(project_check.stdout)
+    print(project_check.stdout, flush=True)
+    if project_check.returncode: raise RuntimeError('Resolved Xcode application source paths failed verification')
     for name, pattern, minimum in entries:
         result = subprocess.run([sys.executable, str(ROOT / f'scripts/check-{name}.py')], cwd=ROOT, text=True,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=240)
