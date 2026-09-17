@@ -17,7 +17,7 @@ import { initUnifiedPlayerEngine } from '@/plugins/player/engine'
 import { getPosition, setStop } from '@/plugins/player/utils'
 import { loadPlaybackResource } from '@/plugins/player/engine/resourceLoader'
 import { getMusicUrlInfo } from '@/core/music'
-import { getListMusics, getUserLists, setUserList, overwriteListMusics } from '@/core/list'
+import { getListMusics, getUserLists, setUserList, overwriteListMusics, createList } from '@/core/list'
 import { saveData, getData } from '@/plugins/storage'
 import { initSetting, updateSetting } from '@/core/common'
 import playerActions from '@/store/player/action'
@@ -144,7 +144,9 @@ export const run = async() => {
         return { entries: entries.length, noCredentialsInPublicConfig: true }
       })
       await check('DAV entries import into real persistent My Lists with opaque references', async() => {
-        const result = await importEntries(accountInput.id, entries.filter(e => ['tone.mp3', 'tone.flac'].includes(e.name)), undefined, 'WebDAV 自动验收')
+        const target = 'ci-mylist-webdav'
+        await createList({ id: target, name: 'WebDAV 自动验收' })
+        const result = await importEntries(accountInput.id, entries.filter(e => ['tone.mp3', 'tone.flac'].includes(e.name)), target)
         playlist = result.id
         const songs = await getListMusics(playlist)
         assert(songs.length === 2 && songs.every(s => getLibraryReference(s)?.kind === 'webdav'), 'Actual saved music refs missing')

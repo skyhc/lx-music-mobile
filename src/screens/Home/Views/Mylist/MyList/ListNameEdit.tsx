@@ -3,8 +3,8 @@ import ConfirmAlert, { type ConfirmAlertType } from '@/components/common/Confirm
 import Text from '@/components/common/Text'
 import { View } from 'react-native'
 import Input, { type InputType } from '@/components/common/Input'
-import { createUserList, updateUserList } from '@/core/list'
-import { confirmDialog, createStyle } from '@/utils/tools'
+import { createUserList, updateUserList, setActiveList } from '@/core/list'
+import { confirmDialog, createStyle, toast } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import listState from '@/store/list/state'
 
@@ -58,9 +58,10 @@ export default forwardRef<ListNameEditType, {}>((props, ref) => {
   const selectedListInfo = useRef<LX.List.UserListInfo>(initSelectInfo as LX.List.UserListInfo)
   const [visible, setVisible] = useState(false)
 
-  const handleShow = () => {
+  const actionRef = useRef(0)
+  const saving = useRef(false)
+  const handleShow = (name: string) => {
     alertRef.current?.setVisible(true)
-    const name = position == -1 ? '' : (selectedListInfo.current.name ?? '')
     requestAnimationFrame(() => {
       nameInputRef.current?.setName(name)
       setTimeout(() => {
@@ -70,44 +71,47 @@ export default forwardRef<ListNameEditType, {}>((props, ref) => {
   }
   useImperativeHandle(ref, () => ({
     showCreate(position) {
+      actionRef.current = position
       setPosition(position)
-      if (visible) handleShow()
+      if (visible) handleShow('')
       else {
         setVisible(true)
         requestAnimationFrame(() => {
-          handleShow()
+          handleShow('')
         })
       }
     },
     show(listInfo) {
+      actionRef.current = -1
       setPosition(-1)
       selectedListInfo.current = listInfo
-      if (visible) handleShow()
+      if (visible) handleShow(listInfo.name)
       else {
         setVisible(true)
         requestAnimationFrame(() => {
-          handleShow()
+          handleShow(listInfo.name)
         })
       }
     },
   }))
 
-  const handleRename = () => {
-    let name = nameInputRef.current?.getText() ?? ''
-    if (!name.length) return
-    if (name.length > 100) name = name.substring(0, 100)
-    if (position == -1) {
-      void updateUserList([{ ...selectedListInfo.current, name }])
-    } else {
-      void (listState.userList.some(l => l.name == name) ? confirmDialog({
-        message: global.i18n.t('list_duplicate_tip'),
-      }) : Promise.resolve(true)).then(confirmed => {
-        if (!confirmed) return
-        const now = Date.now()
-        void createUserList(position, [{ id: `userlist_${now}`, name, locationUpdateTime: now }])
-      })
-    }
-    alertRef.current?.setVisible(false)
+  const handleRename = async() => {
+    if (saving.current) return
+    const name = (nameInputRef.current?.getText() ?? '').slice(0, 100)
+    if (!name) return
+    saving.current = true
+    try {
+      if (actionRef.current === -1) {
+        await updateUserList([{ ...selectedListInfo.current, name }])
+      } else {
+        if (listState.userList.some(l => l.name === name) && !await confirmDialog({ message: global.i18n.t('list_duplicate_tip') })) return
+        const now = Date.now(), id = `userlist_${now}_${Math.random().toString(36).slice(2, 8)}`
+        await createUserList(actionRef.current, [{ id, name, locationUpdateTime: now }])
+        setActiveList(id)
+      }
+      alertRef.current?.setVisible(false)
+    } catch (error) { toast(error instanceof Error ? error.message : '列表保存失败，请重试') }
+    finally { saving.current = false }
   }
 
   return (

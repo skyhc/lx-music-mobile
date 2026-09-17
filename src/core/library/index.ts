@@ -5,7 +5,8 @@ import { available, nativeCommand, observeProgress, operationId, cancelOperation
 import { entryMusic, getLibraryReference, publishedMusic } from './reference'
 import type { BackupFile, Destination, DirectoryEntry, LibraryAccount, LibraryConfig, LibraryReference, PublishedFile, RestoreStatus, TransferProgress, TransferSource } from './types'
 import { getMusicUrlInfo } from '@/core/music'
-import { addListMusics, createList } from '@/core/list'
+import { addListMusics, getUserLists } from '@/core/list'
+import { openLibraryPage } from './page'
 import { withStorageSnapshot } from '@/plugins/storage'
 
 export const downloadQueue = new DownloadQueue({
@@ -75,13 +76,14 @@ export function operation<T>(command: string, payload: Record<string, unknown>, 
 export const browseDirectory = (accountId: string, path = '', force = false) => operation<DirectoryEntry[]>('directory.list', { accountId, path, force })
 export const prepareLibraryPlayback = (reference: LibraryReference) => operation<{ url: string, lease: string, cached: boolean }>('playback.prepare', { reference })
 export const releaseLibraryPlayback = async(lease: string) => { await nativeCommand('playback.release', { lease }) }
-export async function importEntries(accountId: string, entries: DirectoryEntry[], listId?: string, name?: string) {
+export async function importEntries(accountId: string, entries: DirectoryEntry[], listId: string) {
   const music = entries.filter(entry => !entry.directory && /\.(mp3|flac|m4a|aac|wav|aif|aiff)$/i.test(entry.name)).map(entry => entryMusic(accountId, entry))
   if (!music.length) throw new Error('未选择支持的音频文件')
-  const id = listId ?? `webdav_${operationId()}`
-  if (listId) await addListMusics(id, music, 'bottom')
-  else await createList({ id, name: name?.trim() || 'WebDAV 音乐', list: music })
-  return { id, count: music.length }
+  // Playlist creation belongs to My Lists. Import never silently creates a list.
+  const known = ['default', 'love', ...(await getUserLists()).map(list => list.id)]
+  if (!listId || !known.includes(listId)) throw new Error('请先在我的列表中新建或选择目标歌单')
+  await addListMusics(listId, music, 'bottom')
+  return { id: listId, count: music.length }
 }
 export async function addPublished(file: PublishedFile, listId: string, original?: LX.Music.MusicInfo) {
   await addListMusics(listId, [publishedMusic(file, original)], 'bottom')
@@ -115,6 +117,6 @@ export const fetchBackup = (accountId: string, path: string, progress?: (event: 
 export const localDownloadPath = (path: string) => nativeCommand<string>('file.local', { path })
 
 export async function downloadFromMenu(music: LX.Music.MusicInfo[]) {
-  try { await enqueueDownloads(music); const { setNavActiveId } = await import('@/core/common'); setNavActiveId('nav_library') }
+  try { await enqueueDownloads(music); openLibraryPage('downloads') }
   catch (error: any) { const { toast } = await import('@/utils/tools'); toast(String(error?.message ?? '加入下载失败')) }
 }

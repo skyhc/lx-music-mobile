@@ -29,6 +29,7 @@
 		0CBFD0F22CD728F11A070370 /* LXLibraryWorker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51435E16FE9A9BE983100C5F /* LXLibraryWorker.swift */; };
 		973E590139BF156EE3546205 /* LXLibraryServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B89BC9A7D6E072F5B97EA99 /* LXLibraryServices.swift */; };
 		173F14232B0004D8EF81E86B /* LXLibraryServicesBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = B8835D5B3E0FCB813B397FD3 /* LXLibraryServicesBridge.m */; };
+		BC8800020000000000000001 /* LXDiscArtwork.m in Sources */ = {isa = PBXBuildFile; fileRef = BC8800010000000000000001 /* LXDiscArtwork.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -73,6 +74,7 @@
 		51435E16FE9A9BE983100C5F /* LXLibraryWorker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LxMusicMobile/LXLibraryWorker.swift; sourceTree = "<group>"; };
 		5B89BC9A7D6E072F5B97EA99 /* LXLibraryServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LxMusicMobile/LXLibraryServices.swift; sourceTree = "<group>"; };
 		B8835D5B3E0FCB813B397FD3 /* LXLibraryServicesBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LxMusicMobile/LXLibraryServicesBridge.m; sourceTree = "<group>"; };
+		BC8800010000000000000001 /* LXDiscArtwork.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LXDiscArtwork.m; path = LxMusicMobile/LXDiscArtwork.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -128,6 +130,7 @@
 				71FC4A41495E7C6EEFE9BD58 /* LXLibrarySupport.swift */,
 				13B07FAF1A68108700A75B9A /* AppDelegate.h */,
 				13B07FB01A68108700A75B9A /* AppDelegate.mm */,
+				BC8800010000000000000001 /* LXDiscArtwork.m */,
 				A17800020000000000000001 /* LXWindowInsets.swift */,
 				A17800020000000000000002 /* LXWindowInsetsBridge.m */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
@@ -440,6 +443,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */,
+				BC8800020000000000000001 /* LXDiscArtwork.m in Sources */,
 				173F14232B0004D8EF81E86B /* LXLibraryServicesBridge.m in Sources */,
 				973E590139BF156EE3546205 /* LXLibraryServices.swift in Sources */,
 				0CBFD0F22CD728F11A070370 /* LXLibraryWorker.swift in Sources */,

@@ -3,7 +3,10 @@ import { Alert, Platform, ScrollView, Switch, TextInput, TouchableOpacity, View 
 import Text from '@/components/common/Text'
 import { useTheme } from '@/store/theme/hook'
 import { useMyList } from '@/store/list/hook'
-import { getListMusics } from '@/core/list'
+import { setActiveList } from '@/core/list'
+import { setNavActiveId } from '@/core/common'
+import { useLibraryPage } from '@/core/library/page'
+import Downloads from './Downloads'
 import { selectFile } from '@/utils/fs'
 import { shareFile } from '@/utils/nativeModules/utils'
 import {
@@ -38,20 +41,22 @@ function Toggle({ title, value, onChange, disabled, id }: { title: string, value
 const row = { flexDirection: 'row' as const, flexWrap: 'wrap' as const, marginVertical: 6 }
 const emptyAccount = { name: 'WebDAV', endpoint: 'https://', username: '', allowHTTP: false, directoryCache: true, audioCache: true }
 
-export default function Library({ initialTab = 'webdav' }: { initialTab?: 'webdav' | 'downloads' | 'backup' } = {}) {
+export default function Library({ initialTab }: { initialTab?: 'webdav' | 'downloads' | 'backup' } = {}) {
   const theme = useTheme(), library = useLibrary(), queue = useDownloadQueue(), lists = useMyList()
-  const [tab, setTab] = useState<'webdav' | 'downloads' | 'backup'>(initialTab)
+  const requested = useLibraryPage()
+  const [tab, setTab] = useState<'webdav' | 'downloads' | 'backup'>(initialTab ?? requested.tab)
   const [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [progress, setProgress] = useState<TransferProgress>()
   const [editing, setEditing] = useState<Partial<LibraryAccount> | null>(null), [accountPassword, setAccountPassword] = useState(''), [passwordEdited, setPasswordEdited] = useState(false)
   const [accountId, setAccountId] = useState(''), [path, setPath] = useState(''), [entries, setEntries] = useState<DirectoryEntry[]>([]), [selected, setSelected] = useState<string[]>([])
   const [visibleCount, setVisibleCount] = useState(100), [directoryLoading, setDirectoryLoading] = useState(false)
-  const [listId, setListId] = useState('default'), [newListName, setNewListName] = useState('WebDAV 音乐'), [limit, setLimit] = useState(String(library.configuration.audioLimitMB))
-  const [downloadFolder, setDownloadFolder] = useState('LX Music'), [backupFolder, setBackupFolder] = useState('LX Backups')
+  const [listId, setListId] = useState(requested.listId), [limit, setLimit] = useState(String(library.configuration.audioLimitMB))
+  const [backupFolder, setBackupFolder] = useState('LX Backups')
   const [backupKind, setBackupKind] = useState<'full' | 'playlists'>('full'), [includeCaches, setIncludeCaches] = useState(true)
   const [password, setPassword] = useState(''), [passwordAgain, setPasswordAgain] = useState(''), [backup, setBackup] = useState<BackupFile>(), [restore, setRestore] = useState<RestoreStatus>()
   const [restorePath, setRestorePath] = useState(''), [backupEntries, setBackupEntries] = useState<DirectoryEntry[]>([])
   const pendingDirectory = useRef<ReturnType<typeof browseDirectory>>(), directoryGeneration = useRef(0), mounted = useRef(true)
   const locked = busy || library.busy
+  useEffect(() => { if (!initialTab) { setTab(requested.tab); setListId(requested.listId) } }, [requested.revision, initialTab])
   useEffect(() => { mounted.current = true; void initializeLibrary().then(() => restoreStatus()).then(setRestore).catch(error => { setMessage(String(error.message)) })
     return () => { mounted.current = false; pendingDirectory.current?.cancel() }
   }, [])
@@ -83,10 +88,12 @@ export default function Library({ initialTab = 'webdav' }: { initialTab?: 'webda
     <Button key={list.id} title={`${listId === list.id ? '已选：' : ''}${list.name}`} disabled={locked} onPress={() => { setListId(list.id) }} />)}</View>
   const accountButtons = <View style={row}>{library.configuration.accounts.map(a => <Button key={a.id} title={`${accountId === a.id ? '已选：' : ''}${a.name}`} disabled={locked} onPress={() => { setAccountId(a.id); setPath(''); setBackupEntries([]) }} />)}</View>
   if (Platform.OS !== 'ios') return <View style={{ flex: 1, padding: 20 }}><Text>资料库功能需要iOS / iPadOS构建。</Text></View>
+  const tabs = <View style={row}><Button title="下载" id="library-tab-downloads" onPress={() => { setTab('downloads') }} /><Button title="WebDAV" id="library-tab-webdav" onPress={() => { setTab('webdav') }} /><Button title="备份 / 恢复" id="library-tab-backup" onPress={() => { setTab('backup') }} /></View>
+  if (tab === 'downloads') return <View testID="library-screen" style={{ flex: 1, minHeight: 0, backgroundColor: theme['c-main-background'] }}>{tabs}<Downloads /></View>
   return <View testID="library-screen" style={{ flex: 1, backgroundColor: theme['c-main-background'] }}>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 40, maxWidth: 1100, width: '100%', alignSelf: 'center' }}>
-      <Text size={22} style={{ marginBottom: 8 }}>资料库</Text>
-      <View style={row}><Button title="WebDAV" id="library-tab-webdav" onPress={() => { setTab('webdav') }} /><Button title="下载" id="library-tab-downloads" onPress={() => { setTab('downloads') }} /><Button title="加密备份 / 恢复" id="library-tab-backup" onPress={() => { setTab('backup') }} /></View>
+      <Text size={22} style={{ marginBottom: 8 }}>{tab === 'webdav' ? 'WebDAV 音乐' : '备份 / 恢复'}</Text>
+      {tabs}
       {library.error || queue.error ? <Text testID="library-error" size={15}>错误：{library.error || queue.error}</Text> : null}
       {message ? <Text testID="library-message" selectable size={15} style={{ marginVertical: 10 }}>{message}</Text> : null}
       {progress ? <Text testID="library-progress">{statusName[progress.phase] ?? progress.phase}：{formatBytes(progress.received)}{progress.total > 0 ? ` / ${formatBytes(progress.total)}` : ''}</Text> : null}
@@ -126,31 +133,9 @@ export default function Library({ initialTab = 'webdav' }: { initialTab?: 'webda
         {visibleCount < entries.length ? <Button title={`显示更多（共${entries.length}项）`} onPress={() => { setVisibleCount(v => v + 100) }} /> : null}
         {!directoryLoading && accountId && entries.length === 0 ? <Text>当前目录没有可显示条目。</Text> : null}
         <Text style={{ marginTop: 14 }}>导入目的歌单（已选{selected.length}首）</Text>{playlistButtons}
-        <Field label="新建歌单名称" value={newListName} onChange={setNewListName} disabled={locked} />
-        <View style={row}><Button id="library-import" title="添加到所选歌单" disabled={locked || !selected.length} onPress={() => { run(async() => { const result = await importEntries(accountId, entries.filter(e => selected.includes(e.path)), listId); setMessage(`已添加${result.count}首；从我的列表播放。`) }) }} />
-          <Button title="新建歌单并导入" disabled={locked || !selected.length} onPress={() => { run(async() => { const result = await importEntries(accountId, entries.filter(e => selected.includes(e.path)), undefined, newListName); setListId(result.id); setMessage(`已新建歌单并添加${result.count}首。`) }) }} /></View>
-      </View> : null}
-      {tab === 'downloads' ? <View>
-        <Toggle id="library-download-enabled" title="启用下载（新安装默认关闭）" value={queue.enabled} disabled={locked || !queue.initialized} onChange={enabled => { run(async() => { await downloadQueue.setEnabled(enabled) }) }} />
-        <Text size={13}>仅下载你有权保存的音乐。音质受当前音源支持情况限制。进入后台或重启后任务暂停，返回后手动继续。服务器支持强ETag和字节范围时验证后续传；否则安全地重新下载。WebDAV上传不伪装为断点PUT，重试复用已验证本地文件。</Text>
-        <View style={row}>{(['128k', '320k', 'flac', 'flac24bit'] as LX.Quality[]).map(quality => <Button key={quality} title={`${queue.quality === quality ? '已选：' : ''}${quality}`} disabled={locked} onPress={() => { run(async() => { await downloadQueue.configure({ quality }) }) }} />)}</View>
-        <Text>下载目的地：{queue.destination.kind === 'local' ? '本机 / LX Downloads' : `WebDAV / ${queue.destination.path}`}</Text>{accountButtons}
-        <Field label="WebDAV下载目录（相对账户根目录）" value={downloadFolder} onChange={setDownloadFolder} disabled={locked} />
-        <View style={row}><Button title="保存到本机" disabled={locked} onPress={() => { run(async() => { await downloadQueue.configure({ destination: { kind: 'local' } }) }) }} />
-          <Button title="保存到当前WebDAV" disabled={locked || !accountId} onPress={() => { run(async() => { await downloadQueue.configure({ destination: { kind: 'webdav', accountId, path: downloadFolder } }) }) }} /></View>
-        <Text>歌曲菜单可下载单首或多选；也可在此加入整个歌单。</Text>{playlistButtons}
-        <View style={row}><Button id="library-download-list" title="下载所选歌单" disabled={locked || !queue.enabled} onPress={() => { run(async() => { const music = await getListMusics(listId); await downloadQueue.enqueue(music); setMessage(`已处理${music.length}首，重复任务不会再次加入。`) }) }} />
-          <Button title="暂停全部" disabled={locked} onPress={() => { run(async() => { await downloadQueue.pauseAll() }) }} /></View>
-        {queue.jobs.slice(0, visibleCount).map(job => <View key={job.id} testID={`library-job-${job.id}`} style={{ borderTopWidth: 1, borderColor: theme['c-border-background'], paddingVertical: 10 }}>
-          <Text size={16}>{job.music.name} — {job.music.singer}</Text><Text size={13}>{statusName[job.status]} · {job.quality} · {job.destination.kind === 'local' ? '本机' : 'WebDAV'} · {formatBytes(job.received)}{job.total ? ` / ${formatBytes(job.total)}` : ''}</Text>
-          {job.error ? <Text size={13}>{job.error}</Text> : null}
-          <View style={row}>{job.status !== 'completed' ? <><Button title="暂停" disabled={locked} onPress={() => { run(async() => { await downloadQueue.pause(job.id) }) }} />
-            <Button title="继续 / 重试" disabled={locked || !queue.enabled} onPress={() => { run(async() => { await downloadQueue.retry(job.id) }) }} /></> : <>
-            <Button title="添加到所选歌单" disabled={locked} onPress={() => { run(async() => { await addPublished(job.result!, listId, job.music); setMessage('已加入歌单。') }) }} />
-            {job.result?.kind === 'local' ? <Button title="导出文件" disabled={locked} onPress={() => { run(async() => { await shareFile(job.result!.name, await localDownloadPath(job.result!.path)) }) }} /> : null}</>}
-            <Button title="移除记录" disabled={locked} onPress={() => { run(async() => { await downloadQueue.remove(job.id); setMessage('仅移除任务和未完成临时片段；完成文件保留。') }) }} /></View>
-        </View>)}
-        {visibleCount < queue.jobs.length ? <Button title="显示更多任务" onPress={() => { setVisibleCount(v => v + 100) }} /> : null}
+        <View style={row}><Button id="library-import" title="添加到所选歌单" disabled={locked || !selected.length} onPress={() => { run(async() => { const result = await importEntries(accountId, entries.filter(e => selected.includes(e.path)), listId); setSelected([]); setMessage(`已添加${result.count}首；从我的列表播放。`) }) }} />
+          <Button title="返回我的列表" onPress={() => { setActiveList(listId); setNavActiveId('nav_love') }} /></View>
+        <Text size={13}>需要新歌单时，请先在“我的列表”中新建，再从该列表选择“从 WebDAV 添加”。</Text>
       </View> : null}
       {tab === 'backup' ? <View>
         <Text size={16}>备份类型</Text><View style={row}><Button title={`${backupKind === 'full' ? '已选：' : ''}完整软件数据`} disabled={locked} onPress={() => { setBackupKind('full') }} /><Button title={`${backupKind === 'playlists' ? '已选：' : ''}全部歌单`} disabled={locked} onPress={() => { setBackupKind('playlists') }} /></View>

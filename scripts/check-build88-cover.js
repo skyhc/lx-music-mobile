@@ -91,5 +91,11 @@ assert.ok(read('src/screens/PlayDetail/Horizontal/Pic.tsx').includes('<PlayerCov
 assert.ok(read('src/screens/PlayDetail/Vertical/Pic.tsx').includes('<PlayerCover'))
 assert.ok(read('src/screens/PlayDetail/Vertical/index.tsx').includes('active={pageIndex == 0}'))
 
+// Fixed upstream visual contract, in addition to the retained lifecycle checks.
+for (const token of ["width * 0.9", "width * 0.07", "['88%', '88%']", "borderRadius: 6", "opacity: 0.8", "LXDiscArtwork", "LXDiscMount"]) assert.ok(cover.includes(token), 'Missing upstream CD geometry: ' + token)
+const native = read('ios/LxMusicMobile/LXDiscArtwork.m')
+for (const token of ['CGContextEOClip', 'CGRectMake(38.4, 38.4, 23.2, 23.2)', 'CGRectMake(2, 2, 96, 96)', 'CGRectMake(30, 30, 40, 40)', 'kCGBlendModeMultiply', 'kCGBlendModeExclusion', 'CGContextSetLineWidth(c, 1.2)', 'CGContextSetLineWidth(c, .4)']) assert.ok(native.includes(token), 'Missing native SVG layer: ' + token)
+assert.ok(read('ios/LxMusicMobile.xcodeproj/project.pbxproj').includes('LXDiscArtwork.m in Sources'))
+
 // Full-player queue preservation remains enforced by the existing check-track-player-queue.js gate.
 console.log('Build88 cover: production helper/lifecycle/layout/settings contracts passed; native Xcode/runtime gates remain required.')
