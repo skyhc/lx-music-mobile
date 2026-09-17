@@ -9,6 +9,9 @@ on:
       - 'scripts/check-build81-regressions.js'
       - 'scripts/check-build82-regressions.js'
       - 'scripts/check-build88-cover.js'
+      - 'scripts/check-sync-smoke-diagnostics.js'
+      - 'scripts/sync-fixture-audit.cjs'
+      - 'scripts/sync-peer-fixture.cjs'
       - '.github/workflows/build88-unit.yml'
   workflow_dispatch:
 permissions:
@@ -29,3 +32,4 @@ jobs:
       - run: node scripts/check-build82-regressions.js
       - run: node scripts/check-mylist-location.js
       - run: node scripts/check-build88-cover.js
+      - run: node scripts/check-sync-smoke-diagnostics.js

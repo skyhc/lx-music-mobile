@@ -84,6 +84,7 @@ jobs:
           node scripts/check-build87-regressions.js | tee build/checks/build87.log
           node scripts/check-track-player-queue.js | tee build/checks/track-player-queue.log
           node scripts/check-sync-catalog-race.js | tee build/checks/sync-catalog-race.log
+          node scripts/check-sync-smoke-diagnostics.js | tee build/checks/sync-smoke-diagnostics.log
           node scripts/check-settings-preservation.js | tee build/checks/settings-audit.log
           node scripts/check-upstream190.js 2>&1 | tee build/checks/upstream190.log
           npx tsc --strict --noEmit --skipLibCheck --moduleResolution node --target ES2020 src/plugins/player/cache/DiskAudioCache.ts

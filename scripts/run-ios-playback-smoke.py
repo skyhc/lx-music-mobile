@@ -232,6 +232,14 @@ def run() -> None:
             online_report = launch_and_record(tablet, 'playback-online', [])
         except RuntimeError as error:
             native_failures.append(str(error))
+        finally:
+            # Independent host-side evidence, including failures before any
+            # WebSocket connects. Do not replace the original native verdict.
+            try:
+                with urllib.request.urlopen('http://127.0.0.1:18781/diagnostics', timeout=3) as response:
+                    save_json(OUT / 'sync-http-diagnostics.json', json.load(response))
+            except (OSError, ValueError) as error:
+                save_json(OUT / 'sync-http-diagnostics.json', {'diagnosticOnly': str(error)})
         stop(audio_server)
         audio_server = None
         if offline_prerequisite(online_report):

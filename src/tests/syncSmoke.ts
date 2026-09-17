@@ -1,3 +1,5 @@
+import { expectSyncFailure } from './expectedSyncFailure'
+import { getSyncDiagnostic } from '@/plugins/sync/diagnostics'
 import { Buffer as PortableBuffer } from 'buffer'
 import { Buffer as AppBuffer } from '@craftzdog/react-native-buffer'
 import { NativeModules } from 'react-native'
@@ -55,11 +57,10 @@ export const runSyncSmoke = async(check: Check, offline: boolean) => {
     })
     if(!offline){
       await check('sync: unpaired client asks for code and wrong code fails explicitly', async()=>{
-        let missing=false, wrong=false
-        try{await connectServer(address)}catch(e){missing=String(e).includes(SYNC_CODE.missingAuthCode)}
-        assert(missing,'unpaired client did not report missing code')
-        try{await connectServer(address,'wrong-local-ci-code')}catch(e){wrong=String(e).includes(SYNC_CODE.authFailed)}
-        assert(wrong,'wrong code accepted or swallowed')
+        const context = () => ({ status: getStatus(), diagnostic: getSyncDiagnostic() })
+        const missing = await expectSyncFailure(() => connectServer(address), SYNC_CODE.missingAuthCode, context)
+        const wrong = await expectSyncFailure(() => connectServer(address, 'wrong-local-ci-code'), SYNC_CODE.authFailed, context)
+        return { missing, wrong }
       })
       await check('sync: real native authentication, explicit mode overlay and initial compressed library transfer', async()=>{
         const songs=Array.from({length:24},(_,i)=>song('sync-local-'+i))

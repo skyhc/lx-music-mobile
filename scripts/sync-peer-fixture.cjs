@@ -18,6 +18,13 @@ WebSocketServer.prototype.emit = function(event, ...args) {
   if (event === 'connection') { sockets.add(args[0]); args[0].once('close', () => sockets.delete(args[0])) }
   return emit.call(this, event, ...args)
 }
+const { createAudit, verifyProtocol } = require('./sync-fixture-audit.cjs')
+const audit = createAudit()
+const emitHttp = http.Server.prototype.emit
+http.Server.prototype.emit = function(event, ...args) {
+  if (event === 'request' && this.address()?.port === 18780) audit.observe(args[0], args[1])
+  return emitHttp.call(this, event, ...args)
+}
 require(path.join(serverRoot, 'server/index.js'))
 const { getUserSpace } = require(path.join(serverRoot, 'server/user/index.js'))
 const base = 'http://127.0.0.1:18780'
@@ -77,7 +84,8 @@ const api = http.createServer(async(req,res)=>{
   try {
     let body='';for await(const b of req){body+=b;if(body.length>1024*1024)throw new Error('fixture request too big')}
     let result
-    if(req.url==='/health')result={ok:true}
+    if(req.url==='/health')result=await verifyProtocol(base)
+    else if(req.url==='/diagnostics')result={requests:audit.snapshot()}
     else if(req.url==='/peer/connect'){await connectPeer();result={ready}}
     else if(req.url==='/peer/action') {if(!ready)throw new Error('peer disconnected');const action=JSON.parse(body);apply(action);await rpc.createQueueRemote('list').onListSyncAction(action);result={ok:true}}
     else if(req.url==='/state')result={server:await getUserSpace('ci').listManage.getListData(),peer:lists,ready,received}

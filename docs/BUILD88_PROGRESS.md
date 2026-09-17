@@ -24,6 +24,19 @@ This increment integrates the selectable Any Listen-inspired cover behaviour int
 
 Local replay cross-check before submission confirms the selected cover production files are byte-identical to their verified checkpoint postimages, while their c38 preimages match the checkpoint preimages. The concise cover regression also passes locally. Xcode/native runtime acceptance for this new increment remains pending until the Actions run for its commit finishes; the current 54-shot suite does not by itself prove the CD visual state on a physical device.
 
+## Sync failure investigation after Actions #94
+
+Full iOS run `35142370694` (#94, source `e5ff8b0ee28af5a43356735374a1ab8c508c5475`) passed the pre-build checks and simulator compilation, but failed the first native unpaired-authentication expectation. Its old assertion collapsed any unexpected error into `unpaired client did not report missing code`. It did not preserve the actual error, and the server fixture only logged WebSocket connections, so those artifacts do not establish the underlying cause. Archive/IPA steps were skipped. The independent cover increment run passed; this does not prove all native checks passed.
+
+This increment repairs that diagnostic loss without claiming the underlying native/network failure fixed:
+
+- Both missing-code and wrong-code checks require the exact expected rejected error, record it on success, and preserve a redacted actual error/stage/status on failure. Resolved cancellation and unrelated errors still fail.
+- The CI fixture's health now verifies its actual `/hello` and `/id` protocol endpoints rather than returning success from an unrelated control port alone.
+- A bounded passive observer records only endpoint, HTTP status and timing. It does not capture headers, query strings, bodies, identifiers or keys. The driver saves it independently, including when native setup fails.
+- Ten executable diagnostics checks cover strict rejection, cause preservation, redaction, protocol readiness and a real local HTTP observer. These join both CI workflows without deleting existing gates or raising timeouts.
+
+The production sync protocol, credentials, app sources other than simulator-only tests, playback queue, signing identity, package 1.9.0/87 and published Build87 are unchanged. A new full Actions run is required to observe the real native result; no new native or binary success is predeclared.
+
 ## Checkpoint material retained for later increments
 
 `LX-Music-Build88-WIP-Checkpoint.zip` was re-read from the supplied file reference and its SHA256 was rechecked as `4eea0969e08ef4ab23f8b8f4a8fca903595a164d694ecfceab499ce8c814715d`. Its WebDAV Foundation core and future publication-policy work remain useful replay material, but they are not treated as completed App features.
