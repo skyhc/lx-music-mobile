@@ -89,7 +89,7 @@ export const storageDataPrefixOld = {
   listPosition: '@listposition__',
   listSort: '@listsort__',
   // lyric: '@lyric__',
-  musicUrl: '@music_url__',
+  // musicUrl: '@music_url__',
   playInfo: '@play_info',
   syncAuthKey: '@sync_auth_key',
   syncHost: '@sync_host',
@@ -105,6 +105,7 @@ export const NAV_MENUS = [
   { id: 'nav_songlist', icon: 'album' },
   { id: 'nav_top', icon: 'leaderboard' },
   { id: 'nav_love', icon: 'love' },
+  // { id: 'download', icon: 'download-2' },
   { id: 'nav_library', icon: 'download-2' },
   { id: 'nav_setting', icon: 'setting' },
 ] as const
