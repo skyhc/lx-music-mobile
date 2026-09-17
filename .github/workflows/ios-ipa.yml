@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+  actions: read
 concurrency:
   group: ios-archive-${{ github.ref }}
   cancel-in-progress: true
@@ -78,6 +79,10 @@ jobs:
           node scripts/check-build81-regressions.js 2>&1 | tee build/checks/build81-regressions.log
           node scripts/check-build82-regressions.js 2>&1 | tee build/checks/build82-regressions.log
           node scripts/check-mylist-location.js 2>&1 | tee build/checks/mylist-location.log
+          node scripts/check-build88-cover.js 2>&1 | tee build/checks/build88-cover.log
+          node scripts/check-library-state.js 2>&1 | tee build/checks/library-state.log
+          node scripts/check-library-integration.js 2>&1 | tee build/checks/library-integration.log
+          python3 scripts/check-ios-release-policy.py 2>&1 | tee build/checks/release-policy-tests.log
           node scripts/check-build84-regressions.js | tee build/checks/build84.log
           node scripts/check-build85-regressions.js | tee build/checks/build85.log
           node scripts/check-build86-regressions.js | tee build/checks/build86.log
@@ -90,6 +95,8 @@ jobs:
           npx tsc --strict --noEmit --skipLibCheck --moduleResolution node --target ES2020 src/plugins/player/cache/DiskAudioCache.ts
       - name: Check full-project TypeScript regressions
         run: node scripts/check-type-regressions.js
+      - name: Test production WebDAV, resume and encrypted restore with the Apple SDK
+        run: python3 scripts/check-library-native.py
       - name: Upload validation reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -154,6 +161,8 @@ jobs:
           (root / 'UI-MANIFEST.json').write_text(json.dumps({'commit': os.environ['GITHUB_SHA'], 'run': os.environ['GITHUB_RUN_ID'], 'count': len(images), 'screenshots': records}, indent=2))
           print('54 PNG screenshots, their runtime reports and both playback records verified.')
           PYTHON
+      - name: Test actual App library, downloads, encrypted cold restore and offline restart
+        run: python3 scripts/run-ios-library-smoke.py
       - name: Upload individual UI screenshots and runtime records
         if: always()
         uses: actions/upload-artifact@v4
@@ -167,6 +176,9 @@ jobs:
             build/checks/build86-colours.json
             build/checks/feature-theme-*.png
             build/checks/system-theme*.json
+            build/checks/feature-library-*.png
+            build/checks/library-*.json
+            build/checks/library-native-*.log
           if-no-files-found: error
           retention-days: 30
       - name: Upload simulator and regression evidence
@@ -228,6 +240,8 @@ jobs:
           echo "$DEVICE_FAMILY" | grep -q '1'
           echo "$DEVICE_FAMILY" | grep -q '2'
           test -s "$APP_PATH/main.jsbundle"
+      - name: Embed exact source and run in the unsigned app
+        run: python3 scripts/ios_release_policy.py --stamp-archive
       - name: Package unsigned IPA
         run: |
           set -euo pipefail
@@ -245,6 +259,8 @@ jobs:
           test -s "$ARCHIVE_ZIP"
           (cd build && shasum -a 256 *.ipa *.xcarchive.zip > SHA256SUMS.txt)
           printf 'commit=%s\nrun=%s\nversion=%s\nbuild=%s\nsigning=unsigned\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$PACKAGE_VERSION" "$PACKAGE_VERSION_CODE" > build/BUILD-METADATA.txt
+      - name: Verify all acceptance, same-source IPA and archive, CRC and SHA256
+        run: python3 scripts/ios_release_policy.py
       - name: Upload unsigned IPA artifact
         uses: actions/upload-artifact@v4
         with:
@@ -263,15 +279,18 @@ jobs:
             build/SHA256SUMS.txt
             build/BUILD-METADATA.txt
           if-no-files-found: error
-      - name: Release unsigned IPA
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+      - name: Publish verified Build88 packages without rebuilding or replacing Build87
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/ios_release_policy.py --publish
+      - name: Upload final binary and publication validation records
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.ref_name }}
-          prerelease: false
-          draft: false
-          files: |
-            build/lx-music-mobile-v${{ env.PACKAGE_VERSION }}-build${{ env.PACKAGE_VERSION_CODE }}-ios-unsigned.ipa
-            build/LX-Music-v${{ env.PACKAGE_VERSION }}-build${{ env.PACKAGE_VERSION_CODE }}.xcarchive.zip
-            build/SHA256SUMS.txt
-            build/BUILD-METADATA.txt
+          name: release-validation-${{ github.sha }}
+          path: |
+            build/checks/release-validation.json
+            build/checks/BUILD88-ACCEPTANCE.json
+            build/checks/publication.json
+          if-no-files-found: ignore

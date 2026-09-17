@@ -4704,9 +4704,12 @@ RCT_EXPORT_MODULE();
   NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
   NSString *uiPhase = @"";
   for (NSString *arg in args) if ([arg hasPrefix:@"--lx-ui="]) uiPhase = [arg substringFromIndex:8];
+  NSString *libraryPhase = @"";
+  for (NSString *arg in args) if ([arg hasPrefix:@"--lx-library="]) libraryPhase = [arg substringFromIndex:13];
   return @{ @"enabled": @([args containsObject:@"--lx-playback-smoke"]),
             @"offline": @([args containsObject:@"--lx-playback-offline"]),
             @"uiPhase": uiPhase,
+            @"libraryPhase": libraryPhase,
             @"uiOrientation": [args containsObject:@"--lx-ui-landscape"] ? @"landscape" : @"portrait" };
 }
 RCT_REMAP_METHOD(windowSnapshot, windowSnapshotWithResolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
@@ -4800,6 +4803,11 @@ RCT_REMAP_METHOD(record, record:(NSDictionary *)report resolver:(RCTPromiseResol
 @end
 #endif
 
+// Cold restore completes before any RCTBridge/AsyncStorage instance exists.
+@interface LXRestoreBootstrap : NSObject
++ (void)prepare:(void (^)(NSError *error))completion;
+@end
+
 @implementation AppDelegate
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
@@ -4813,9 +4821,33 @@ RCT_REMAP_METHOD(record, record:(NSDictionary *)report resolver:(RCTPromiseResol
 
 - (void)startReactNativeWithLaunchOptions:(NSDictionary *)launchOptions
 {
+  static BOOL starting = NO;
   if ([ReactNativeNavigation getBridge] != nil) return;
-  RCTBridge *bridge = [[RCTBridge alloc] initWithDelegate:self launchOptions:launchOptions];
-  [ReactNativeNavigation bootstrapWithBridge:bridge];
+  if (starting) return;
+  starting = YES;
+  [LXRestoreBootstrap prepare:^(NSError *error) {
+    if (error != nil) {
+      UIViewController *screen = [UIViewController new];
+      screen.view.backgroundColor = UIColor.systemBackgroundColor;
+      UILabel *message = [UILabel new];
+      message.text = error.localizedDescription;
+      message.numberOfLines = 0;
+      message.textAlignment = NSTextAlignmentCenter;
+      message.textColor = UIColor.labelColor;
+      message.translatesAutoresizingMaskIntoConstraints = NO;
+      [screen.view addSubview:message];
+      [NSLayoutConstraint activateConstraints:@[
+        [message.leadingAnchor constraintEqualToAnchor:screen.view.safeAreaLayoutGuide.leadingAnchor constant:24],
+        [message.trailingAnchor constraintEqualToAnchor:screen.view.safeAreaLayoutGuide.trailingAnchor constant:-24],
+        [message.centerYAnchor constraintEqualToAnchor:screen.view.centerYAnchor]
+      ]];
+      self.window.rootViewController = screen;
+      [self.window makeKeyAndVisible];
+      return; // Retain rollback files; do not boot into partially restored data.
+    }
+    RCTBridge *bridge = [[RCTBridge alloc] initWithDelegate:self launchOptions:launchOptions];
+    [ReactNativeNavigation bootstrapWithBridge:bridge];
+  }];
 }
 
 - (NSArray<id<RCTBridgeModule>> *)extraModulesForBridge:(RCTBridge *)bridge {

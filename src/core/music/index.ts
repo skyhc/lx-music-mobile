@@ -1,3 +1,4 @@
+import { getLibraryReference, encodeLibraryURL } from '@/core/library/reference'
 // if (targetSong.key) { // 如果是已下载的歌曲
 //   const filePath = path.join(appSetting['download.savePath'], targetSong.metadata.fileName)
 //   // console.log(filePath)
@@ -52,6 +53,8 @@ export const getMusicUrlInfo = async({
   allowToggleSource?: boolean
   cacheAudio?: boolean
 }): Promise<{ url: string, quality: LX.Quality | null }> => {
+  const library = getLibraryReference(musicInfo)
+  if (library) return { url: encodeLibraryURL(library), quality: null }
   if ('progress' in musicInfo) {
     return getDownloadMusicUrlInfo({ musicInfo, isRefresh, onToggleSource, allowToggleSource })
   } else if (musicInfo.source == 'local') {
@@ -72,6 +75,7 @@ export const getPicPath = async({
   isRefresh?: boolean
   onToggleSource?: (musicInfo?: LX.Music.MusicInfoOnline) => void
 }): Promise<string> => {
+  if (getLibraryReference(musicInfo)) return ''
   if ('progress' in musicInfo) {
     return getDownloadPicUrl({ musicInfo, isRefresh, listId, onToggleSource })
   } else if (musicInfo.source == 'local') {
@@ -90,6 +94,7 @@ export const getLyricInfo = async({
   isRefresh?: boolean
   onToggleSource?: (musicInfo?: LX.Music.MusicInfoOnline) => void
 }): Promise<LX.Player.LyricInfo> => {
+  if (getLibraryReference(musicInfo)) return { lyric: '', tlyric: '', rlyric: '', lxlyric: '', rawlrcInfo: { lyric: '', tlyric: '', rlyric: '', lxlyric: '' } }
   if ('progress' in musicInfo) {
     return getDownloadLyricInfo({ musicInfo, isRefresh, onToggleSource })
   } else if (musicInfo.source == 'local') {

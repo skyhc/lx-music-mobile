@@ -1,6 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { log } from '@/utils/log'
 
+let storageWriteTail: Promise<unknown> = Promise.resolve()
+export function withStorageSnapshot<T>(task: () => Promise<T>): Promise<T> {
+  const result = storageWriteTail.then(task)
+  storageWriteTail = result.catch(() => {})
+  return result
+}
+
 const partKeyPrefix = '@___PART___'
 const partKeyArrPrefix = '@___PART_A___'
 const partKeyPrefixRxp = /^@___PART___/
@@ -43,12 +50,12 @@ const handleGetData = async<T>(partKeys: string): Promise<T> => {
   })
 }
 
-export const saveData = async(key: string, value: any) => {
+const saveDataUnsafe = async(key: string, value: any) => {
   const datas: Array<[string, string]> = []
   buildData(key, value, datas)
 
   try {
-    await removeData(key)
+    await removeDataUnsafe(key)
     await AsyncStorage.multiSet(datas)
   } catch (e: any) {
     // saving error
@@ -72,7 +79,7 @@ export const getData = async<T = unknown>(key: string): Promise<T | null> => {
   return JSON.parse(value)
 }
 
-export const removeData = async(key: string) => {
+const removeDataUnsafe = async(key: string) => {
   let value: string | null
   try {
     value = await AsyncStorage.getItem(key)
@@ -154,13 +161,13 @@ export const getDataMultiple = async<T extends readonly string[]>(keys: T) => {
   })
 }
 
-export const saveDataMultiple = async(datas: Array<[string, any]>) => {
+const saveDataMultipleUnsafe = async(datas: Array<[string, any]>) => {
   const allData: Array<[string, string]> = []
   for (const [key, value] of datas) {
     buildData(key, value, allData)
   }
   try {
-    await removeDataMultiple(datas.map(k => k[0]))
+    await removeDataMultipleUnsafe(datas.map(k => k[0]))
     await AsyncStorage.multiSet(allData)
   } catch (e: any) {
     // save error
@@ -170,7 +177,7 @@ export const saveDataMultiple = async(datas: Array<[string, any]>) => {
 }
 
 
-export const removeDataMultiple = async(keys: string[]) => {
+const removeDataMultipleUnsafe = async(keys: string[]) => {
   if (!keys.length) return
   const datas = await AsyncStorage.multiGet(keys)
   let allKeys = []
@@ -193,7 +200,7 @@ export const removeDataMultiple = async(keys: string[]) => {
   }
 }
 
-export const clearAll = async() => {
+const clearAllUnsafe = async() => {
   try {
     await AsyncStorage.clear()
   } catch (e: any) {
@@ -204,3 +211,11 @@ export const clearAll = async() => {
 }
 
 export { useAsyncStorage } from '@react-native-async-storage/async-storage'
+
+// Public writes wait behind a coherent native backup snapshot. Internal calls
+// use their Unsafe implementation to avoid recursively acquiring this queue.
+export const saveData = (key: string, value: any) => withStorageSnapshot(() => saveDataUnsafe(key, value))
+export const removeData = (key: string) => withStorageSnapshot(() => removeDataUnsafe(key))
+export const saveDataMultiple = (values: Array<[string, any]>) => withStorageSnapshot(() => saveDataMultipleUnsafe(values))
+export const removeDataMultiple = (keys: string[]) => withStorageSnapshot(() => removeDataMultipleUnsafe(keys))
+export const clearAll = () => withStorageSnapshot(() => clearAllUnsafe())

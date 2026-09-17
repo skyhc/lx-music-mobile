@@ -34,6 +34,7 @@ declare namespace LX {
     interface MusicInfoMeta_local extends MusicInfoMetaBase {
       filePath: string
       ext: string
+      library?: import('@/core/library/types').LibraryReference
     }
 
 

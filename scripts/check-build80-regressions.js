@@ -161,7 +161,7 @@ const clone = obj => JSON.parse(JSON.stringify(obj))
   })
   await check('version-specific repair summary exists in project CHANGELOG',()=>{
     const pkg=JSON.parse(source('package.json'))
-    assert.ok(source('CHANGELOG_BUILD87.md').includes(`iOS / iPadOS ${pkg.version} Build ${pkg.versionCode}`))
+    assert.ok(source(`CHANGELOG_BUILD${pkg.versionCode}.md`).includes(`iOS / iPadOS ${pkg.version} Build ${pkg.versionCode}`))
   })
   console.log(`${total} Build 80 checks passed. Real native output and rendered UI have separate evidence.`)
 })().catch(e=>{console.error(e);process.exitCode=1})
