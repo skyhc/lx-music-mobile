@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Required actual simulator App tests for the Build88 production library.
 
-Separate from, and subsequent to, the unchanged 54-shot playback suite. No
-existing screenshot/report is removed. Fresh synthetic account/media and one
-new private simulator. Archive, reports and independent DAV trace must agree.
+Run this current-feature gate before the unchanged playback/visual suite so a
+library failure does not repeat already-passing long regressions. Generate the
+same synthetic tones independently; no existing screenshot/report is removed.
+One new private simulator. Archive, reports and independent DAV trace must agree.
 """
 from __future__ import annotations
-import hashlib, json, os, re, shutil, subprocess, sys, time, urllib.request
+import hashlib, json, math, os, re, shutil, struct, subprocess, sys, time, urllib.request, wave
 from pathlib import Path
 from simulator_app_lifecycle import OwnedSimulatorApps
 
@@ -47,12 +48,27 @@ def control(name: str):
         return json.load(response)
 
 
+def prepare_media():
+    """Use the original playback fixture without first running its whole suite."""
+    MEDIA.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(MEDIA / 'tone.wav'), 'wb') as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(16000)
+        audio.writeframes(b''.join(struct.pack('<h', int(6000 * math.sin(2 * math.pi * 440 * i / 16000)))
+                                   for i in range(30 * 16000)))
+    if not shutil.which('ffmpeg'):
+        cmd('brew', 'install', 'ffmpeg', timeout=300)
+    cmd('ffmpeg', '-v', 'error', '-y', '-i', str(MEDIA / 'tone.wav'), '-c:a', 'flac', str(MEDIA / 'tone.flac'))
+    cmd('ffmpeg', '-v', 'error', '-y', '-i', str(MEDIA / 'tone.wav'), '-c:a', 'libmp3lame', '-b:a', '64k', str(MEDIA / 'tone.mp3'))
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     if not APP.is_dir(): raise RuntimeError('Release simulator app is missing')
-    # This follows the existing playback suite, which generated its own tones.
+    prepare_media()
     for ext in ('mp3', 'flac'):
-        if not (MEDIA / ('tone.' + ext)).is_file(): raise RuntimeError('Existing media prerequisite missing: ' + ext)
+        if not (MEDIA / ('tone.' + ext)).is_file(): raise RuntimeError('Generated media prerequisite missing: ' + ext)
     audio = DAV / 'audio'; audio.mkdir(parents=True, exist_ok=True)
     for ext in ('mp3', 'flac'): shutil.copy2(MEDIA / ('tone.' + ext), audio / ('tone.' + ext))
     shutil.copy2(MEDIA / 'tone.mp3', audio / '蓝色 空间.mp3')

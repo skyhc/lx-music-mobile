@@ -107,16 +107,6 @@ jobs:
           if-no-files-found: ignore
       - name: Install CocoaPods dependencies
         run: cd ios && bundle exec pod install --repo-update
-      - name: Prepare pinned official sync server for native interoperability
-        run: |
-          set -euo pipefail
-          git clone https://github.com/lyswhut/lx-music-sync-server.git build/official-sync
-          git -C build/official-sync checkout --detach d47aca4284a7c4d9ef755df1f44fb0b0a5b2af36
-          test "$(git -C build/official-sync rev-parse HEAD)" = d47aca4284a7c4d9ef755df1f44fb0b0a5b2af36
-          cd build/official-sync
-          npm ci --no-audit --no-fund
-          npm run build
-
       - name: Build simulator app for real playback regression
         shell: bash
         run: |
@@ -136,6 +126,18 @@ jobs:
           assert sorted(info['UIDeviceFamily']) == [1, 2], info.get('UIDeviceFamily')
           print('Simulator app uses the same iPhone+iPad device families as the device archive.')
           PYTHON
+      - name: Test actual App library, downloads, encrypted cold restore and offline restart
+        run: python3 scripts/run-ios-library-smoke.py
+      - name: Prepare pinned official sync server for native interoperability
+        run: |
+          set -euo pipefail
+          git clone https://github.com/lyswhut/lx-music-sync-server.git build/official-sync
+          git -C build/official-sync checkout --detach d47aca4284a7c4d9ef755df1f44fb0b0a5b2af36
+          test "$(git -C build/official-sync rev-parse HEAD)" = d47aca4284a7c4d9ef755df1f44fb0b0a5b2af36
+          cd build/official-sync
+          npm ci --no-audit --no-fund
+          npm run build
+
       - name: Test native authentication, themes, streaming and offline restart
         run: bash scripts/run-ios-playback-smoke.sh
       - name: Verify and inventory visual evidence
@@ -164,8 +166,6 @@ jobs:
           (root / 'UI-MANIFEST.json').write_text(json.dumps({'commit': os.environ['GITHUB_SHA'], 'run': os.environ['GITHUB_RUN_ID'], 'count': len(images), 'screenshots': records}, indent=2))
           print('54 PNG screenshots, their runtime reports and both playback records verified.')
           PYTHON
-      - name: Test actual App library, downloads, encrypted cold restore and offline restart
-        run: python3 scripts/run-ios-library-smoke.py
       - name: Upload individual UI screenshots and runtime records
         if: always()
         uses: actions/upload-artifact@v4
