@@ -83,6 +83,7 @@ jobs:
           node scripts/check-library-state.js 2>&1 | tee build/checks/library-state.log
           node scripts/check-library-integration.js 2>&1 | tee build/checks/library-integration.log
           python3 scripts/check-ios-release-policy.py 2>&1 | tee build/checks/release-policy-tests.log
+          python3 scripts/check-simulator-keychain.py 2>&1 | tee build/checks/simulator-keychain-tests.log
           node scripts/check-build84-regressions.js | tee build/checks/build84.log
           node scripts/check-build85-regressions.js | tee build/checks/build85.log
           node scripts/check-build86-regressions.js | tee build/checks/build86.log
@@ -126,7 +127,9 @@ jobs:
             TARGETED_DEVICE_FAMILY="1,2" IPHONEOS_DEPLOYMENT_TARGET=15.0 \
             MARKETING_VERSION="$(node -p "require('./package.json').version")" \
             CURRENT_PROJECT_VERSION="$(node -p "require('./package.json').versionCode")" \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee build/checks/simulator-build.log
+            DEVELOPMENT_TEAM="$IOS_TEAM_ID" CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES build 2>&1 | tee build/checks/simulator-build.log
+          python3 scripts/verify-simulator-keychain.py build/Simulator/Build/Products/Release-iphonesimulator/LxMusicMobile.app
           python3 - <<'PYTHON'
           import plistlib, pathlib
           info = plistlib.loads(pathlib.Path('build/Simulator/Build/Products/Release-iphonesimulator/LxMusicMobile.app/Info.plist').read_bytes())

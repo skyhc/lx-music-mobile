@@ -200,6 +200,15 @@ enum LXFiles {
   }
 }
 
+// Error diagnostics contain only the fixed operation and numeric OSStatus.
+// Never interpolate service/account names, passwords, queries or secret bytes.
+struct LXKeychainFailure: Error, LocalizedError {
+  enum Operation: String { case read, update, add, delete, snapshot }
+  let operation: Operation
+  let status: OSStatus
+  var errorDescription: String? { "钥匙串操作失败（\(operation.rawValue)，OSStatus=\(status)）" }
+}
+
 protocol LXSecretVault {
   func read(_ key: String) throws -> Data?
   func write(_ key: String, value: Data?) throws
@@ -218,14 +227,14 @@ final class LXKeychainVault: LXSecretVault {
     var q = query(key); q[kSecReturnData as String] = true; q[kSecMatchLimit as String] = kSecMatchLimitOne
     var value: CFTypeRef?; let status = SecItemCopyMatching(q as CFDictionary, &value)
     if status == errSecItemNotFound { return nil }
-    guard status == errSecSuccess, let data = value as? Data else { throw LXLibraryError("无法读取钥匙串，请解锁设备后重试") }
+    guard status == errSecSuccess, let data = value as? Data else { throw LXKeychainFailure(operation: .read, status: status) }
     return data
   }
   func write(_ key: String, value: Data?) throws {
     let q = query(key)
     guard let value = value else {
       let status = SecItemDelete(q as CFDictionary)
-      guard status == errSecSuccess || status == errSecItemNotFound else { throw LXLibraryError("无法删除应用钥匙串项目") }
+      guard status == errSecSuccess || status == errSecItemNotFound else { throw LXKeychainFailure(operation: .delete, status: status) }
       return
     }
     let status = SecItemUpdate(q as CFDictionary, [kSecValueData as String: value] as CFDictionary)
@@ -235,15 +244,16 @@ final class LXKeychainVault: LXSecretVault {
       // This-device-only, after-first-unlock protection permits that legitimate
       // use without making credentials transferable through system backups.
       item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-      guard SecItemAdd(item as CFDictionary, nil) == errSecSuccess else { throw LXLibraryError("无法保存钥匙串，请解锁设备后重试") }
-    } else if status != errSecSuccess { throw LXLibraryError("无法更新应用钥匙串项目") }
+      let addStatus = SecItemAdd(item as CFDictionary, nil)
+      guard addStatus == errSecSuccess else { throw LXKeychainFailure(operation: .add, status: addStatus) }
+    } else if status != errSecSuccess { throw LXKeychainFailure(operation: .update, status: status) }
   }
   func all() throws -> [String: Data] {
     var q = query(); q[kSecReturnAttributes as String] = true; q[kSecReturnData as String] = true
     q[kSecMatchLimit as String] = kSecMatchLimitAll
     var result: CFTypeRef?; let status = SecItemCopyMatching(q as CFDictionary, &result)
     if status == errSecItemNotFound { return [:] }
-    guard status == errSecSuccess, let items = result as? [[String: Any]] else { throw LXLibraryError("无法备份应用钥匙串") }
+    guard status == errSecSuccess, let items = result as? [[String: Any]] else { throw LXKeychainFailure(operation: .snapshot, status: status) }
     var values: [String: Data] = [:]
     for item in items {
       guard let key = item[kSecAttrAccount as String] as? String, let value = item[kSecValueData as String] as? Data else {
