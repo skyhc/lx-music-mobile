@@ -1,6 +1,7 @@
-import { forwardRef, useImperativeHandle, useMemo, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react'
 
 import DownloadSettings from './settings/Download'
+import WebDAV from './settings/WebDAV'
 import Basic from './settings/Basic'
 import Player from './settings/Player'
 import LyricDesktop from './settings/LyricDesktop'
@@ -11,11 +12,13 @@ import Backup from './settings/Backup'
 import Other from './settings/Other'
 import Version from './settings/Version'
 import About from './settings/About'
+import { useLibraryPage } from '@/core/library/page'
 
 export const SETTING_SCREENS = [
   'basic',
   'player',
   'download',
+  'webdav',
   'lyric_desktop',
   'search',
   'list',
@@ -28,15 +31,18 @@ export const SETTING_SCREENS = [
 
 export type SettingScreenIds = typeof SETTING_SCREENS[number]
 
-// interface MainProps {
-//   onUpdateActiveId: (id: string) => void
-// }
 export interface MainType {
   setActiveId: (id: SettingScreenIds) => void
 }
 
 const Main = forwardRef<MainType, {}>((props, ref) => {
   const [id, setId] = useState(global.lx.settingActiveId)
+  const requested = useLibraryPage()
+
+  useEffect(() => {
+    if (!requested.screen) return
+    requestAnimationFrame(() => { setId(requested.screen as SettingScreenIds) })
+  }, [requested.revision, requested.screen])
 
   useImperativeHandle(ref, () => ({
     setActiveId(id) {
@@ -52,6 +58,7 @@ const Main = forwardRef<MainType, {}>((props, ref) => {
     switch (id) {
       case 'player': return <Player />
       case 'download': return <DownloadSettings />
+      case 'webdav': return <WebDAV />
       case 'lyric_desktop': return <LyricDesktop />
       case 'search': return <Search />
       case 'list': return <List />
@@ -68,6 +75,4 @@ const Main = forwardRef<MainType, {}>((props, ref) => {
   return component
 })
 
-
 export default Main
-

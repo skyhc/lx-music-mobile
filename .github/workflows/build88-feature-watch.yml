@@ -1,0 +1,95 @@
+name: Build88 Feature Branch Watch
+
+on:
+  push:
+    branches: ['codex/build88-webdav-download']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build88-feature-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-and-build:
+    name: Verify feature boundaries and compile iOS archive
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      NO_FLIPPER: 1
+      IOS_SCHEME: LxMusicMobile
+      IOS_WORKSPACE: ios/LxMusicMobile.xcworkspace
+      IOS_BUNDLE_IDENTIFIER: com.skyhc.lxmusic
+      IOS_TEAM_ID: LW54AZ8PXT
+      ARCHIVE_PATH: build/LxMusicMobile-build88-feature.xcarchive
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Select Xcode 26.6
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.6.app/Contents/Developer
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+      - name: Fix Swift compatibility libraries
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOOLCHAIN="$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphoneos"
+          SDK="$(xcrun --sdk iphoneos --show-sdk-path)/usr/lib/swift"
+          LIBS=(libswiftCompatibility50.a libswiftCompatibility51.a libswiftCompatibility56.a libswiftCompatibilityConcurrency.a libswiftCompatibilityDynamicReplacements.a libswiftCompatibilityPacks.a)
+          for LIB in "${LIBS[@]}"; do
+            SRC="$TOOLCHAIN/$LIB"; DST="$SDK/$LIB"; TBD="${DST%.a}.tbd"
+            if [ -f "$SRC" ] && [ ! -e "$DST" ] && [ ! -e "$TBD" ]; then sudo ln -s "$SRC" "$DST"; fi
+          done
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+      - name: Install JavaScript dependencies
+        run: npm ci
+      - name: Verify Build88 feature boundaries
+        run: |
+          node scripts/check-build88-feature-boundaries.js
+          node scripts/check-library-state.js
+          node scripts/check-type-regressions.js
+      - name: Install CocoaPods dependencies
+        run: cd ios && bundle exec pod install --repo-update
+      - name: Compile unsigned iOS archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          VERSION="$(node -p "require('./package.json').version")"
+          BUILD="$(node -p "require('./package.json').versionCode")"
+          xcodebuild -workspace "$IOS_WORKSPACE" -scheme "$IOS_SCHEME" \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -archivePath "$ARCHIVE_PATH" -derivedDataPath build/DerivedData \
+            DEVELOPMENT_TEAM="$IOS_TEAM_ID" CODE_SIGN_STYLE=Automatic \
+            PRODUCT_BUNDLE_IDENTIFIER="$IOS_BUNDLE_IDENTIFIER" TARGETED_DEVICE_FAMILY="1,2" \
+            IPHONEOS_DEPLOYMENT_TARGET=15.0 MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO clean archive | tee build/xcodebuild-feature.log
+          APP_PATH="$(find "$ARCHIVE_PATH/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)"
+          test -n "$APP_PATH" && test -s "$APP_PATH/main.jsbundle"
+          rm -rf build/Payload && mkdir -p build/Payload
+          ditto "$APP_PATH" "build/Payload/$(basename "$APP_PATH")"
+          (cd build && zip -qry "lx-music-mobile-v${VERSION}-build${BUILD}-ios-unsigned.ipa" Payload)
+          ditto -c -k --sequesterRsrc --keepParent "$ARCHIVE_PATH" "build/LX-Music-v${VERSION}-build${BUILD}.xcarchive.zip"
+          (cd build && shasum -a 256 *.ipa *.xcarchive.zip > SHA256SUMS.txt)
+      - name: Upload compiled candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: build88-feature-${{ github.sha }}
+          path: |
+            build/*.ipa
+            build/*.xcarchive.zip
+            build/SHA256SUMS.txt
+            build/xcodebuild-feature.log
+          if-no-files-found: error
+          retention-days: 14

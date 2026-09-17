@@ -3,7 +3,7 @@ import { memo } from 'react'
 
 import Section from '../../components/Section'
 import Part from './Part'
-// import MaxCache from './MaxCache'
+import EncryptedBackup from './EncryptedBackup'
 
 export default memo(() => {
   const t = useI18n()
@@ -11,7 +11,7 @@ export default memo(() => {
   return (
     <Section title={t('setting_backup')}>
       <Part />
-      {/* <MaxCache /> */}
+      <EncryptedBackup />
     </Section>
   )
 })

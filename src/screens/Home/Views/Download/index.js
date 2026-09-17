@@ -1,14 +1,3 @@
-import {
-  // StyleSheet,
-  View,
-  // Button,
-  Text,
-} from 'react-native'
-
-// import Menu from '@/components/Menu'
-
-export default () => {
-  return <View>
-    <Text>下载</Text>
-  </View>
-}
+// The top-level Download route owns task progress/history. Configuration stays in Settings.
+// The task implementation is shared with the Build88 queue while the legacy Library route is retired.
+export { default } from '../Library/Downloads'
