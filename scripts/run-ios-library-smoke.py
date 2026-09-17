@@ -8,6 +8,7 @@ new private simulator. Archive, reports and independent DAV trace must agree.
 from __future__ import annotations
 import hashlib, json, os, re, shutil, subprocess, sys, time, urllib.request
 from pathlib import Path
+from simulator_app_lifecycle import OwnedSimulatorApps
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / 'build/checks'
@@ -60,6 +61,7 @@ def main():
     with (audio / 'slow-resume.mp3').open('wb') as handle:
         handle.write((MEDIA / 'tone.mp3').read_bytes()); handle.write(b'\0' * (8 * 1024 * 1024))
     simulator = None; server = None; reports = {}; failure = None
+    apps = OwnedSimulatorApps(sim, BUNDLE)
     with (OUT / 'library-dav-server.log').open('w') as log:
         try:
             server = subprocess.Popen([sys.executable, '-u', str(ROOT / 'scripts/library-dav-fixture.py'), str(DAV)], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
@@ -80,6 +82,7 @@ def main():
             model = next(d['identifier'] for d in json.loads(sim('list', 'devicetypes', '-j'))['devicetypes'] if 'iPad Pro' in d['name'] and '13' in d['name'])
             simulator = sim('create', 'LXBuild88-Library-' + os.environ.get('GITHUB_RUN_ID', 'local'), model, runtime)
             sim('boot', simulator); sim('bootstatus', simulator, '-b', timeout=240); sim('install', simulator, str(APP))
+            apps.register(simulator)
             for phase in PHASES:
                 if phase == 'offline':
                     # Actually remove the remote service; successful local playback
@@ -87,7 +90,7 @@ def main():
                     save(OUT / 'library-dav-trace.json', control('trace'))
                     save(OUT / 'library-dav-files.json', control('manifest'))
                     server.terminate(); server.wait(timeout=10); server = None
-                sim('terminate', simulator, BUNDLE, check=False)
+                apps.before_launch(simulator)
                 data = Path(sim('get_app_container', simulator, BUNDLE, 'data'))
                 raw_report = data / 'Documents/playback-smoke.json'
                 raw_report.unlink(missing_ok=True)  # only this fresh CI simulator's report

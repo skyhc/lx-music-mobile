@@ -14,6 +14,7 @@ import sys
 import time
 import urllib.request
 import wave
+from simulator_app_lifecycle import OwnedSimulatorApps
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / 'build/checks'
@@ -138,6 +139,7 @@ def run() -> None:
     simulators: list[str] = []
     audio_server = sync_server = None
     logs = []
+    apps = OwnedSimulatorApps(simctl, BUNDLE)
     started = time.time()
     try:
         def service(args: list[str], name: str) -> subprocess.Popen:
@@ -166,11 +168,12 @@ def run() -> None:
             simctl('boot', simulator)
             simctl('bootstatus', simulator, '-b', timeout=300)
             simctl('install', simulator, str(APP))
+            apps.register(simulator)
             active_simulator = simulator
             return simulator
 
         def launch_and_record(simulator: str, name: str, arguments: list[str], phase: str | None = None) -> dict:
-            simctl('terminate', simulator, BUNDLE, check=False)
+            apps.before_launch(simulator)
             data = Path(simctl('get_app_container', simulator, BUNDLE, 'data'))
             report_path = data / 'Documents/playback-smoke.json'
             report_path.unlink(missing_ok=True)
@@ -232,6 +235,10 @@ def run() -> None:
             online_report = launch_and_record(tablet, 'playback-online', [])
         except RuntimeError as error:
             native_failures.append(str(error))
+            if not (OUT / 'playback-online.json').exists():
+                save_json(OUT / 'playback-online.json', {
+                    'done': True, 'success': False, 'phase': 'online', 'status': 'driver-failed',
+                    'error': str(error), 'boundary': 'Failure before native report; not App acceptance'})
         finally:
             # Independent host-side evidence, including failures before any
             # WebSocket connects. Do not replace the original native verdict.
@@ -277,6 +284,7 @@ def run() -> None:
         for form in FORMS:
             simulator = create(phone_type) if form == 'phone' else tablet
             # Activate an installed app before XCTest takes control of orientation.
+            apps.before_launch(simulator)
             simctl('launch', simulator, BUNDLE, '--lx-playback-smoke', '--lx-ui=table')
             method = 'testLandscape' if form == 'tablet' else 'testPortrait'
             command('/usr/bin/xcodebuild', 'test-without-building', '-project', str(ROOT / 'build/LXUIDriver.xcodeproj'),
