@@ -77,13 +77,43 @@ const loadResource = async({
 
 // Lease complete cached audio until the replacement player has opened its new
 // resource. Clearing/evicting the cache must not remove the current song.
+let libraryLoadGeneration = 0
+let cancelLibraryPreparation: (() => void) | undefined
+let releaseCurrentLibraryLease: (() => Promise<void>) | undefined
 export const loadPlaybackResource = async(args: Parameters<typeof loadResource>[0]) => {
+  const generation = ++libraryLoadGeneration
+  cancelLibraryPreparation?.(); cancelLibraryPreparation = undefined
   stopAudioCacheObservation()
+  if (args.url.startsWith('lx-library://')) {
+    const { decodeLibraryURL } = await import('@/core/library/reference')
+    const { prepareLibraryPlayback, releaseLibraryPlayback } = await import('@/core/library')
+    if (generation !== libraryLoadGeneration) throw new Error('音乐准备已被新的播放请求替代')
+    const pending = prepareLibraryPlayback(decodeLibraryURL(args.url))
+    cancelLibraryPreparation = pending.cancel
+    let resource: Awaited<typeof pending.promise> | undefined
+    try {
+      resource = await pending.promise
+      if (generation !== libraryLoadGeneration) throw new Error('音乐准备已被新的播放请求替代')
+      cancelLibraryPreparation = undefined
+      await loadResource({ ...args, url: resource.url })
+      const previous = releaseCurrentLibraryLease
+      const lease = resource.lease
+      releaseCurrentLibraryLease = async() => releaseLibraryPlayback(lease)
+      await previous?.()
+      return
+    } catch (error) {
+      if (resource) await releaseLibraryPlayback(resource.lease).catch(() => {})
+      throw error
+    }
+  }
   const url = await acquireAudioCacheURL(args.url)
   try {
+    if (generation !== libraryLoadGeneration) throw new Error('音乐加载已被新的播放请求替代')
     await loadResource({ ...args, url })
     void adoptAudioCacheURL(url).catch(error => { console.warn('[audio-cache] lease cleanup failed', String(error)) })
     observePlaybackAudioCache(args.musicInfo, url, args.quality)
+    const previous = releaseCurrentLibraryLease; releaseCurrentLibraryLease = undefined
+    await previous?.()
   } catch (error) {
     if (url != args.url) await releaseAudioCacheURL(url)
     throw error

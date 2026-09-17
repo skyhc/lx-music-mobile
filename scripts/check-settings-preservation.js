@@ -10,6 +10,15 @@ assert.equal(original.length, current.setting_files83)
 for (const file of [root + 'Main.tsx', root + 'settings/Search/index.tsx', root + 'settings/List/index.tsx', root + 'settings/Backup/index.tsx']) {
   if (!fs.existsSync(file)) continue
   const before = cp.execFileSync('git', ['show', baseline + ':' + file], { encoding: 'utf8' })
-  assert.equal(fs.readFileSync(file, 'utf8'), before, 'Unrelated settings section was rewritten: ' + file)
+  let now = fs.readFileSync(file, 'utf8')
+  if (file === root + 'Main.tsx') {
+    // User-requested Download settings registration is the only permitted delta.
+    for (const insertion of ["import DownloadSettings from './settings/Download'\n", "  'download',\n", "      case 'download': return <DownloadSettings />\n"]) {
+      assert.equal(now.split(insertion).length, 2, 'Missing/duplicate download settings registration')
+      now = now.replace(insertion, '')
+    }
+  }
+  assert.equal(now, before, 'Unrelated settings section was rewritten: ' + file)
 }
+assert.ok(fs.readFileSync(root + 'Vertical/Main.tsx', 'utf8').includes("case 'download': return <DownloadSettings />"), 'Portrait settings registration missing')
 console.log('PASS ' + original.length + ' original settings files retained; unrelated section entries unchanged.')

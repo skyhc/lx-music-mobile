@@ -20,6 +20,16 @@
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		A17800010000000000000001 /* LXWindowInsets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17800020000000000000001 /* LXWindowInsets.swift */; };
 		A17800010000000000000002 /* LXWindowInsetsBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A17800020000000000000002 /* LXWindowInsetsBridge.m */; };
+		83B5A673FF9012EB873A8FAF /* LXLibrarySupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71FC4A41495E7C6EEFE9BD58 /* LXLibrarySupport.swift */; };
+		C30FE9DA487CF3C0D450DA4F /* LXWebDAVCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD49F87364844BFCAD59DB3B /* LXWebDAVCore.swift */; };
+		FCF0D6AEEA96E3461ABEA5EA /* LXResumableTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9C1EADAED56E29CA4C26671 /* LXResumableTransfer.swift */; };
+		E0AD06F93E5FC461A4621654 /* LXPortableBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 186AB74F5BF15E411F8A8103 /* LXPortableBackup.swift */; };
+		75FAA058B5DE0A0BBD60D080 /* LXStorageSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B6D301DBC5A1DE76C1CB145 /* LXStorageSnapshot.swift */; };
+		3AA856AE708EDD7E6C579E2C /* LXRestoreCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D63C03A8767B2AC508BF1EDF /* LXRestoreCoordinator.swift */; };
+		0CBFD0F22CD728F11A070370 /* LXLibraryWorker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51435E16FE9A9BE983100C5F /* LXLibraryWorker.swift */; };
+		973E590139BF156EE3546205 /* LXLibraryServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B89BC9A7D6E072F5B97EA99 /* LXLibraryServices.swift */; };
+		173F14232B0004D8EF81E86B /* LXLibraryServicesBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = B8835D5B3E0FCB813B397FD3 /* LXLibraryServicesBridge.m */; };
+		BC8800020000000000000001 /* LXDiscArtwork.m in Sources */ = {isa = PBXBuildFile; fileRef = BC8800010000000000000001 /* LXDiscArtwork.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -55,6 +65,16 @@
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		A17800020000000000000001 /* LXWindowInsets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LXWindowInsets.swift; path = LxMusicMobile/LXWindowInsets.swift; sourceTree = "<group>"; };
 		A17800020000000000000002 /* LXWindowInsetsBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LXWindowInsetsBridge.m; path = LxMusicMobile/LXWindowInsetsBridge.m; sourceTree = "<group>"; };
+		71FC4A41495E7C6EEFE9BD58 /* LXLibrarySupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LxMusicMobile/LXLibrarySupport.swift; sourceTree = "<group>"; };
+		CD49F87364844BFCAD59DB3B /* LXWebDAVCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LxMusicMobile/LXWebDAVCore.swift; sourceTree = "<group>"; };
+		B9C1EADAED56E29CA4C26671 /* LXResumableTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LxMusicMobile/LXResumableTransfer.swift; sourceTree = "<group>"; };
+		186AB74F5BF15E411F8A8103 /* LXPortableBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LxMusicMobile/LXPortableBackup.swift; sourceTree = "<group>"; };
+		1B6D301DBC5A1DE76C1CB145 /* LXStorageSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LxMusicMobile/LXStorageSnapshot.swift; sourceTree = "<group>"; };
+		D63C03A8767B2AC508BF1EDF /* LXRestoreCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LxMusicMobile/LXRestoreCoordinator.swift; sourceTree = "<group>"; };
+		51435E16FE9A9BE983100C5F /* LXLibraryWorker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LxMusicMobile/LXLibraryWorker.swift; sourceTree = "<group>"; };
+		5B89BC9A7D6E072F5B97EA99 /* LXLibraryServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LxMusicMobile/LXLibraryServices.swift; sourceTree = "<group>"; };
+		B8835D5B3E0FCB813B397FD3 /* LXLibraryServicesBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LxMusicMobile/LXLibraryServicesBridge.m; sourceTree = "<group>"; };
+		BC8800010000000000000001 /* LXDiscArtwork.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LXDiscArtwork.m; path = LxMusicMobile/LXDiscArtwork.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -99,8 +119,18 @@
 		13B07FAE1A68108700A75B9A /* LxMusicMobile */ = {
 			isa = PBXGroup;
 			children = (
+				B8835D5B3E0FCB813B397FD3 /* LXLibraryServicesBridge.m */,
+				5B89BC9A7D6E072F5B97EA99 /* LXLibraryServices.swift */,
+				51435E16FE9A9BE983100C5F /* LXLibraryWorker.swift */,
+				D63C03A8767B2AC508BF1EDF /* LXRestoreCoordinator.swift */,
+				1B6D301DBC5A1DE76C1CB145 /* LXStorageSnapshot.swift */,
+				186AB74F5BF15E411F8A8103 /* LXPortableBackup.swift */,
+				B9C1EADAED56E29CA4C26671 /* LXResumableTransfer.swift */,
+				CD49F87364844BFCAD59DB3B /* LXWebDAVCore.swift */,
+				71FC4A41495E7C6EEFE9BD58 /* LXLibrarySupport.swift */,
 				13B07FAF1A68108700A75B9A /* AppDelegate.h */,
 				13B07FB01A68108700A75B9A /* AppDelegate.mm */,
+				BC8800010000000000000001 /* LXDiscArtwork.m */,
 				A17800020000000000000001 /* LXWindowInsets.swift */,
 				A17800020000000000000002 /* LXWindowInsetsBridge.m */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
@@ -413,6 +443,16 @@
 			buildActionMask = 2147483647;
 			files = (
 				13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */,
+				BC8800020000000000000001 /* LXDiscArtwork.m in Sources */,
+				173F14232B0004D8EF81E86B /* LXLibraryServicesBridge.m in Sources */,
+				973E590139BF156EE3546205 /* LXLibraryServices.swift in Sources */,
+				0CBFD0F22CD728F11A070370 /* LXLibraryWorker.swift in Sources */,
+				3AA856AE708EDD7E6C579E2C /* LXRestoreCoordinator.swift in Sources */,
+				75FAA058B5DE0A0BBD60D080 /* LXStorageSnapshot.swift in Sources */,
+				E0AD06F93E5FC461A4621654 /* LXPortableBackup.swift in Sources */,
+				FCF0D6AEEA96E3461ABEA5EA /* LXResumableTransfer.swift in Sources */,
+				C30FE9DA487CF3C0D450DA4F /* LXWebDAVCore.swift in Sources */,
+				83B5A673FF9012EB873A8FAF /* LXLibrarySupport.swift in Sources */,
 				A17800010000000000000001 /* LXWindowInsets.swift in Sources */,
 				A17800010000000000000002 /* LXWindowInsetsBridge.m in Sources */,
 				13B07FC11A68108700A75B9A /* main.m in Sources */,

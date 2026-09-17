@@ -1,54 +1,44 @@
-# Build88 migration progress — not a release
+# Build88 — combined feature batch; native acceptance pending
 
-Target repository: `skyhc/lx-music-mobile`, branch `master`.
-Original Build88 replay baseline: `f940d6eadd1574d091d85e6c940985f5acb22df1`.
+Repository: `skyhc/lx-music-mobile`, target `master`.
+Batch parent: `d2f36ee2bb6e2785dcc9e57dba5e8ec8f985dfcf`.
+Package intent: `1.9.0 / 88`; never replace the published Build87.
 
-## Verified baseline before this increment
+## Verified parent
 
-`c38dc3e2b716611cc1203c48af7ff62a6015992f` is the pre-increment `master` HEAD. Its full iOS workflow #93 / run `35131066440` and incremental run `35131066421` both completed successfully. The full run retained the historical TypeScript/settings/upstream checks, CocoaPods, simulator build, native online/offline playback, system-theme/restart checks, 54 screenshot gate, device Xcode archive and IPA/archive packaging. This evidence is simulator/CI evidence, not physical-device acceptance.
+Full iOS #95 / run `35167632349` and incremental `35167632362` succeeded on d2f36ee. That parent already included the dark playback bar, stable-ID My Lists locator, and CD/square cover selection. Its original native playback, DSP/FLAC, offline, theme/restart, sync, full-history checks, 54 screenshots, device archive and IPA passed. It was still package 1.9.0/87. The successful rerun does not establish the original #94 transient sync failure's root cause; d2 preserves diagnostics and verifies the fixture's actual protocol readiness.
 
-That successful build is still package `1.9.0 / 87`, is unsigned, and is an intermediate repair build. It is not Build88 and must not replace the existing Build87 Release.
+## User-requested single combined implementation
 
-The committed application changes already on `master` before this increment are the dark-theme bottom playback bar and stable-ID current-song location in My Lists. The full-player playlist remains out of scope and is protected by the existing queue regression gate.
+All remaining production paths are connected in this batch **before** starting the next complete iOS build. There is no per-feature Xcode submission. Local checks below do not mean Apple SDK, simulator, device archive or Release acceptance has occurred.
 
-## Current cover-style increment
+| Requirement | Production implementation | Required evidence |
+| --- | --- | --- |
+| Dark bottom dock; My Lists locate; CD/square | Preserve already committed production paths. Full-player queue remains unchanged. | Existing dock/My Lists/cover tests, original 54 native screenshots and new cover screenshots. |
+| WebDAV accounts and playlists | `LXLibraryServices` bridge and `LXLibraryWorker` actor; real Keychain accounts; HTTPS by default, explicit HTTP opt-in; actual PROPFIND directory UI, selection/import into normal My Lists; opaque credential-free music references. | Native HTTP core checks, real facade/UI tests, simulator account authentication, Unicode directory import and actual player timeline. |
+| Separate cache/traffic control | Five-minute bounded directory cache; independent verified audio cache with quota/LRU, protected playback leases and manual clear. Turning audio cache off re-fetches a complete temporary file; playback starts after preparation using the existing native player. No password or authenticated server URL is handed to TrackPlayer. | Independent server request counters, cache-on/off checks, MP3/FLAC replay, cold offline restart with fixture service stopped. |
+| Default-disabled downloads | Durable one-at-a-time queue, real existing-source URL resolution per attempt, selectable quality, pause/retry, conservative pause after app background/restart. Native strong-ETag/If-Range + locally hashed prefix enables verified resume; otherwise restart safely. Local file receipts and DAV staging/readback/Overwrite:F MOVE protect completed destinations. | 20 queue/storage groups; native real HTTP resume checks; simulator paused native transfer, server-observed 206, SHA-equal local/DAV outputs. |
+| Complete encrypted backup/restore | Password-derived PBKDF2-HMAC-SHA256 (600000 rounds) and chunked AES-256-GCM with authenticated manifest, ordered records and final marker. Full: Documents, Application Support, own app preferences/Keychain and optional Caches. Includes user sources, lists, settings, downloads and queue state. Playlist-only preserves unrelated current state. File/path/version/size/hash validation and cold pre-React-bridge journaled replacement with rollback until initialization acknowledgement. | Actual Apple CryptoKit/CommonCrypto test executable, independent PBKDF2 vector, corruption/password rejection, process-death rollback and post-credential failure rollback; actual simulator full/playlist restores across cold restarts. |
+| Final Release policy | `ios_release_policy.py` verifies same-source reports, original 54 and new five images, native tests, full App phases, source snapshot, app identity/Mach-O/ZIP CRC/SHA and byte-identical IPA/archive application. Only new Build88 is published from the same validated master build. | Fail-closed synthetic policy tests plus real full Actions reports and binary packages; GitHub read-back of exactly three custom assets. |
 
-This increment integrates the selectable Any Listen-inspired cover behaviour into the real React Native playback detail path without embedding Any Listen Svelte components or artwork:
+## Explicit data and transport boundaries
 
-- `playDetail.coverStyle` supports `square` and `cd`; the default remains `square`.
-- Portrait and landscape playback detail both render through the shared `PlayerCover` production component.
-- CD rotation uses the native animation driver and preserves phase across pause/resume.
-- Rotation is gated by playback state, foreground state, playback-detail visibility, the active portrait page, and iOS Reduce Motion.
-- A Player setting exposes `CD` and `正方形` selection.
-- `scripts/check-build88-cover.js` executes the production rotation helper, compiles the production component/layout/settings sources, and checks the lifecycle/accessibility wiring. The existing full-project TypeScript, player-queue, native playback, theme, sync, history and 54-screenshot gates remain in the full workflow.
+Backup files themselves (`Library/LXBackupExports`), pending restore journals, transient playback copies, operating-system permissions, signing identities and files outside the app that were never imported are not application backup contents. Credentials in portable backups are encrypted with the user's passphrase. This app's own WebDAV Keychain service is the only vault enumerated; system or unrelated services are not read. Device-only after-first-unlock protection permits legitimate background audio access. Production network errors do not return request URLs, headers or passwords.
 
-Local replay cross-check before submission confirms the selected cover production files are byte-identical to their verified checkpoint postimages, while their c38 preimages match the checkpoint preimages. The concise cover regression also passes locally. Xcode/native runtime acceptance for this new increment remains pending until the Actions run for its commit finishes; the current 54-shot suite does not by itself prove the CD visual state on a physical device.
+WebDAV PUT is not presented as universally resumable: retries reuse the fully verified local download, then retry an owned staging upload, full read-back SHA verification and no-overwrite MOVE. This verification consumes an extra remote read. Playback preparation downloads a complete supported audio file; the UI does not claim progressive streaming. Download execution is foreground-controlled; app background/restart pauses jobs and requires explicit continuation.
 
-## Sync failure investigation after Actions #94
+Restore stages without replacing live data. On the next cold start, before RCTBridge/AsyncStorage opens, the transaction retains original roots and credentials. A failed or unacknowledged initialization rolls back on the next cold start. Temporary interrupted transaction copies are retained, not silently deleted or labelled a successful restore. A playlist backup is never reported as full application data.
 
-Full iOS run `35142370694` (#94, source `e5ff8b0ee28af5a43356735374a1ab8c508c5475`) passed the pre-build checks and simulator compilation, but failed the first native unpaired-authentication expectation. Its old assertion collapsed any unexpected error into `unpaired client did not report missing code`. It did not preserve the actual error, and the server fixture only logged WebSocket connections, so those artifacts do not establish the underlying cause. Archive/IPA steps were skipped. The independent cover increment run passed; this does not prove all native checks passed.
+## Cross-checks before the batch submission
 
-This increment repairs that diagnostic loss without claiming the underlying native/network failure fixed:
+Round one used the actual d2 source ZIP commit marker, CRC/SHA, the pinned upstreams and the earlier checkpoint's pre/postimages. It traced directory/account controls to registered native commands, imported songs through the actual resource loader, downloads from existing music/list menus, and backup/restore through the live storage/list serialization barriers. It found and repaired directory-cancellation/credential-edit sequencing and restored-file protection for locked/background playback.
 
-- Both missing-code and wrong-code checks require the exact expected rejected error, record it on success, and preserve a redacted actual error/stage/status on failure. Resolved cancellation and unrelated errors still fail.
-- The CI fixture's health now verifies its actual `/hello` and `/id` protocol endpoints rather than returning success from an unrelated control port alone.
-- A bounded passive observer records only endpoint, HTTP status and timing. It does not capture headers, query strings, bodies, identifiers or keys. The driver saves it independently, including when native setup fails.
-- Ten executable diagnostics checks cover strict rejection, cause preservation, redaction, protocol readiness and a real local HTTP observer. These join both CI workflows without deleting existing gates or raising timeouts.
+Round two checked the full original requirement matrix and preservation boundaries. Original README, full player playlist, cache engine, Info.plist, native audio/DSP/FLAC/auth blocks and signature identity remain unchanged. The sole AppDelegate extension is explicitly accounted for by `native-build88-patch.json`: strip those exact five reviewed insertions/replacements and its entire historical SHA256 must still match. Existing history/type/settings/upstream assertions remain mandatory in CI; version expectations advance to the real new Build88 rather than being removed.
 
-The production sync protocol, credentials, app sources other than simulator-only tests, playback queue, signing identity, package 1.9.0/87 and published Build87 are unchanged. A new full Actions run is required to observe the real native result; no new native or binary success is predeclared.
+Local executable checks: queue/storage, facade/UI wiring and credential cancellation, original standalone regressions, native Foundation WebDAV/HTTP and resume behavior, fail-closed release-policy fixtures, full-project TypeScript, and a production iOS JavaScript bundle. The local bundle resolver only adapts the out-of-tree extracted node_modules layout; that adapter is not shipped or used in Actions. Apple-only crypto/native type-checks, actual new App acceptance, all-history comparisons, native screenshots, Xcode archive and final publication are still **pending the batch Actions run**.
 
-## Checkpoint material retained for later increments
+## Mandatory completion gates
 
-`LX-Music-Build88-WIP-Checkpoint.zip` was re-read from the supplied file reference and its SHA256 was rechecked as `4eea0969e08ef4ab23f8b8f4a8fca903595a164d694ecfceab499ce8c814715d`. Its WebDAV Foundation core and future publication-policy work remain useful replay material, but they are not treated as completed App features.
+The main workflow retains the original full suite and timeout, adds Apple native library checks and a separate real App library run, and only then builds the device archive. It embeds `LX-BUILD.json` in the unsigned app before making the IPA so both packages carry the same source/run marker. Publication rechecks master/tag/source identities and requires old and new acceptance reports plus binary consistency; no logs, screenshots, metadata JSON or source snapshots become Release assets.
 
-Remaining scope after the cover increment:
-
-- Register and bridge WebDAV in the actual app; add account storage, directory browsing, music-list import, actual playback and controllable caching/traffic behaviour.
-- Add playlist backup plus complete persistent application-data backup/restore, with protected credentials, format/version and integrity validation, and failure rollback. Playlist JSON alone is not complete-data backup.
-- Add the default-disabled LX Desktop-style download queue, including real App download execution, pause/retry/restart recovery, local destination and WebDAV destination. HTTP upload protocol tests are not App download acceptance.
-- Harden the future Release publisher so the body contains only update notes and system requirements and public assets are only IPA, xcarchive ZIP and at most one checksum text. Logs, screenshots, build metadata and reports stay in Actions.
-- Add targeted native/integration acceptance for each remaining production path and complete two requirement cross-checks before publication.
-
-## Completion boundary
-
-Do not report the whole Build88 request complete until all remaining features are connected to production paths, corresponding source/Xcode checks succeed, the package is advanced to the intended new build, IPA/archive source/version/identity/CRC/SHA consistency is verified, and a new Release is published under the restricted asset/body policy. Preserve the existing README icon/attribution/license material, signing identity, playback/offline/theme/shortcut/sync/full-history regressions and 54-screenshot gate. Do not use force push.
+Do not report overall completion or disable tracking merely because this code batch exists, an incremental check passes, or an older build succeeds. Required final evidence: the batch's actual Apple SDK and simulator gates, the original 54-image/full-history gates, successful device Xcode archive, matching Build88 IPA/xcarchive source/identity/version/CRC/SHA, and a publicly verified new Build88 Release. Simulator validation is not physical-device acceptance.

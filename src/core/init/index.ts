@@ -14,6 +14,8 @@ import settingState from '@/store/setting/state'
 import { checkUpdate } from '@/core/version'
 import { bootLog } from '@/utils/bootLog'
 import { cheatTip } from '@/utils/tools'
+import { Platform } from 'react-native'
+import { initializeLibrary, restoreStatus, acknowledgeRestore } from '@/core/library'
 
 let isFirstPush = true
 const handlePushedHomeScreen = async() => {
@@ -60,7 +62,14 @@ export default async() => {
   await initCommonState(setting)
   bootLog('Common State inited.')
 
-  void initSync(setting)
+  if (Platform.OS === 'ios') {
+    await initializeLibrary()
+    const restored = await restoreStatus()
+    // Do not automatically push restored playlists back to a connected server
+    // during its first validation boot. Saved sync configuration is retained.
+    if (restored.state !== 'awaitingAck') void initSync(setting)
+    await acknowledgeRestore()
+  } else void initSync(setting)
   bootLog('Sync inited.')
 
   // syncSetting()

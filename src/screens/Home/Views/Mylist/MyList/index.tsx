@@ -7,6 +7,8 @@ import List from './List'
 import ListImportExport, { type ListImportExportType } from './ListImportExport'
 import { handleRemove, handleSync } from './listAction'
 import ListMusicSort, { type ListMusicSortType } from './ListMusicSort'
+import Toolbar from './Toolbar'
+import listState from '@/store/list/state'
 import DuplicateMusic, { type DuplicateMusicType } from './DuplicateMusic'
 
 
@@ -38,6 +40,7 @@ export default ({ compact = false }: { compact?: boolean }) => {
   return (
     visible
       ? <>
+          <Toolbar onNew={() => listNameEditRef.current?.showCreate(listState.userList.length)} />
           <List compact={compact} onShowMenu={(info, position) => listMenuRef.current?.show(info, position)} />
           <ListNameEdit ref={listNameEditRef} />
           <ListMusicSort ref={listMusicSortRef} />

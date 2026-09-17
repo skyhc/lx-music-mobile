@@ -14,7 +14,8 @@ listenLaunchEvent()
 
 if (NativeModules.LXPlaybackTestSupport?.enabled) {
   // This module exists only in simulator builds and requires explicit launch args.
-  void import('./tests/playbackSmoke').then(test => test.run())
+  if (NativeModules.LXPlaybackTestSupport.libraryPhase) void import('./tests/librarySmoke').then(test => test.run())
+  else void import('./tests/playbackSmoke').then(test => test.run())
 } else {
 void Promise.all([getFontSize(), windowSizeTools.init()]).then(async([fontSize]) => {
   global.lx.fontSize = fontSize

@@ -1,3 +1,10 @@
+## iOS / iPadOS 1.9.0 Build 88
+
+- WebDAV资料库、可控缓存、默认关闭下载及本机/WebDAV目标。
+- 歌单和完整应用数据加密备份、冷启动恢复与失败回滚。
+- 深色底栏、MyLists当前歌曲定位、CD/正方形封面。
+- 完整范围及验证边界见 CHANGELOG_BUILD88.md。
+
 # iOS / iPadOS 移植更新日志
 
 ## iOS / iPadOS 1.9.0 Build 86 · 2026-09-14

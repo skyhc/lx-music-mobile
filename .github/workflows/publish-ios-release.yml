@@ -1,39 +1,17 @@
-name: Publish verified iOS Build87 and consolidate mainline
+name: Verify historical Build87 publication policy (read only)
 on:
-  push:
-    branches: [master]
-    paths:
-      - '.github/workflows/publish-ios-release.yml'
-      - 'scripts/publish_ios_release.py'
-      - 'scripts/check_ios_publication.py'
-      - 'docs/releases/build87.json'
-      - 'docs/releases/BUILD87.md'
   workflow_dispatch:
 permissions:
-  contents: write
-  actions: read
-concurrency:
-  group: publish-verified-ios-build87
-  cancel-in-progress: false
+  contents: read
 jobs:
-  publish:
+  historical-policy:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Check release validation and fail-closed branch selection
+      - name: Retain original publication validation without republishing Build87
         run: python3 scripts/check_ios_publication.py
-      - name: Verify and publish the original successful build, then archive old branches
-        run: python3 scripts/publish_ios_release.py
-      - name: Retain publication evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-build87-publication-${{ github.run_id }}
-          path: build/publication/RESULT.json
-          if-no-files-found: error
-          retention-days: 90
+      - name: Explain the new single-build publication path
+        run: |
+          echo 'The existing Build87 Release is retained unchanged.'
+          echo 'New Build88+ packages are published only by the complete iOS workflow after native and binary acceptance.'

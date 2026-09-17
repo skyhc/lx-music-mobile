@@ -5,6 +5,7 @@ import SongList from '../Views/SongList'
 import Mylist from '../Views/Mylist'
 import Leaderboard from '../Views/Leaderboard'
 import Setting from '../Views/Setting'
+import Library from '../Views/Library'
 import commonState, { type InitState as CommonState } from '@/store/common/state'
 import { createStyle } from '@/utils/tools'
 import PagerView, { type PageScrollStateChangedNativeEvent, type PagerViewOnPageSelectedEvent } from 'react-native-pager-view'
@@ -178,12 +179,22 @@ const SettingPage = () => {
   return visible ? component : null
 }
 
+const LibraryPage = () => {
+  const [visible, setVisible] = useState(commonState.navActiveId === 'nav_library')
+  useEffect(() => {
+    const update = (id: CommonState['navActiveId']) => { if (id === 'nav_library') setVisible(true) }
+    global.state_event.on('navActiveIdUpdated', update)
+    return () => { global.state_event.off('navActiveIdUpdated', update) }
+  }, [])
+  return visible ? <Library /> : null
+}
 const viewMap = {
   nav_search: 0,
   nav_songlist: 1,
   nav_top: 2,
   nav_love: 3,
   nav_setting: 4,
+  nav_library: 5,
 }
 const indexMap = [
   'nav_search',
@@ -191,6 +202,7 @@ const indexMap = [
   'nav_top',
   'nav_love',
   'nav_setting',
+  'nav_library',
 ] as const
 
 const Main = () => {
@@ -294,6 +306,9 @@ const Main = () => {
       </View>
       <View collapsable={false} key="nav_setting" style={styles.pageStyle}>
         <SettingPage />
+      </View>
+      <View collapsable={false} key="nav_library" style={styles.pageStyle}>
+        <LibraryPage />
       </View>
       {/* <View collapsable={false} key="nav_search" style={styles.pageStyle}>
         <Search />

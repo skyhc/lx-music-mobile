@@ -29,7 +29,7 @@ const encodeUriSafe = (uri: string) => {
   }
 }
 
-const normalizeUri = (url?: string | number | null) => {
+export const normalizeUri = (url?: string | number | null) => {
   if (typeof url != 'string') return url
   if (!url) return url
   if (url.startsWith('/')) return 'file://' + url

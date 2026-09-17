@@ -47,6 +47,7 @@ interface GlobalData {
    * 首页是否正在滚动中，用于防止意外误触播放歌曲
    */
   homePagerIdle: boolean
+  libraryDownloadsEnabled?: boolean
 
   // windowInfo: {
   //   screenW: number

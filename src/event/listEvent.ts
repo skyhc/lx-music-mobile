@@ -76,6 +76,12 @@ export class ListEvent extends Event {
     return result
   }
 
+  /** Hold the existing mutation queue through the entire application snapshot.
+   * Do not call another list mutation from task: it would reacquire this gate. */
+  async list_data_withSnapshot<T>(task: () => Promise<T>): Promise<T> {
+    return this.runMutation(task)
+  }
+
   /** A detached protocol snapshot, ordered after all earlier durable mutations. */
   async list_data_snapshot(): Promise<LX.Sync.List.ListData> {
     return this.runMutation(async() => {
