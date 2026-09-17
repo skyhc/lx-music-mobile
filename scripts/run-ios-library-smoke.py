@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib, json, math, os, re, shutil, struct, subprocess, sys, time, urllib.request, wave
 from pathlib import Path
 from simulator_app_lifecycle import OwnedSimulatorApps
+from library_process_evidence import LibraryProcessEvidence
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / 'build/checks'
@@ -76,7 +77,7 @@ def main():
     # to pause after observable native progress, not by sleeping blindly.
     with (audio / 'slow-resume.mp3').open('wb') as handle:
         handle.write((MEDIA / 'tone.mp3').read_bytes()); handle.write(b'\0' * (8 * 1024 * 1024))
-    simulator = None; server = None; reports = {}; failure = None
+    simulator = None; server = None; reports = {}; failure = None; evidence = None
     apps = OwnedSimulatorApps(sim, BUNDLE)
     with (OUT / 'library-dav-server.log').open('w') as log:
         try:
@@ -110,8 +111,10 @@ def main():
                 data = Path(sim('get_app_container', simulator, BUNDLE, 'data'))
                 raw_report = data / 'Documents/playback-smoke.json'
                 raw_report.unlink(missing_ok=True)  # only this fresh CI simulator's report
+                launched_at = time.time()
                 output = sim('launch', '--stdout=' + str(OUT / f'library-{phase}.out'), '--stderr=' + str(OUT / f'library-{phase}.err'),
                              simulator, BUNDLE, '--lx-playback-smoke', '--lx-library=' + phase)
+                evidence = LibraryProcessEvidence(OUT, simulator, BUNDLE, output, phase, launched_at)
                 limit = 300 if phase == 'online' else 180 if phase == 'full-restored' else 90
                 end = time.monotonic() + limit; last = None
                 while time.monotonic() < end:
@@ -120,6 +123,7 @@ def main():
                         if last.get('phase') == 'library-' + phase:
                             if last.get('done'): break
                     except (OSError, ValueError): pass
+                    evidence.observe(last)
                     time.sleep(.3)
                 if not last or last.get('phase') != 'library-' + phase or not last.get('done'):
                     save(OUT / f'library-{phase}.json', last or {'done': False, 'success': False, 'error': 'Report not created'})
@@ -149,6 +153,10 @@ def main():
             save(OUT / 'library-acceptance.json', record)
         except Exception as error:
             failure = error
+            if evidence is not None:
+                try: evidence.collect()
+                except Exception as diagnostic_error:
+                    print("DIAGNOSTIC-ONLY collection failed:", type(diagnostic_error).__name__, flush=True)
             save(OUT / 'library-acceptance.json', {'done': True, 'success': False, 'commit': os.environ.get('GITHUB_SHA'),
                                                 'run': os.environ.get('GITHUB_RUN_ID'), 'completedPhases': list(reports), 'error': str(error)})
             raise

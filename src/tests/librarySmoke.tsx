@@ -65,10 +65,12 @@ const writeState = async(value: Awaited<ReturnType<typeof saved>>) => RNFS.write
 export const run = async() => {
   const checks: Array<{ name: string, ok: boolean, detail: unknown }> = []
   let stage = 'launch'
-  const record = (done = false, error?: unknown) => support.record({ phase: `library-${phase}`, done, success: done && !error, stage, checks,
+  let substage = ''
+  const record = (done = false, error?: unknown) => support.record({ phase: `library-${phase}`, done, success: done && !error, stage, substage, checks,
     error: error ? String(error) : undefined, boundary: 'actual simulator App + synthetic loopback DAV; not physical-device acceptance' })
+  const at = async(name: string) => { substage = name; await record() }
   const check = async(name: string, task: () => Promise<unknown>, ms = 45000) => {
-    stage = name; await record()
+    stage = name; substage = ''; await record()
     const detail = await bounded(task(), name, ms)
     checks.push({ name, ok: true, detail: detail ?? null }); await record()
   }
@@ -176,12 +178,20 @@ export const run = async() => {
         await clearTrace(); await downloadQueue.enqueue([slow], { kind: 'local' })
         let id = downloadQueue.snapshot().jobs.at(-1)!.id
         await until(() => (downloadQueue.snapshot().jobs.find(j => j.id === id)?.received ?? 0) > 131072, 'Native transfer did not produce byte progress')
+        await at('pause active native transfer')
         await downloadQueue.pause(id)
         assert(downloadQueue.snapshot().jobs.find(j => j.id === id)?.status === 'paused', 'Pause not persisted')
-        await downloadQueue.retry(id); const job = await waitJob(id)
+        await at('restart verified native transfer')
+        await downloadQueue.retry(id)
+        await at('wait for native receipt and durable completed queue')
+        const job = await waitJob(id)
+        await at('resolve completed local file')
         const local = await localDownloadPath(job.result!.path)
+        await at('independent RNFS SHA verification')
         assert(await RNFS.hash(local, 'sha256') === job.result!.sha256, 'Local actual file SHA mismatch')
+        await at('independent server range verification')
         assert((await trace()).some(e => e.path === 'audio/slow-resume.mp3' && e.status === 206 && e.validatedRange), 'No validated HTTP range was observed')
+        await at('insert completed download into playlist')
         await addPublished(job.result!, playlist, job.music)
         return { received: job.result!.size, sha256: job.result!.sha256, validatedResume: true }
       }, 90000)
