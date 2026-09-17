@@ -145,11 +145,17 @@ enum LXFiles {
     return try JSONDecoder().decode(type, from: Data(contentsOf: url))
   }
   static func size(_ url: URL) throws -> Int64 {
-    let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
-    guard values.isRegularFile == true, values.isSymbolicLink != true, let bytes = values.fileSize else {
+    // URL resource values are cached. A resumable transfer intentionally keeps
+    // the same file URL while its verified prefix grows, so a cached fileSize
+    // can describe the old prefix after the FileHandle has appended new bytes.
+    // FileManager attributes read the current filesystem metadata and preserve
+    // the existing fail-closed rejection of symlinks/non-regular files.
+    let attributes = try fm.attributesOfItem(atPath: url.path)
+    guard attributes[.type] as? FileAttributeType == .typeRegular,
+      let bytes = attributes[.size] as? NSNumber else {
       throw LXLibraryError("文件类型不安全或文件不存在")
     }
-    return Int64(bytes)
+    return bytes.int64Value
   }
   static func hash(_ data: Data) -> String { SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
   static func hash(_ file: URL) throws -> String {

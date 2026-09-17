@@ -52,6 +52,20 @@ private struct Environment {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("lx-portable-tests-" + UUID().uuidString)
     try LXFiles.mkdir(root); defer { try? FileManager.default.removeItem(at: root) }
     let a = try Environment(root.appendingPathComponent("A")), b = try Environment(root.appendingPathComponent("B"))
+    // Prime Foundation URL metadata with a verified resume prefix, then grow the
+    // same path as LXResumableTransfer does. LXFiles.size must read the live file
+    // length rather than a stale URL resource-value cache entry.
+    let growing = root.appendingPathComponent("resume-growing.part")
+    let prefixBytes = 196608, finalBytes = 8629708
+    try Data(repeating: 0x41, count: prefixBytes).write(to: growing)
+    _ = try LXFiles.hash(growing)
+    let growHandle = try FileHandle(forWritingTo: growing)
+    try growHandle.seekToEnd(); try growHandle.write(contentsOf: Data(repeating: 0x42, count: finalBytes - prefixBytes)); try growHandle.close()
+    let growingHash = try LXFiles.hash(growing)
+    try check(try LXFiles.size(growing) == Int64(finalBytes) && LXFiles.verified(growing, size: Int64(finalBytes), hash: growingHash), "live file size and SHA verification observe resumed file growth after URL metadata is primed")
+    let growingLink = root.appendingPathComponent("resume-growing-link.part")
+    try FileManager.default.createSymbolicLink(at: growingLink, withDestinationURL: growing)
+    try rejected("live size lookup still rejects symbolic links") { _ = try LXFiles.size(growingLink) }
     let metadata: [String: String] = [
       "@user_list": "[{\"id\":\"personal\",\"name\":\"Personal\"}]", "@list__default": "[]", "@list__love": "[]",
       "@list__personal": "[{\"id\":\"webdav:dav:音频/song.mp3\",\"name\":\"track\",\"source\":\"local\",\"meta\":{\"library\":{\"kind\":\"webdav\",\"accountId\":\"dav\",\"path\":\"音频/song.mp3\"},\"filePath\":\"\(a.paths.documents.path)/own.mp3\"}}]",
